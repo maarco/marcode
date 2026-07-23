@@ -26,6 +26,7 @@ function node(input: {
   kind?: UnifiedWorkspaceNode["kind"];
   canHaveChildren?: boolean;
   canMove?: boolean;
+  isAmbient?: boolean;
 }): UnifiedWorkspaceNode {
   return {
     id: input.id,
@@ -35,6 +36,7 @@ function node(input: {
     depth: 0,
     children: input.children ?? [],
     isLive: false,
+    isAmbient: input.isAmbient ?? false,
     isBroken: false,
     canHaveChildren: input.canHaveChildren ?? true,
     canMove: input.canMove ?? true,
@@ -229,6 +231,22 @@ describe("resolveUnifiedWorkspaceMoveTarget + validateUnifiedWorkspaceMove", () 
     const result = validateUnifiedWorkspaceMove(
       { nodeId: q("dragged"), parentId: q("file-a"), beforeId: null },
       byId,
+    );
+    expect(result).toEqual({ ok: false, reason: "invalid-target" });
+  });
+
+  it("rejects moving into an ambient node — it has no persisted entry to nest under", () => {
+    const ambientFolder = node({
+      id: q("ambient-folder"),
+      parentId: null,
+      kind: "folder",
+      canHaveChildren: true,
+      isAmbient: true,
+    });
+    const localById = indexUnifiedWorkspaceNodesById([root, dragged, ambientFolder]);
+    const result = validateUnifiedWorkspaceMove(
+      { nodeId: q("dragged"), parentId: ambientFolder.id, beforeId: null },
+      localById,
     );
     expect(result).toEqual({ ok: false, reason: "invalid-target" });
   });

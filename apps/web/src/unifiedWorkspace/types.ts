@@ -45,6 +45,18 @@ export type UnifiedWorkspaceNode = {
   depth: number;
   children: readonly UnifiedWorkspaceNode[];
   isLive: boolean;
+  /**
+   * True for file/folder nodes projected live from the on-disk file index with
+   * no persisted `ProjectWorkspaceEntry` behind them — same "synthesized fresh
+   * every render, never written to the layout" contract as a live terminal/
+   * browser node, just sourced from disk instead of a runtime registry (spec
+   * override of §4: the project row and its folders show on-disk children
+   * without requiring attachment). `canMove`/`canRename`/`canRemove` are
+   * always `false` on these — there is no persisted entry to move, relabel,
+   * or remove; attaching the same path creates a separate, real entry that
+   * takes over rendering for that path (see `buildTree.ts`'s dedupe-by-path).
+   */
+  isAmbient: boolean;
   isBroken: boolean;
   canHaveChildren: boolean;
   canMove: boolean;
@@ -82,7 +94,13 @@ export type UnifiedWorkspaceCapabilities = {
 };
 
 export type UnifiedWorkspaceDiagnostic = {
-  code: "duplicate-id" | "missing-parent" | "cycle" | "invalid-target" | "stale-entry";
+  code:
+    | "duplicate-id"
+    | "missing-parent"
+    | "cycle"
+    | "invalid-target"
+    | "stale-entry"
+    | "index-truncated";
   nodeId: string;
   detail: string;
 };

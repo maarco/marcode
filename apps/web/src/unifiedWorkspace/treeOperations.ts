@@ -221,6 +221,11 @@ export function validateUnifiedWorkspaceMove(
     const parent = byId.get(target.parentId);
     if (!parent) return { ok: false, reason: "missing-target" };
     if (!parent.canHaveChildren) return { ok: false, reason: "invalid-target" };
+    // An ambient (disk-projected) node has no persisted entry to nest under —
+    // attach it first (spec override: attachment is now for pinning/nesting,
+    // not for gating visibility). The server would reject this as "parent
+    // does not exist" anyway; catching it here avoids the round trip.
+    if (parent.isAmbient) return { ok: false, reason: "invalid-target" };
 
     const draggedScope = unifiedWorkspaceNodeProjectScopeKey(target.nodeId);
     const parentScope = unifiedWorkspaceNodeProjectScopeKey(target.parentId);

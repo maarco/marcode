@@ -45,6 +45,7 @@ function node(input: {
     depth: input.depth ?? 0,
     children: input.children ?? [],
     isLive: false,
+    isAmbient: false,
     isBroken: input.isBroken ?? false,
     canHaveChildren: input.canHaveChildren ?? false,
     canMove: input.canMove ?? true,

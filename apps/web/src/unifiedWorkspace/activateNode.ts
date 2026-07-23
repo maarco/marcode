@@ -22,6 +22,12 @@ export interface UnifiedWorkspaceActivationOps {
    * `useHandleNewThread.ts`'s existing draft-reuse rule; never commits a
    * server thread by itself (spec §8 File: "never create a committed server
    * thread merely because a file row was single-clicked").
+   *
+   * `parentId` must be a persisted node's id (or `null`) — an ambient node
+   * has no persisted entry to nest under, so callers pass `null` for those
+   * (see the `file`/`folder` cases below). The server would reject a
+   * placement under an ambient id as "parent does not exist" anyway; this
+   * just avoids the doomed round trip and its error toast.
    */
   readonly ensureDraftThread: (input: { parentId: string | null }) => {
     readonly draftId: string;
@@ -126,12 +132,12 @@ export function activateUnifiedWorkspaceNode(input: UnifiedWorkspaceActivationIn
       return;
     }
     case "file": {
-      const threadId = resolveThreadIdForActivation(input, node.id);
+      const threadId = resolveThreadIdForActivation(input, node.isAmbient ? null : node.id);
       ops.openFile(threadId, node.activation.relativePath);
       return;
     }
     case "folder": {
-      const threadId = resolveThreadIdForActivation(input, node.id);
+      const threadId = resolveThreadIdForActivation(input, node.isAmbient ? null : node.id);
       ops.openFilesSurface(threadId);
       return;
     }

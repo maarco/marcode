@@ -14,6 +14,7 @@ function node(
     depth: 0,
     children: [],
     isLive: false,
+    isAmbient: false,
     isBroken: false,
     canHaveChildren: false,
     canMove: true,
@@ -189,6 +190,18 @@ describe("activateUnifiedWorkspaceNode — file thread-context resolution (spec 
     expect(ops.ensureDraftThread).toHaveBeenCalledWith({ parentId: fileNode.id });
     expect(ops.openFile).toHaveBeenCalledWith("thread-new", "src/a.ts");
   });
+
+  it("an ambient file has no persisted entry to nest under, so its draft placement is null, not its own id", () => {
+    const ops = makeOps();
+    const ambientFileNode = node({
+      id: "node:env-1:proj-1:ambient:src/a.ts",
+      isAmbient: true,
+      activation: { kind: "file", relativePath: "src/a.ts" },
+    });
+    activateUnifiedWorkspaceNode({ ...EMPTY_CONTEXT, node: ambientFileNode, ops });
+    expect(ops.ensureDraftThread).toHaveBeenCalledWith({ parentId: null });
+    expect(ops.openFile).toHaveBeenCalledWith("thread-new", "src/a.ts");
+  });
 });
 
 describe("activateUnifiedWorkspaceNode — folder", () => {
@@ -209,6 +222,20 @@ describe("activateUnifiedWorkspaceNode — folder", () => {
     });
     expect(ops.openFilesSurface).toHaveBeenCalledWith("t1");
     expect(ops.openFile).not.toHaveBeenCalled();
+  });
+
+  it("an ambient folder has no persisted entry to nest under, so its draft placement is null, not its own id", () => {
+    const ops = makeOps();
+    const ambientFolderNode = node({
+      id: "node:env-1:proj-1:ambient:src",
+      kind: "folder",
+      isAmbient: true,
+      activation: { kind: "folder", relativePath: "src" },
+      canHaveChildren: true,
+    });
+    activateUnifiedWorkspaceNode({ ...EMPTY_CONTEXT, node: ambientFolderNode, ops });
+    expect(ops.ensureDraftThread).toHaveBeenCalledWith({ parentId: null });
+    expect(ops.openFilesSurface).toHaveBeenCalledWith("thread-new");
   });
 });
 
