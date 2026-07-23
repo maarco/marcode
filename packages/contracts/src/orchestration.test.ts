@@ -8,9 +8,12 @@ import {
   ModelSelection,
   OrchestrationCommand,
   OrchestrationEvent,
+  OrchestrationEventType,
   OrchestrationGetFullThreadDiffInput,
   OrchestrationGetTurnDiffInput,
   OrchestrationLatestTurn,
+  OrchestrationProject,
+  OrchestrationProjectShell,
   ProjectCreatedPayload,
   ProjectMetaUpdatedPayload,
   OrchestrationProposedPlan,
@@ -741,5 +744,121 @@ it.effect("ModelSelection rejects malformed instance ids", () =>
       }),
     );
     assert.strictEqual(result._tag, "Failure");
+  }),
+);
+
+// --- Workspace layout additions (unified workspace tree sidebar) ---
+
+const decodeOrchestrationProject = Schema.decodeUnknownEffect(OrchestrationProject);
+const decodeOrchestrationProjectShell = Schema.decodeUnknownEffect(OrchestrationProjectShell);
+
+const legacyProjectWireShape = {
+  id: "project-1",
+  title: "Project One",
+  workspaceRoot: "/tmp/project-1",
+  defaultModelSelection: null,
+  scripts: [],
+  createdAt: "2026-01-01T00:00:00.000Z",
+  updatedAt: "2026-01-01T00:00:00.000Z",
+  deletedAt: null,
+};
+
+it("OrchestrationEventType includes project.workspace-layout-applied", () => {
+  assert.isTrue(Schema.is(OrchestrationEventType)("project.workspace-layout-applied"));
+});
+
+it.effect(
+  "OrchestrationProject decodes an old (pre-workspace-layout) payload with default version 0 and empty layout",
+  () =>
+    Effect.gen(function* () {
+      // This is the hard backward-compatibility acceptance criterion: old
+      // project.created/project.meta-updated events and old projection rows
+      // persisted before the workspace layout fields existed must still
+      // decode, falling back to an empty layout at version 0.
+      const parsed = yield* decodeOrchestrationProject(legacyProjectWireShape);
+      assert.strictEqual(parsed.workspaceLayoutVersion, 0);
+      assert.deepStrictEqual(parsed.workspaceLayout, []);
+    }),
+);
+
+it.effect("OrchestrationProject preserves an explicit non-empty workspace layout", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationProject({
+      ...legacyProjectWireShape,
+      workspaceLayoutVersion: 3,
+      workspaceLayout: [
+        {
+          kind: "folder",
+          id: "folder-1",
+          parentId: null,
+          rank: "a",
+          relativePath: "src",
+        },
+      ],
+    });
+    assert.strictEqual(parsed.workspaceLayoutVersion, 3);
+    assert.strictEqual(parsed.workspaceLayout.length, 1);
+    assert.strictEqual(parsed.workspaceLayout[0]?.kind, "folder");
+  }),
+);
+
+it.effect(
+  "OrchestrationProjectShell decodes an old (pre-workspace-layout) payload with default version 0 and empty layout",
+  () =>
+    Effect.gen(function* () {
+      const { deletedAt: _deletedAt, ...legacyShellWireShape } = legacyProjectWireShape;
+      const parsed = yield* decodeOrchestrationProjectShell(legacyShellWireShape);
+      assert.strictEqual(parsed.workspaceLayoutVersion, 0);
+      assert.deepStrictEqual(parsed.workspaceLayout, []);
+    }),
+);
+
+it.effect("OrchestrationCommand accepts project.workspace-layout.apply", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationCommand({
+      type: "project.workspace-layout.apply",
+      commandId: "cmd-1",
+      projectId: "project-1",
+      expectedVersion: 0,
+      operation: {
+        type: "add-url",
+        entry: {
+          kind: "url",
+          id: "url-1",
+          parentId: null,
+          rank: "a",
+          label: "Local app",
+          url: "http://localhost:3000",
+        },
+      },
+    });
+    assert.strictEqual(parsed.type, "project.workspace-layout.apply");
+  }),
+);
+
+it.effect("OrchestrationEvent decodes a project.workspace-layout-applied event", () =>
+  Effect.gen(function* () {
+    const parsed = yield* decodeOrchestrationEvent({
+      sequence: 1,
+      eventId: "event-1",
+      aggregateKind: "project",
+      aggregateId: "project-1",
+      occurredAt: "2026-01-01T00:00:00.000Z",
+      commandId: "cmd-1",
+      causationEventId: null,
+      correlationId: "cmd-1",
+      metadata: {},
+      type: "project.workspace-layout-applied",
+      payload: {
+        projectId: "project-1",
+        operation: { type: "remove", itemId: "item-1" },
+        layoutVersion: 1,
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+    assert.strictEqual(parsed.type, "project.workspace-layout-applied");
+    if (parsed.type === "project.workspace-layout-applied") {
+      assert.strictEqual(parsed.payload.layoutVersion, 1);
+    }
   }),
 );

@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./fractional-rank": {
+      "types": "./src/fractionalRank.ts",
+      "import": "./src/fractionalRank.ts"
+    },
     "./projectFavicon": {
       "types": "./src/projectFavicon.ts",
       "import": "./src/projectFavicon.ts"

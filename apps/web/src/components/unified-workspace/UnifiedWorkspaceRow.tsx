@@ -1,0 +1,438 @@
+import { useSortable } from "@dnd-kit/sortable";
+import type { ProjectScriptIcon } from "@t3tools/contracts";
+import {
+  BugIcon,
+  ChevronRightIcon,
+  ClipboardCheckIcon,
+  EllipsisIcon,
+  FileIcon,
+  FlaskConicalIcon,
+  FolderIcon,
+  Globe2Icon,
+  HammerIcon,
+  MessageSquareIcon,
+  PlayIcon,
+  SettingsIcon,
+  TerminalIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { memo, useCallback, useMemo, type KeyboardEvent, type MouseEvent } from "react";
+import type { UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
+import { cn } from "../../lib/utils";
+import {
+  ChangeRequestStatusIcon,
+  ThreadStatusLabel,
+  ThreadWorktreeIndicator,
+} from "../ThreadStatusIndicators";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import type { UnifiedWorkspaceDropZone } from "./UnifiedWorkspaceTree.logic";
+import { unifiedWorkspaceRowIndentStyle } from "./UnifiedWorkspaceTree.logic";
+import {
+  UW_TREE_DISCLOSURE_CLASS,
+  UW_TREE_DISCLOSURE_SPACER_CLASS,
+  UW_TREE_DROP_INSIDE_CLASS,
+  UW_TREE_DROP_LINE_CLASS,
+  UW_TREE_HOVER_ACTIONS_CLASS,
+  UW_TREE_ICON_CLASS,
+  UW_TREE_LABEL_CLASS,
+  UW_TREE_META_CLASS,
+  UW_TREE_ROW_CLASS,
+} from "./UnifiedWorkspaceTree.styles";
+
+/**
+ * Same taxonomy as `ProjectScriptIcon`, rendered in lucide's outline language
+ * instead of ProjectScriptsControl's `@aliimam` filled glyphs — mixing icon
+ * languages inside the tree would reintroduce the "bright rainbow" look §12.1
+ * explicitly forbids.
+ */
+const COMMAND_ICON_BY_SCRIPT_ICON: Record<ProjectScriptIcon, typeof PlayIcon> = {
+  play: PlayIcon,
+  test: FlaskConicalIcon,
+  lint: ClipboardCheckIcon,
+  configure: SettingsIcon,
+  build: HammerIcon,
+  debug: BugIcon,
+};
+
+/**
+ * Richer per-thread presentation data that the frozen `UnifiedWorkspaceNode`
+ * doesn't carry (session status beyond pending-approval/awaiting-input, PR
+ * state, worktree, remote-environment label, jump hints, relative time).
+ * Sidebar.tsx computes this with the exact same pure helpers/components the
+ * old flat thread list already used and passes it down per thread node id —
+ * this component still makes no store reads of its own.
+ */
+export interface UnifiedWorkspaceThreadRowExtras {
+  readonly statusPill: {
+    label: string;
+    colorClass: string;
+    dotClass: string;
+    pulse: boolean;
+  } | null;
+  readonly prStatus: { tooltip: string; url: string; colorClass: string } | null;
+  readonly terminalRunning: { label: string; colorClass: string; pulse: boolean } | null;
+  readonly remoteEnvironmentLabel: string | null;
+  readonly jumpLabel: string | null;
+  readonly relativeTimeLabel: string | null;
+  readonly worktreePath: string | null;
+  readonly branch: string | null;
+}
+
+export interface UnifiedWorkspaceRowDropIndicator {
+  readonly zone: UnifiedWorkspaceDropZone;
+}
+
+export interface UnifiedWorkspaceRowProps {
+  readonly node: UnifiedWorkspaceNode;
+  readonly isCollapsed: boolean;
+  readonly isFocused: boolean;
+  readonly isActive: boolean;
+  readonly isSelected: boolean;
+  readonly isDropTarget: UnifiedWorkspaceRowDropIndicator | null;
+  readonly threadExtras: UnifiedWorkspaceThreadRowExtras | null;
+  readonly commandIcon: ProjectScriptIcon | null;
+  readonly onToggleCollapse: (nodeId: string) => void;
+  readonly onActivate: (node: UnifiedWorkspaceNode, event: MouseEvent) => void;
+  readonly onFocusRow: (nodeId: string) => void;
+  readonly onRowKeyDown: (event: KeyboardEvent<HTMLDivElement>, node: UnifiedWorkspaceNode) => void;
+  readonly onRowContextMenu: (
+    event: MouseEvent<HTMLDivElement>,
+    node: UnifiedWorkspaceNode,
+  ) => void;
+  readonly onOpenRowMenu: (node: UnifiedWorkspaceNode, anchor: { x: number; y: number }) => void;
+  readonly onOpenPrLink: (event: MouseEvent, url: string) => void;
+  readonly registerRowElement: (nodeId: string, element: HTMLElement | null) => void;
+}
+
+function iconForNode(node: UnifiedWorkspaceNode, commandIcon: ProjectScriptIcon | null) {
+  if (node.isBroken) return TriangleAlertIcon;
+  switch (node.kind) {
+    case "file":
+      return FileIcon;
+    case "folder":
+      return FolderIcon;
+    case "thread":
+      return MessageSquareIcon;
+    case "terminal":
+      return TerminalIcon;
+    case "browser":
+    case "url":
+      return Globe2Icon;
+    case "command":
+      return commandIcon ? COMMAND_ICON_BY_SCRIPT_ICON[commandIcon] : PlayIcon;
+  }
+}
+
+/**
+ * The frozen `UnifiedWorkspaceStatus` union only carries hasPendingApprovals /
+ * hasPendingUserInput for thread-kind nodes (not Working/Connecting/Completed/
+ * Plan Ready — those need session/latestTurn/interactionMode, which aren't on
+ * the controller's node shape). When Sidebar.tsx supplies the fuller
+ * `threadExtras.statusPill` (computed with the existing `resolveThreadStatusPill`),
+ * prefer it and don't also render the controller's narrower pending badge —
+ * otherwise a pending-approval thread would show the same pill twice.
+ */
+function fallbackThreadStatusPill(
+  node: UnifiedWorkspaceNode,
+): { label: string; colorClass: string; dotClass: string; pulse: boolean } | null {
+  if (node.status?.kind !== "thread") return null;
+  if (node.status.hasPendingApprovals) {
+    return {
+      label: "Pending Approval",
+      colorClass: "text-amber-600 dark:text-amber-300/90",
+      dotClass: "bg-amber-500 dark:bg-amber-300/90",
+      pulse: false,
+    };
+  }
+  if (node.status.hasPendingUserInput) {
+    return {
+      label: "Awaiting Input",
+      colorClass: "text-indigo-600 dark:text-indigo-300/90",
+      dotClass: "bg-indigo-500 dark:bg-indigo-300/90",
+      pulse: false,
+    };
+  }
+  return null;
+}
+
+export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
+  props: UnifiedWorkspaceRowProps,
+) {
+  const {
+    node,
+    isCollapsed,
+    isFocused,
+    isActive,
+    isSelected,
+    isDropTarget,
+    threadExtras,
+    commandIcon,
+    onToggleCollapse,
+    onActivate,
+    onFocusRow,
+    onRowKeyDown,
+    onRowContextMenu,
+    onOpenRowMenu,
+    onOpenPrLink,
+    registerRowElement,
+  } = props;
+
+  const sortable = useSortable({
+    id: node.id,
+    data: { node },
+    disabled: !node.canMove,
+  });
+  const { attributes, listeners, setNodeRef, isDragging } = sortable;
+
+  const combinedNodeRef = useCallback(
+    (element: HTMLElement | null) => {
+      setNodeRef(element);
+      registerRowElement(node.id, element);
+    },
+    [node.id, registerRowElement, setNodeRef],
+  );
+
+  const handleClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      onFocusRow(node.id);
+      onActivate(node, event);
+    },
+    [node, onActivate, onFocusRow],
+  );
+
+  const handleDisclosureClick = useCallback(
+    (event: MouseEvent) => {
+      event.stopPropagation();
+      onToggleCollapse(node.id);
+    },
+    [node.id, onToggleCollapse],
+  );
+
+  const handleKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLDivElement>) => {
+      // Let dnd-kit's keyboard sensor see the event first (Space picks the row
+      // up for keyboard-driven reordering, arrows move it while picked up).
+      // Only handle tree navigation ourselves once dnd-kit declines the key.
+      listeners?.onKeyDown?.(event);
+      if (event.defaultPrevented) return;
+      onRowKeyDown(event, node);
+    },
+    [listeners, node, onRowKeyDown],
+  );
+
+  const handleContextMenu = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      onRowContextMenu(event, node);
+    },
+    [node, onRowContextMenu],
+  );
+
+  const handleFocus = useCallback(() => onFocusRow(node.id), [node.id, onFocusRow]);
+
+  const handleMenuButtonClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      onOpenRowMenu(node, { x: rect.left, y: rect.bottom + 2 });
+    },
+    [node, onOpenRowMenu],
+  );
+
+  const handlePrClick = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      if (!threadExtras?.prStatus) return;
+      onOpenPrLink(event, threadExtras.prStatus.url);
+    },
+    [onOpenPrLink, threadExtras],
+  );
+
+  const Icon = useMemo(() => iconForNode(node, commandIcon), [node, commandIcon]);
+  const indentStyle = useMemo(() => unifiedWorkspaceRowIndentStyle(node.depth), [node.depth]);
+  const statusPill = threadExtras?.statusPill ?? fallbackThreadStatusPill(node);
+
+  const dropZoneClassName =
+    isDropTarget?.zone === "inside"
+      ? UW_TREE_DROP_INSIDE_CLASS
+      : isDropTarget?.zone === "before"
+        ? `${UW_TREE_DROP_LINE_CLASS} -top-px`
+        : isDropTarget?.zone === "after"
+          ? `${UW_TREE_DROP_LINE_CLASS} -bottom-px`
+          : "";
+
+  return (
+    <div
+      ref={combinedNodeRef}
+      role="treeitem"
+      aria-level={node.depth + 1}
+      aria-expanded={node.canHaveChildren ? !isCollapsed : undefined}
+      aria-selected={isSelected}
+      tabIndex={isFocused ? 0 : -1}
+      data-active={isActive}
+      data-selected={isSelected}
+      data-broken={node.isBroken}
+      data-unified-workspace-row
+      data-node-id={node.id}
+      className={cn(UW_TREE_ROW_CLASS, isDragging && "opacity-40", dropZoneClassName)}
+      style={indentStyle}
+      {...attributes}
+      {...listeners}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
+      onContextMenu={handleContextMenu}
+      onFocus={handleFocus}
+    >
+      {node.canHaveChildren ? (
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-label={isCollapsed ? `Expand ${node.label}` : `Collapse ${node.label}`}
+          className={cn(UW_TREE_DISCLOSURE_CLASS, !isCollapsed && "rotate-90")}
+          onClick={handleDisclosureClick}
+        >
+          <ChevronRightIcon className="size-3" />
+        </button>
+      ) : (
+        <span aria-hidden="true" className={UW_TREE_DISCLOSURE_SPACER_CLASS} />
+      )}
+
+      {(node.kind === "browser" || node.kind === "url") && node.iconUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element -- tiny favicon, not a Next.js app
+        <img src={node.iconUrl} alt="" className="size-3.5 shrink-0 rounded-sm" />
+      ) : (
+        <Icon
+          className={cn(
+            UW_TREE_ICON_CLASS,
+            node.isBroken &&
+              "text-warning-foreground group-data-[active=true]/workspace-row:text-warning-foreground",
+          )}
+        />
+      )}
+
+      <Tooltip>
+        <TooltipTrigger render={<span className={UW_TREE_LABEL_CLASS}>{node.label}</span>} />
+        <TooltipPopup side="top" className="max-w-80 whitespace-normal leading-tight">
+          {node.isBroken
+            ? `Path not found: ${node.tooltip ?? node.label}`
+            : (node.tooltip ?? node.label)}
+        </TooltipPopup>
+      </Tooltip>
+
+      <span className={UW_TREE_META_CLASS}>
+        {node.isBroken && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  role="img"
+                  aria-label={`Path not found: ${node.tooltip ?? node.label}`}
+                  className="inline-flex items-center justify-center text-warning-foreground"
+                />
+              }
+            >
+              <TriangleAlertIcon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Path not found: {node.tooltip ?? node.label}</TooltipPopup>
+          </Tooltip>
+        )}
+        {node.status?.kind === "port" && <span className="tabular-nums">:{node.status.port}</span>}
+        {threadExtras?.prStatus && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={threadExtras.prStatus.tooltip}
+                  className={cn(
+                    "inline-flex items-center justify-center rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring",
+                    threadExtras.prStatus.colorClass,
+                  )}
+                  onClick={handlePrClick}
+                >
+                  <ChangeRequestStatusIcon className="size-3" />
+                </button>
+              }
+            />
+            <TooltipPopup side="top">{threadExtras.prStatus.tooltip}</TooltipPopup>
+          </Tooltip>
+        )}
+        {statusPill && <ThreadStatusLabel compact status={statusPill} />}
+        {threadExtras?.terminalRunning && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  role="img"
+                  aria-label={threadExtras.terminalRunning.label}
+                  className={cn(
+                    "inline-flex items-center justify-center",
+                    threadExtras.terminalRunning.colorClass,
+                  )}
+                />
+              }
+            >
+              <TerminalIcon
+                className={cn(
+                  "size-3",
+                  threadExtras.terminalRunning.pulse && "animate-status-pulse",
+                )}
+              />
+            </TooltipTrigger>
+            <TooltipPopup side="top">{threadExtras.terminalRunning.label}</TooltipPopup>
+          </Tooltip>
+        )}
+        {threadExtras?.worktreePath && (
+          <ThreadWorktreeIndicator
+            thread={{
+              id: node.id,
+              branch: threadExtras.branch,
+              worktreePath: threadExtras.worktreePath,
+            }}
+          />
+        )}
+        {threadExtras?.remoteEnvironmentLabel && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  aria-label={threadExtras.remoteEnvironmentLabel}
+                  className="inline-flex items-center justify-center"
+                />
+              }
+            >
+              <Globe2Icon className="size-3 text-muted-foreground/40" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">{threadExtras.remoteEnvironmentLabel}</TooltipPopup>
+          </Tooltip>
+        )}
+        {threadExtras?.jumpLabel ? (
+          <span className="inline-flex h-5 items-center rounded-full border border-border/80 bg-background/90 px-1.5 font-mono text-[10px] font-medium tracking-tight text-foreground shadow-sm">
+            {threadExtras.jumpLabel}
+          </span>
+        ) : threadExtras?.relativeTimeLabel ? (
+          <span className="tabular-nums">{threadExtras.relativeTimeLabel}</span>
+        ) : null}
+      </span>
+
+      <span className={UW_TREE_HOVER_ACTIONS_CLASS}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`More actions for ${node.label}`}
+                data-testid={`uw-row-menu-${node.id}`}
+                className="inline-flex size-5 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                onClick={handleMenuButtonClick}
+              />
+            }
+          >
+            <EllipsisIcon className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipPopup side="top">More actions</TooltipPopup>
+        </Tooltip>
+      </span>
+    </div>
+  );
+});

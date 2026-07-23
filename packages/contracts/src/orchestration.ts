@@ -7,6 +7,14 @@ import * as Struct from "effect/Struct";
 import { ProviderOptionSelections } from "./model.ts";
 import { RepositoryIdentity } from "./environment.ts";
 import {
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  ProjectWorkspaceEntry,
+  ProjectWorkspaceLayoutApplyCommand,
+  ProjectWorkspaceLayoutAppliedPayload,
+  ProjectWorkspaceLayoutVersion,
+} from "./projectWorkspace.ts";
+import {
   ApprovalRequestId,
   CheckpointRef,
   CommandId,
@@ -215,6 +223,18 @@ export const OrchestrationProject = Schema.Struct({
   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   scripts: Schema.Array(ProjectScript),
+  /**
+   * Sidebar workspace layout. Both fields decode with defaults so old
+   * `project.created`/`project.meta-updated` events and old projection rows
+   * (persisted before the unified workspace tree shipped) keep decoding —
+   * they simply come back with an empty layout at version 0.
+   */
+  workspaceLayoutVersion: ProjectWorkspaceLayoutVersion.pipe(
+    Schema.withDecodingDefault(Effect.succeed(INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION)),
+  ),
+  workspaceLayout: Schema.Array(ProjectWorkspaceEntry).pipe(
+    Schema.withDecodingDefault(Effect.succeed(EMPTY_PROJECT_WORKSPACE_LAYOUT)),
+  ),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   deletedAt: Schema.NullOr(IsoDateTime),
@@ -382,6 +402,13 @@ export const OrchestrationProjectShell = Schema.Struct({
   repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
   defaultModelSelection: Schema.NullOr(ModelSelection),
   scripts: Schema.Array(ProjectScript),
+  /** See `OrchestrationProject.workspaceLayoutVersion`/`workspaceLayout`. */
+  workspaceLayoutVersion: ProjectWorkspaceLayoutVersion.pipe(
+    Schema.withDecodingDefault(Effect.succeed(INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION)),
+  ),
+  workspaceLayout: Schema.Array(ProjectWorkspaceEntry).pipe(
+    Schema.withDecodingDefault(Effect.succeed(EMPTY_PROJECT_WORKSPACE_LAYOUT)),
+  ),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -696,6 +723,7 @@ const DispatchableClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
+  ProjectWorkspaceLayoutApplyCommand,
   ThreadCreateCommand,
   ThreadDeleteCommand,
   ThreadArchiveCommand,
@@ -717,6 +745,7 @@ export const ClientOrchestrationCommand = Schema.Union([
   ProjectCreateCommand,
   ProjectMetaUpdateCommand,
   ProjectDeleteCommand,
+  ProjectWorkspaceLayoutApplyCommand,
   ThreadCreateCommand,
   ThreadDeleteCommand,
   ThreadArchiveCommand,
@@ -819,6 +848,7 @@ export const OrchestrationEventType = Schema.Literals([
   "project.created",
   "project.meta-updated",
   "project.deleted",
+  "project.workspace-layout-applied",
   "thread.created",
   "thread.deleted",
   "thread.archived",
@@ -1048,6 +1078,11 @@ export const OrchestrationEvent = Schema.Union([
     ...EventBaseFields,
     type: Schema.Literal("project.deleted"),
     payload: ProjectDeletedPayload,
+  }),
+  Schema.Struct({
+    ...EventBaseFields,
+    type: Schema.Literal("project.workspace-layout-applied"),
+    payload: ProjectWorkspaceLayoutAppliedPayload,
   }),
   Schema.Struct({
     ...EventBaseFields,

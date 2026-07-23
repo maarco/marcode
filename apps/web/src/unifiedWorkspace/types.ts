@@ -1,0 +1,122 @@
+import type { ProjectWorkspaceLayoutErrorTag } from "@t3tools/contracts";
+
+/**
+ * Frozen seam between the runtime projection (Agent 3, `useUnifiedWorkspaceProject`)
+ * and the tree presentation (Agent 2, `components/unified-workspace/**`).
+ *
+ * Nodes are presentation-ready facts. Nothing here imports React, and nothing
+ * here holds a runtime object — placement and identity only.
+ */
+
+export type UnifiedWorkspaceNodeKind =
+  | "file"
+  | "folder"
+  | "thread"
+  | "terminal"
+  | "browser"
+  | "command"
+  | "url";
+
+/** Right-hand affordance on a row. Reuses existing status vocabularies. */
+export type UnifiedWorkspaceStatus =
+  | { kind: "thread"; threadId: string; hasPendingApprovals: boolean; hasPendingUserInput: boolean }
+  | { kind: "terminal"; terminalId: string; running: boolean }
+  | { kind: "browser"; tabId: string; loading: boolean }
+  | { kind: "port"; port: number }
+  | { kind: "broken"; relativePath: string };
+
+/** What clicking a row does. Resolved by `activateNode`, never by the component. */
+export type UnifiedWorkspaceActivation =
+  | { kind: "thread"; threadId: string }
+  | { kind: "file"; relativePath: string }
+  | { kind: "folder"; relativePath: string }
+  | { kind: "terminal"; threadId: string; terminalId: string }
+  | { kind: "browser"; threadId: string; tabId: string }
+  | { kind: "command"; scriptId: string }
+  | { kind: "url"; url: string }
+  | { kind: "none" };
+
+export type UnifiedWorkspaceNode = {
+  /** `node:<environmentId>:<projectId>:<projectWorkspaceItemId>` — unique across grouped projects. */
+  id: string;
+  kind: UnifiedWorkspaceNodeKind;
+  label: string;
+  parentId: string | null;
+  depth: number;
+  children: readonly UnifiedWorkspaceNode[];
+  isLive: boolean;
+  isBroken: boolean;
+  canHaveChildren: boolean;
+  canMove: boolean;
+  canRename: boolean;
+  canRemove: boolean;
+  activation: UnifiedWorkspaceActivation;
+  status: UnifiedWorkspaceStatus | null;
+  /** Favicon URL for browser/url nodes when the preview snapshot has one. */
+  iconUrl?: string;
+  /** Full path/URL for tooltips and copy actions. */
+  tooltip?: string;
+};
+
+export type UnifiedWorkspaceMoveTarget = {
+  nodeId: string;
+  parentId: string | null;
+  beforeId: string | null;
+};
+
+export type UnifiedWorkspaceMutationResult =
+  | { ok: true }
+  | { ok: false; tag: ProjectWorkspaceLayoutErrorTag | "offline" | "unsupported"; message: string };
+
+export type UnifiedWorkspaceAttachCandidate = {
+  relativePath: string;
+  kind: "file" | "folder";
+  /** True when this path is already attached; the dialog focuses the existing node instead. */
+  alreadyAttached: boolean;
+};
+
+/** Reasons the tree renders read-only (old server, feature-flag degradation, disconnected). */
+export type UnifiedWorkspaceCapabilities = {
+  canMutate: boolean;
+  reason: string | null;
+};
+
+export type UnifiedWorkspaceDiagnostic = {
+  code: "duplicate-id" | "missing-parent" | "cycle" | "invalid-target" | "stale-entry";
+  nodeId: string;
+  detail: string;
+};
+
+/**
+ * Returned by `useUnifiedWorkspaceProject({ environmentId, projectId })`.
+ * The tree component consumes this and callback props only — no RPC calls.
+ */
+export type UnifiedWorkspaceController = {
+  roots: readonly UnifiedWorkspaceNode[];
+  layoutVersion: number;
+  capabilities: UnifiedWorkspaceCapabilities;
+  diagnostics: readonly UnifiedWorkspaceDiagnostic[];
+
+  activateNode: (nodeId: string) => void;
+  moveNode: (target: UnifiedWorkspaceMoveTarget) => Promise<UnifiedWorkspaceMutationResult>;
+  attachPath: (input: {
+    kind: "file" | "folder";
+    relativePath: string;
+    parentId: string | null;
+  }) => Promise<UnifiedWorkspaceMutationResult>;
+  addUrlShortcut: (input: {
+    label: string;
+    url: string;
+    parentId: string | null;
+  }) => Promise<UnifiedWorkspaceMutationResult>;
+  renameNode: (nodeId: string, label: string) => Promise<UnifiedWorkspaceMutationResult>;
+  /** "Remove from sidebar" — never deletes the underlying resource. */
+  removeNode: (nodeId: string) => Promise<UnifiedWorkspaceMutationResult>;
+  createThread: (input: { parentId: string | null }) => void;
+  runCommand: (nodeId: string) => void;
+  /** Converts a live browser node into a durable URL shortcut. */
+  pinBrowserShortcut: (nodeId: string) => Promise<UnifiedWorkspaceMutationResult>;
+  /** Closes a live terminal/browser resource. Leaves layout untouched. */
+  closeLiveNode: (nodeId: string) => void;
+  listAttachCandidates: (kind: "file" | "folder") => readonly UnifiedWorkspaceAttachCandidate[];
+};
