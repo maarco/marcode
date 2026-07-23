@@ -1,5 +1,5 @@
 import * as React from "react";
-import type { ContextMenuItem } from "@t3tools/contracts";
+import type { ClientSettings, ContextMenuItem } from "@t3tools/contracts";
 import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
 import {
   getThreadSortTimestamp,
@@ -11,6 +11,55 @@ import type { SidebarThreadSummary, Thread } from "../types";
 import { cn } from "../lib/utils";
 import { isLatestTurnSettled } from "../session-logic";
 import { resolveServerBackedAppStageLabel } from "../branding.logic";
+
+/**
+ * Rollout flag for the unified workspace tree (spec §17). Default OFF.
+ *
+ * `ClientSettingsSchema` (packages/contracts/src/settings.ts) doesn't declare
+ * this field yet — adding it is a one-line schema change in `packages/**`,
+ * which is out of this lane's owned paths, so it isn't added here. This
+ * structural-typing extension reads the flag through the *same*
+ * `useClientSettings`/`useUpdateClientSettings` plumbing every other client
+ * setting already uses (not a new store) and needs zero changes on this side
+ * once the real field lands upstream.
+ *
+ * Known caveat until then: toggling the flag holds for the current tab
+ * session (the in-memory settings snapshot updates immediately) but does not
+ * survive a reload, because `ClientSettings` persistence
+ * (`clientPersistenceStorage.ts`) round-trips every read/write through
+ * `Schema.encode`/`Schema.decode` against `ClientSettingsSchema`, which
+ * silently drops keys the schema doesn't declare. Verified empirically:
+ * `Schema.encodeSync(ClientSettingsSchema)({ ...x, unifiedWorkspaceSidebar: true })`
+ * produces JSON without the extra key.
+ *
+ * The fix is additive and small — add to `ClientSettingsSchema` and
+ * `ClientSettingsPatch` in packages/contracts/src/settings.ts:
+ *   unifiedWorkspaceSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false)))
+ *   (and the matching `Schema.optionalKey(Schema.Boolean)` on the patch schema)
+ */
+export type ClientSettingsWithUnifiedWorkspaceFlag = ClientSettings & {
+  unifiedWorkspaceSidebar?: boolean;
+};
+
+export function isUnifiedWorkspaceSidebarEnabled(
+  settings: ClientSettingsWithUnifiedWorkspaceFlag,
+): boolean {
+  return settings.unifiedWorkspaceSidebar === true;
+}
+
+/**
+ * The tree replaces the flat thread list only when the project body is
+ * actually showing its full thread list — the "project collapsed but has one
+ * pinned active thread" preview row stays the existing flat single-row path
+ * unconditionally, so that narrow existing affordance isn't touched at all.
+ */
+export function shouldRenderUnifiedWorkspaceTree(input: {
+  featureEnabled: boolean;
+  projectExpanded: boolean;
+  hasPinnedCollapsedThread: boolean;
+}): boolean {
+  return input.featureEnabled && input.projectExpanded && !input.hasPinnedCollapsedThread;
+}
 
 export const THREAD_SELECTION_SAFE_SELECTOR = "[data-thread-item], [data-thread-selection-safe]";
 export const THREAD_JUMP_HINT_SHOW_DELAY_MS = 100;

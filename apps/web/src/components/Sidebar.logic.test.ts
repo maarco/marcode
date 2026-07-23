@@ -12,6 +12,7 @@ import {
   hasUnseenCompletion,
   isContextMenuPointerDown,
   isTrailingDoubleClick,
+  isUnifiedWorkspaceSidebarEnabled,
   orderItemsByPreferredIds,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadSeedContext,
@@ -20,11 +21,13 @@ import {
   resolveThreadRowClassName,
   resolveThreadStatusPill,
   shouldClearThreadSelectionOnMouseDown,
+  shouldRenderUnifiedWorkspaceTree,
   sortProjectsForSidebar,
   sortScopedProjectsForSidebar,
   THREAD_JUMP_HINT_SHOW_DELAY_MS,
 } from "./Sidebar.logic";
 import {
+  DEFAULT_CLIENT_SETTINGS,
   EnvironmentId,
   OrchestrationLatestTurn,
   ProjectId,
@@ -1204,5 +1207,65 @@ describe("sortScopedProjectsForSidebar", () => {
       "Visible project",
       "Archived-only project",
     ]);
+  });
+});
+
+describe("isUnifiedWorkspaceSidebarEnabled", () => {
+  it("defaults off when the flag is absent (old/unpatched ClientSettings)", () => {
+    expect(isUnifiedWorkspaceSidebarEnabled(DEFAULT_CLIENT_SETTINGS)).toBe(false);
+  });
+
+  it("is off when explicitly false", () => {
+    expect(
+      isUnifiedWorkspaceSidebarEnabled({ ...DEFAULT_CLIENT_SETTINGS, unifiedWorkspaceSidebar: false }),
+    ).toBe(false);
+  });
+
+  it("is on only when explicitly true", () => {
+    expect(
+      isUnifiedWorkspaceSidebarEnabled({ ...DEFAULT_CLIENT_SETTINGS, unifiedWorkspaceSidebar: true }),
+    ).toBe(true);
+  });
+});
+
+describe("shouldRenderUnifiedWorkspaceTree", () => {
+  it("is false when the feature flag is off, regardless of expansion", () => {
+    expect(
+      shouldRenderUnifiedWorkspaceTree({
+        featureEnabled: false,
+        projectExpanded: true,
+        hasPinnedCollapsedThread: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("is false while the project is collapsed", () => {
+    expect(
+      shouldRenderUnifiedWorkspaceTree({
+        featureEnabled: true,
+        projectExpanded: false,
+        hasPinnedCollapsedThread: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("stays on the flat single-row path when a thread is pinned while collapsed", () => {
+    expect(
+      shouldRenderUnifiedWorkspaceTree({
+        featureEnabled: true,
+        projectExpanded: false,
+        hasPinnedCollapsedThread: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("is true once the flag is on, the project is expanded, and nothing is pinned", () => {
+    expect(
+      shouldRenderUnifiedWorkspaceTree({
+        featureEnabled: true,
+        projectExpanded: true,
+        hasPinnedCollapsedThread: false,
+      }),
+    ).toBe(true);
   });
 });
