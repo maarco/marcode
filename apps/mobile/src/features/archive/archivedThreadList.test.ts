@@ -18,6 +18,8 @@ function makeProject(
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-01T00:00:00.000Z",
     ...input,
+    workspaceLayoutVersion: 0,
+    workspaceLayout: [],
   };
 }
 
