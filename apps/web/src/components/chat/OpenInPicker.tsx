@@ -1,15 +1,17 @@
 import { EditorId, type EnvironmentId, type ResolvedKeybindingsConfig } from "@t3tools/contracts";
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, type ComponentType } from "react";
 import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
 import { usePreferredEditor } from "../../editorPreferences";
-import { ChevronDownIcon, FolderClosedIcon } from "lucide-react";
+import { ChevronDownIcon } from "lucide-react";
+import { ExportFilled, FolderOpenFilled } from "@aliimam/icons";
 import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
 import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "../ui/menu";
+import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
+import { PillTooltip, pillIconButtonClass, pillMenuRowClass } from "../FloatingPillNav";
 import {
   AntigravityIcon,
   CursorIcon,
-  Icon,
   KiroIcon,
   TraeIcon,
   VisualStudioCode,
@@ -35,9 +37,17 @@ import { cn, isMacPlatform, isWindowsPlatform } from "~/lib/utils";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
 
+/**
+ * Every glyph here is rendered with exactly these two props, and the list mixes
+ * hand-drawn brand marks (`Icon`, a bare `SVGProps` component) with `@aliimam`
+ * icons (which narrow `strokeWidth` to `number`). Typing the slot by what it is
+ * actually called with is what lets both kinds sit in one array.
+ */
+type OpenInGlyph = ComponentType<{ className?: string; "aria-hidden"?: "true" }>;
+
 type OpenInOption = {
   label: string;
-  Icon: Icon;
+  Icon: OpenInGlyph;
   value: EditorId;
   kind: "brand" | "generic";
 };
@@ -170,7 +180,11 @@ const resolveOptions = (platform: string, availableEditors: ReadonlyArray<Editor
         : isWindowsPlatform(platform)
           ? "Explorer"
           : "Files",
-      Icon: FolderClosedIcon,
+      // The pill (and its popover) is @aliimam filled-only; the lucide outline
+      // that used to sit here read thinner than every glyph beside it.
+      // `FolderOpenFilled`, not `FolderFilled` — that one is the workspace
+      // Files panel, and these two must not look like the same action.
+      Icon: FolderOpenFilled,
       value: "file-manager",
       kind: "generic",
     },
@@ -190,6 +204,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   openInCwd,
   compact = false,
   enableShortcut = true,
+  flat = false,
 }: {
   environmentId: EnvironmentId;
   keybindings: ResolvedKeybindingsConfig;
@@ -197,6 +212,8 @@ export const OpenInPicker = memo(function OpenInPicker({
   openInCwd: string | null;
   compact?: boolean;
   enableShortcut?: boolean;
+  /** render one direct button per installed editor instead of split button + menu */
+  flat?: boolean;
 }) {
   const openInEditorMutation = useAtomCommand(shellEnvironment.openInEditor, "open in editor");
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
@@ -255,6 +272,84 @@ export const OpenInPicker = memo(function OpenInPicker({
     openInEditorMutation,
     preferredEditor,
   ]);
+
+  // A disabled control has to say why it is disabled, or it reads as a dead
+  // button. Both reasons are real states: a thread with no resolved working
+  // directory, and a host with no editor the app knows how to launch.
+  const openInDisabledReason = !openInCwd
+    ? "This thread has no working directory yet."
+    : !preferredEditor
+      ? "No supported editor was found on this machine."
+      : null;
+
+  if (flat) {
+    // With no editor installed the card would list nothing, and a disabled button
+    // never fires the hover that opens it — so the blocked form is a plain pill
+    // carrying the reason in the same tooltip every other pill control uses.
+    if (openInDisabledReason !== null) {
+      return (
+        <PillTooltip
+          label={openInDisabledReason}
+          render={
+            <button
+              type="button"
+              aria-label="Open in editor"
+              aria-disabled="true"
+              className={pillIconButtonClass()}
+            >
+              <ExportFilled aria-hidden="true" className="size-4" />
+            </button>
+          }
+        />
+      );
+    }
+    // Collapsed to a single pill button: click opens the preferred editor, hover
+    // reveals a card with every installed editor. Rendering one button per editor
+    // blew the pill past the viewport on narrow screens.
+    return (
+      <Popover>
+        <PopoverTrigger
+          openOnHover
+          render={
+            <button
+              type="button"
+              aria-label="Open in editor"
+              className={pillIconButtonClass()}
+              onClick={() => openInEditor(preferredEditor)}
+            />
+          }
+        >
+          <ExportFilled aria-hidden="true" className="size-4" />
+        </PopoverTrigger>
+        <PopoverPopup align="center" className="p-1" side="bottom">
+          <div aria-label="Open in editor" className="flex min-w-40 flex-col">
+            {options.map(({ label, Icon, value, kind }) => (
+              <button
+                key={value}
+                type="button"
+                disabled={!openInCwd}
+                aria-label={`Open in ${label}`}
+                title={openInCwd ? `Open in ${label}` : "This thread has no working directory yet."}
+                className={pillMenuRowClass()}
+                onClick={() => openInEditor(value)}
+              >
+                <Icon
+                  aria-hidden="true"
+                  className={cn("size-4 shrink-0", getOpenInIconClass(kind))}
+                />
+                <span className="flex-1 truncate">{label}</span>
+                {value === preferredEditor && openFavoriteEditorShortcutLabel ? (
+                  <span className="text-[10px] text-foreground/40 dark:text-white/40">
+                    {openFavoriteEditorShortcutLabel}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </PopoverPopup>
+      </Popover>
+    );
+  }
 
   return (
     <Group aria-label="Open in editor">

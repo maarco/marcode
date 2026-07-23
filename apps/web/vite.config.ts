@@ -137,6 +137,13 @@ export default defineConfig(() => {
     resolve: {
       tsconfigPaths: true,
       dedupe: ["react", "react-dom"],
+      alias: {
+        // @aliimam/icons@1.1.3 ships `main: dist/index.cjs` but never publishes
+        // that file, so node-style resolution (vitest) fails. Point at the ESM
+        // build it does ship — dev/build already picked it via `module`.
+        "@aliimam/icons": new URL("./node_modules/@aliimam/icons/dist/index.mjs", import.meta.url)
+          .pathname,
+      },
     },
     experimental: {
       bundledDev,

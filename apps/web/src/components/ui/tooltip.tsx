@@ -1,5 +1,9 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
+import {
+  PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
+  portalOverlayStyle,
+} from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 
 const TooltipCreateHandle = TooltipPrimitive.createHandle;
@@ -31,10 +35,14 @@ function TooltipPopup({
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
-        className="pointer-events-none z-50 h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none"
+        className={cn(
+          "pointer-events-none h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
+          PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
+        )}
         data-slot="tooltip-positioner"
         side={side}
         sideOffset={sideOffset}
+        style={portalOverlayStyle()}
       >
         <TooltipPrimitive.Popup
           className={cn(

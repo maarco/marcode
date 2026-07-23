@@ -2,6 +2,7 @@
 
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
@@ -18,14 +19,15 @@ function SheetClose(props: SheetPrimitive.Close.Props) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />;
 }
 
-function SheetBackdrop({ className, ...props }: SheetPrimitive.Backdrop.Props) {
+function SheetBackdrop({ className, style, ...props }: SheetPrimitive.Backdrop.Props) {
   return (
     <SheetPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-50 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="sheet-backdrop"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );
@@ -34,6 +36,7 @@ function SheetBackdrop({ className, ...props }: SheetPrimitive.Backdrop.Props) {
 function SheetViewport({
   className,
   side,
+  style,
   variant = "default",
   ...props
 }: SheetPrimitive.Viewport.Props & {
@@ -43,7 +46,7 @@ function SheetViewport({
   return (
     <SheetPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-50 grid",
+        "fixed inset-0 grid",
         side === "bottom" && "grid grid-rows-[1fr_auto] pt-12",
         side === "top" && "grid grid-rows-[auto_1fr] pb-12",
         side === "left" && "flex justify-start",
@@ -52,6 +55,7 @@ function SheetViewport({
         className,
       )}
       data-slot="sheet-viewport"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );

@@ -2,6 +2,10 @@
 
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 
+import {
+  PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
+  portalOverlayStyle,
+} from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 
 const PopoverCreateHandle = PopoverPrimitive.createHandle;
@@ -42,10 +46,14 @@ function PopoverPopup({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50 h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none"
+        className={cn(
+          "h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
+          PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
+        )}
         data-slot="popover-positioner"
         side={side}
         sideOffset={sideOffset}
+        style={portalOverlayStyle()}
       >
         <PopoverPrimitive.Popup
           className={cn(

@@ -3,6 +3,7 @@
 import { Autocomplete as AutocompletePrimitive } from "@base-ui/react/autocomplete";
 import { ChevronsUpDownIcon, XIcon } from "lucide-react";
 
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 import { Input } from "~/components/ui/input";
 import { ScrollArea } from "~/components/ui/scroll-area";
@@ -97,7 +98,8 @@ function AutocompletePopup({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50 select-none"
+        className="select-none"
+        style={portalOverlayStyle()}
         data-slot="autocomplete-positioner"
         side={side}
         sideOffset={sideOffset}

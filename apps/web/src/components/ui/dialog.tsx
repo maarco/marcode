@@ -2,6 +2,7 @@
 
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { ScrollArea } from "~/components/ui/scroll-area";
@@ -20,28 +21,30 @@ function DialogClose(props: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
-function DialogBackdrop({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+function DialogBackdrop({ className, style, ...props }: DialogPrimitive.Backdrop.Props) {
   return (
     <DialogPrimitive.Backdrop
       forceRender
       className={cn(
-        "fixed inset-0 z-50 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="dialog-backdrop"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );
 }
 
-function DialogViewport({ className, ...props }: DialogPrimitive.Viewport.Props) {
+function DialogViewport({ className, style, ...props }: DialogPrimitive.Viewport.Props) {
   return (
     <DialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-50 grid grid-rows-[1fr_auto_1fr] justify-items-center p-4",
+        "fixed inset-0 grid grid-rows-[1fr_auto_1fr] justify-items-center p-4",
         className,
       )}
       data-slot="dialog-viewport"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );

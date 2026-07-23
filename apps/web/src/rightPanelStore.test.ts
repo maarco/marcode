@@ -316,6 +316,60 @@ describe("rightPanelStore", () => {
     expect(state.activeSurfaceId).toBe("terminal:term-2");
   });
 
+  it("hands every drawer group over to the panel, splits and focus intact", () => {
+    useRightPanelStore
+      .getState()
+      .openTerminalGroups(
+        refA,
+        [
+          { terminalIds: ["term-1"] },
+          { terminalIds: ["term-2", "term-3"], splitDirection: "vertical" },
+          { terminalIds: ["term-4"] },
+        ],
+        "term-3",
+      );
+
+    const state = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(state.surfaces).toEqual([
+      {
+        id: "terminal:term-1",
+        kind: "terminal",
+        resourceId: "term-1",
+        terminalIds: ["term-1"],
+        activeTerminalId: "term-1",
+      },
+      {
+        id: "terminal:term-2",
+        kind: "terminal",
+        resourceId: "term-2",
+        terminalIds: ["term-2", "term-3"],
+        activeTerminalId: "term-3",
+        splitDirection: "vertical",
+      },
+      {
+        id: "terminal:term-4",
+        kind: "terminal",
+        resourceId: "term-4",
+        terminalIds: ["term-4"],
+        activeTerminalId: "term-4",
+      },
+    ]);
+    expect(state.activeSurfaceId).toBe("terminal:term-2");
+  });
+
+  it("falls back to the first group when the active terminal is not in any of them", () => {
+    useRightPanelStore
+      .getState()
+      .openTerminalGroups(refA, [{ terminalIds: ["term-1"] }, { terminalIds: ["term-2"] }], "gone");
+
+    const state = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(state.surfaces.map((surface) => surface.id)).toEqual([
+      "terminal:term-1",
+      "terminal:term-2",
+    ]);
+    expect(state.activeSurfaceId).toBe("terminal:term-1");
+  });
+
   it("tracks split panes and the active pane within a terminal surface", () => {
     useRightPanelStore.getState().openTerminal(refA, "term-1");
     useRightPanelStore.getState().splitTerminal(refA, "terminal:term-1", "term-2");

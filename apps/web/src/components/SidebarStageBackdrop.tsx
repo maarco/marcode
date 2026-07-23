@@ -11,11 +11,9 @@ export type SidebarStageBackdropVariant = "nightly" | "dev";
 const STAGE_BACKDROP_VIEW_BOX = "0 0 8192 96";
 
 export function resolveSidebarStageBackdropVariant(
-  stageLabel: string,
+  _stageLabel: string,
 ): SidebarStageBackdropVariant | null {
-  const normalized = stageLabel.trim().toLowerCase();
-  if (normalized === "nightly") return "nightly";
-  if (normalized === "dev") return "dev";
+  // Marcode flat chrome: stage-channel header art disabled on every surface.
   return null;
 }
 

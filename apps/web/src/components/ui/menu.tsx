@@ -4,6 +4,7 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu";
 import { ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
 
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 
 const MenuCreateHandle = MenuPrimitive.createHandle;
@@ -42,10 +43,10 @@ function MenuPopup({
         align={align}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50"
         data-slot="menu-positioner"
         side={side}
         sideOffset={sideOffset}
+        style={portalOverlayStyle()}
       >
         <MenuPrimitive.Popup
           className={cn(

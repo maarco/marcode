@@ -7,6 +7,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { ChevronDownIcon, ChevronsUpDownIcon, ChevronUpIcon } from "lucide-react";
 import type * as React from "react";
 
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 
 const Select = SelectPrimitive.Root;
@@ -132,7 +133,8 @@ function SelectPopup({
         alignItemWithTrigger={alignItemWithTrigger}
         alignOffset={alignOffset}
         anchor={anchor}
-        className="z-50 select-none"
+        className="select-none"
+        style={portalOverlayStyle()}
         data-slot="select-positioner"
         side={side}
         sideOffset={sideOffset}

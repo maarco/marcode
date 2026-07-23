@@ -54,6 +54,19 @@ interface RightPanelStoreState {
   openBrowser: (ref: ScopedThreadRef, tabId: string | null) => void;
   openFile: (ref: ScopedThreadRef, relativePath: string, line?: number) => void;
   openTerminal: (ref: ScopedThreadRef, terminalId: string) => void;
+  /**
+   * Hand a whole drawer's worth of terminals over to the panel — one surface per
+   * drawer group, splits intact. `openTerminal` takes a single id, so a placement
+   * change that used it dropped every terminal but the active one.
+   */
+  openTerminalGroups: (
+    ref: ScopedThreadRef,
+    groups: ReadonlyArray<{
+      readonly terminalIds: readonly string[];
+      readonly splitDirection?: "horizontal" | "vertical";
+    }>,
+    activeTerminalId: string,
+  ) => void;
   splitTerminal: (
     ref: ScopedThreadRef,
     surfaceId: string,
@@ -112,13 +125,26 @@ const fileSurface = (
   revealRequestId,
 });
 
-const terminalSurface = (terminalId: string): RightPanelSurface => ({
-  id: `terminal:${terminalId}`,
-  kind: "terminal",
-  resourceId: terminalId,
-  terminalIds: [terminalId],
-  activeTerminalId: terminalId,
-});
+const terminalGroupSurface = (
+  terminalIds: readonly string[],
+  activeTerminalId: string,
+  splitDirection?: "horizontal" | "vertical",
+): RightPanelSurface => {
+  // The surface is identified by its first terminal, the way a split surface keeps
+  // the id of the terminal it grew from.
+  const anchorId = terminalIds[0] ?? activeTerminalId;
+  return {
+    id: `terminal:${anchorId}`,
+    kind: "terminal",
+    resourceId: anchorId,
+    terminalIds: [...terminalIds],
+    activeTerminalId,
+    ...(splitDirection === "vertical" ? { splitDirection: "vertical" as const } : {}),
+  };
+};
+
+const terminalSurface = (terminalId: string): RightPanelSurface =>
+  terminalGroupSurface([terminalId], terminalId);
 
 const upsertSurface = (
   current: ThreadRightPanelState,
@@ -291,6 +317,31 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
           byThreadKey: updateThread(state.byThreadKey, scopedThreadKey(ref), (current) =>
             upsertSurface(current, terminalSurface(terminalId)),
           ),
+        })),
+      openTerminalGroups: (ref, groups, activeTerminalId) =>
+        set((state) => ({
+          byThreadKey: updateThread(state.byThreadKey, scopedThreadKey(ref), (current) => {
+            const populated = groups.filter((group) => group.terminalIds.length > 0);
+            if (populated.length === 0)
+              return upsertSurface(current, terminalSurface(activeTerminalId));
+            // Activate the group the drawer had focused; if the active terminal is
+            // not in any of them, fall back to the first so the panel never opens
+            // on a surface the user was not looking at.
+            const activeIndex = Math.max(
+              populated.findIndex((group) => group.terminalIds.includes(activeTerminalId)),
+              0,
+            );
+            return populated.reduce((acc, group, index) => {
+              const active = group.terminalIds.includes(activeTerminalId)
+                ? activeTerminalId
+                : group.terminalIds[0]!;
+              return upsertSurface(
+                acc,
+                terminalGroupSurface(group.terminalIds, active, group.splitDirection),
+                index === activeIndex,
+              );
+            }, current);
+          }),
         })),
       splitTerminal: (ref, surfaceId, terminalId, direction = "horizontal") =>
         set((state) => ({

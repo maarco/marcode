@@ -3,6 +3,7 @@
 import { Dialog as CommandDialogPrimitive } from "@base-ui/react/dialog";
 import { SearchIcon } from "lucide-react";
 import type * as React from "react";
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 import {
   Autocomplete,
@@ -26,27 +27,37 @@ function CommandDialogTrigger(props: CommandDialogPrimitive.Trigger.Props) {
   return <CommandDialogPrimitive.Trigger data-slot="command-dialog-trigger" {...props} />;
 }
 
-function CommandDialogBackdrop({ className, ...props }: CommandDialogPrimitive.Backdrop.Props) {
+function CommandDialogBackdrop({
+  className,
+  style,
+  ...props
+}: CommandDialogPrimitive.Backdrop.Props) {
   return (
     <CommandDialogPrimitive.Backdrop
       className={cn(
-        "fixed inset-0 z-50 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="command-dialog-backdrop"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );
 }
 
-function CommandDialogViewport({ className, ...props }: CommandDialogPrimitive.Viewport.Props) {
+function CommandDialogViewport({
+  className,
+  style,
+  ...props
+}: CommandDialogPrimitive.Viewport.Props) {
   return (
     <CommandDialogPrimitive.Viewport
       className={cn(
-        "pointer-events-none fixed inset-0 z-50 flex flex-col items-center px-4 py-[max(--spacing(4),4vh)] sm:py-[10vh]",
+        "pointer-events-none fixed inset-0 flex flex-col items-center px-4 py-[max(--spacing(4),4vh)] sm:py-[10vh]",
         className,
       )}
       data-slot="command-dialog-viewport"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );

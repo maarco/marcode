@@ -2143,8 +2143,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
           ref={composerSurfaceRef}
           data-chat-composer-mobile-collapsed={isComposerCollapsedMobile ? "true" : "false"}
           className={cn(
-            "chat-composer-glass rounded-[20px] border transition-[background-color] duration-200 has-focus-visible:border-ring/45",
-            isDragOverComposer ? "border-primary/70 bg-accent/45" : "border-border",
+            // Borderless by default — the glass surface + shadow carry the edge.
+            // Drag-over still draws one, since that's the only cue the drop is live.
+            "chat-composer-glass rounded-[20px] border transition-[background-color] duration-200",
+            isDragOverComposer ? "border-primary/70 bg-accent/45" : "border-transparent",
             projectSelectionRequired ? "opacity-75" : null,
             composerProviderState.composerSurfaceClassName,
           )}

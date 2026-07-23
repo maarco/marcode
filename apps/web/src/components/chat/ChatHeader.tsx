@@ -15,21 +15,19 @@ import ProjectScriptsControl, {
   type ProjectScriptActionResult,
 } from "../ProjectScriptsControl";
 import { OpenInPicker } from "./OpenInPicker";
+import { usePillNavNarrow } from "../FloatingPillNav";
 import { usePrimaryEnvironmentId } from "../../state/environments";
-import { cn } from "~/lib/utils";
 
-interface ChatHeaderProps {
+interface ThreadActionsClusterProps {
   activeThreadEnvironmentId: EnvironmentId;
   activeThreadId: ThreadId;
   draftId?: DraftId;
-  activeThreadTitle: string;
   activeProjectName: string | undefined;
   openInCwd: string | null;
   activeProjectScripts: ReadonlyArray<ProjectScript> | undefined;
   preferredScriptId: string | null;
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
-  rightPanelOpen: boolean;
   gitCwd: string | null;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
@@ -38,6 +36,10 @@ interface ChatHeaderProps {
     input: NewProjectScriptInput,
   ) => Promise<ProjectScriptActionResult>;
   onDeleteProjectScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
+}
+
+interface ChatHeaderProps {
+  activeThreadTitle: string;
 }
 
 export function shouldShowOpenInPicker(input: {
@@ -52,30 +54,69 @@ export function shouldShowOpenInPicker(input: {
   );
 }
 
-export const ChatHeader = memo(function ChatHeader({
+/** Thread action cluster (scripts / open-in / git) — portaled into the pill nav by ChatView. */
+export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   activeThreadEnvironmentId,
   activeThreadId,
   draftId,
-  activeThreadTitle,
   activeProjectName,
   openInCwd,
   activeProjectScripts,
   preferredScriptId,
   keybindings,
   availableEditors,
-  rightPanelOpen,
   gitCwd,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
   onDeleteProjectScript,
-}: ChatHeaderProps) {
+}: ThreadActionsClusterProps) {
   const primaryEnvironmentId = usePrimaryEnvironmentId();
+  // The cluster is portaled into the pill's scroll row, so it collapses on the
+  // same signal the pill uses to become a narrow rail.
+  const narrow = usePillNavNarrow();
   const showOpenInPicker = shouldShowOpenInPicker({
     activeProjectName,
     activeThreadEnvironmentId,
     primaryEnvironmentId,
   });
+  return (
+    <>
+      {activeProjectScripts && (
+        <ProjectScriptsControl
+          scripts={activeProjectScripts}
+          keybindings={keybindings}
+          preferredScriptId={preferredScriptId}
+          onRunScript={onRunProjectScript}
+          onAddScript={onAddProjectScript}
+          onUpdateScript={onUpdateProjectScript}
+          onDeleteScript={onDeleteProjectScript}
+          flat
+        />
+      )}
+      {showOpenInPicker && (
+        <OpenInPicker
+          environmentId={activeThreadEnvironmentId}
+          keybindings={keybindings}
+          availableEditors={availableEditors}
+          openInCwd={openInCwd}
+          flat
+        />
+      )}
+      {activeProjectName && (
+        <GitActionsControl
+          gitCwd={gitCwd}
+          activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
+          {...(draftId ? { draftId } : {})}
+          collapsed={narrow}
+          flat
+        />
+      )}
+    </>
+  );
+});
+
+export const ChatHeader = memo(function ChatHeader({ activeThreadTitle }: ChatHeaderProps) {
   return (
     <div className="@container/header-actions flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
       <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3">
@@ -92,40 +133,6 @@ export const ChatHeader = memo(function ChatHeader({
           />
           <TooltipPopup side="top">{activeThreadTitle}</TooltipPopup>
         </Tooltip>
-      </div>
-      <div
-        data-chat-header-actions
-        className={cn(
-          "flex shrink-0 items-center justify-end gap-2 @3xl/header-actions:gap-3",
-          rightPanelOpen ? "pr-0" : "pr-16",
-        )}
-      >
-        {activeProjectScripts && (
-          <ProjectScriptsControl
-            scripts={activeProjectScripts}
-            keybindings={keybindings}
-            preferredScriptId={preferredScriptId}
-            onRunScript={onRunProjectScript}
-            onAddScript={onAddProjectScript}
-            onUpdateScript={onUpdateProjectScript}
-            onDeleteScript={onDeleteProjectScript}
-          />
-        )}
-        {showOpenInPicker && (
-          <OpenInPicker
-            environmentId={activeThreadEnvironmentId}
-            keybindings={keybindings}
-            availableEditors={availableEditors}
-            openInCwd={openInCwd}
-          />
-        )}
-        {activeProjectName && (
-          <GitActionsControl
-            gitCwd={gitCwd}
-            activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
-            {...(draftId ? { draftId } : {})}
-          />
-        )}
       </div>
     </div>
   );

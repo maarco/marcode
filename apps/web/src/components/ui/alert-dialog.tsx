@@ -2,6 +2,7 @@
 
 import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog";
 
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 
 const AlertDialogCreateHandle = AlertDialogPrimitive.createHandle;
@@ -14,28 +15,30 @@ function AlertDialogTrigger(props: AlertDialogPrimitive.Trigger.Props) {
   return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;
 }
 
-function AlertDialogBackdrop({ className, ...props }: AlertDialogPrimitive.Backdrop.Props) {
+function AlertDialogBackdrop({ className, style, ...props }: AlertDialogPrimitive.Backdrop.Props) {
   return (
     <AlertDialogPrimitive.Backdrop
       forceRender
       className={cn(
-        "fixed inset-0 z-50 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
+        "fixed inset-0 bg-background/60 backdrop-blur-xs transition-all duration-200 data-ending-style:opacity-0 data-starting-style:opacity-0",
         className,
       )}
       data-slot="alert-dialog-backdrop"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );
 }
 
-function AlertDialogViewport({ className, ...props }: AlertDialogPrimitive.Viewport.Props) {
+function AlertDialogViewport({ className, style, ...props }: AlertDialogPrimitive.Viewport.Props) {
   return (
     <AlertDialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-50 grid grid-rows-[1fr_auto_1fr] justify-items-center p-4",
+        "fixed inset-0 grid grid-rows-[1fr_auto_1fr] justify-items-center p-4",
         className,
       )}
       data-slot="alert-dialog-viewport"
+      style={portalOverlayStyle(style)}
       {...props}
     />
   );

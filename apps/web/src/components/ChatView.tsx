@@ -53,7 +53,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { flushSync } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
 import { useShallow } from "zustand/react/shallow";
 import {
@@ -113,6 +113,11 @@ import {
 import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
 import { isCommandPaletteOpen } from "../commandPaletteContext";
+import {
+  PILL_THREAD_ACTIONS_SLOT_ID,
+  WORKSPACE_ACTION_EVENT,
+  type WorkspaceAction,
+} from "./FloatingPillNav";
 import { buildTemporaryWorktreeBranchName } from "@t3tools/shared/git";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../rightPanelLayout";
@@ -207,7 +212,9 @@ import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { MessagesTimeline } from "./chat/MessagesTimeline";
-import { ChatHeader } from "./chat/ChatHeader";
+import { ChatHeader, ThreadActionsCluster } from "./chat/ChatHeader";
+import { FloatingTerminalShell } from "./FloatingTerminalShell";
+import { usePillNavPreferences } from "~/editor/pill-prefs";
 import { PanelLayoutControls, RightPanelMaximizeControl } from "./chat/PanelLayoutControls";
 import { type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { NoActiveThreadState } from "./NoActiveThreadState";
@@ -665,6 +672,10 @@ const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerminalDra
   const storeSetActiveTerminal = useTerminalUiStateStore((state) => state.setActiveTerminal);
   const storeCloseTerminal = useTerminalUiStateStore((state) => state.closeTerminal);
   const reconcileTerminalIds = useTerminalUiStateStore((state) => state.reconcileTerminalIds);
+  const storeSetTerminalOpenForThread = useTerminalUiStateStore((state) => state.setTerminalOpen);
+  const terminalPlacement = usePillNavPreferences((state) => state.prefs.terminalPlacement);
+  const openRightPanelTerminalGroups = useRightPanelStore((state) => state.openTerminalGroups);
+  const closeRightPanelSurface = useRightPanelStore((state) => state.closeSurface);
 
   useEffect(() => {
     if (terminalIdListsEqual(serverOrderedTerminalIds, terminalUiState.terminalIds)) {
@@ -860,8 +871,92 @@ const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerminalDra
     [onAddTerminalContext, visible],
   );
 
+  // Placement "right" is hosted by the right panel, not here. If the preference
+  // says right but no terminal surface exists yet (fresh load, or the surface was
+  // closed), open it — otherwise the terminal silently has nowhere to render.
+  useEffect(() => {
+    const surfaces =
+      useRightPanelStore.getState().byThreadKey[scopedThreadKey(threadRef)]?.surfaces ?? [];
+    // The right panel persists its own surfaces, so on reload it can still be
+    // holding the terminal after the preference moved to floating or bottom —
+    // and whichever surface exists wins, so the floating panel never mounts and
+    // the terminal appears not to have moved at all. Reconcile BOTH directions:
+    // exactly one host owns the terminal at a time.
+    if (terminalPlacement !== "right") {
+      for (const surface of surfaces) {
+        if (surface.kind === "terminal") closeRightPanelSurface(threadRef, surface.id);
+      }
+      return;
+    }
+    if (!terminalUiState.terminalOpen) return;
+    if (surfaces.some((surface) => surface.kind === "terminal")) return;
+    // One panel surface per drawer group. Handing over only the active terminal
+    // left the thread's other sessions running with nowhere to render.
+    openRightPanelTerminalGroups(
+      threadRef,
+      terminalUiState.terminalGroups,
+      terminalUiState.activeTerminalId,
+    );
+  }, [
+    closeRightPanelSurface,
+    openRightPanelTerminalGroups,
+    terminalPlacement,
+    terminalUiState.activeTerminalId,
+    terminalUiState.terminalGroups,
+    terminalUiState.terminalOpen,
+    threadRef,
+  ]);
+
   if (!project || !terminalUiState.terminalOpen || !cwd) {
     return null;
+  }
+
+  // Floating mode is the same drawer in a draggable window — the PTY transport,
+  // splits, context capture and link handling are untouched by the swap.
+  // "right" is the app's existing right-panel surface (it reflows the page);
+  // "bottom" is the docked drawer below. Only "floating" is this component's window.
+  if (terminalPlacement === "right") {
+    return null;
+  }
+
+  if (terminalPlacement === "floating") {
+    return (
+      <FloatingTerminalShell
+        scopeKey={scopedThreadKey(threadRef)}
+        title={project.title ? `Terminal — ${project.title}` : "Terminal"}
+        onClose={() => storeSetTerminalOpenForThread(threadRef, false)}
+      >
+        <ThreadTerminalDrawer
+          mode="floating"
+          threadRef={threadRef}
+          threadId={threadId}
+          cwd={cwd}
+          worktreePath={effectiveWorktreePath}
+          runtimeEnv={runtimeEnv}
+          visible={visible}
+          height={terminalUiState.terminalHeight}
+          terminalIds={terminalUiState.terminalIds}
+          activeTerminalId={terminalUiState.activeTerminalId}
+          terminalGroups={terminalUiState.terminalGroups}
+          activeTerminalGroupId={terminalUiState.activeTerminalGroupId}
+          focusRequestId={focusRequestId + localFocusRequestId + (visible ? 1 : 0)}
+          onSplitTerminal={splitTerminal}
+          onSplitTerminalVertical={splitTerminalVertical}
+          onNewTerminal={createNewTerminal}
+          splitShortcutLabel={visible ? splitShortcutLabel : undefined}
+          splitVerticalShortcutLabel={visible ? splitVerticalShortcutLabel : undefined}
+          newShortcutLabel={visible ? newShortcutLabel : undefined}
+          closeShortcutLabel={visible ? closeShortcutLabel : undefined}
+          onActiveTerminalChange={activateTerminal}
+          onCloseTerminal={closeTerminal}
+          onHeightChange={setTerminalHeight}
+          onAddTerminalContext={handleAddTerminalContext}
+          keybindings={keybindings}
+          terminalLabelsById={terminalLabelsById}
+          terminalLaunchLocationsById={terminalLaunchLocationsById}
+        />
+      </FloatingTerminalShell>
+    );
   }
 
   return (
@@ -3964,6 +4059,43 @@ function ChatViewContent(props: ChatViewProps) {
     composerRef,
   ]);
 
+  // the floating pill nav's workspace category drives thread surfaces via this event
+  useEffect(() => {
+    const onWorkspaceAction = (event: Event) => {
+      const action = (event as CustomEvent<{ action?: WorkspaceAction }>).detail?.action;
+      if (!action || !activeThreadRef) return;
+      switch (action) {
+        case "terminal":
+          toggleTerminalVisibility();
+          return;
+        case "diff":
+          onToggleDiff();
+          return;
+        case "panel":
+          toggleRightPanel();
+          return;
+        case "files":
+          if (activeProject !== null) {
+            useRightPanelStore.getState().toggle(activeThreadRef, "files");
+          }
+          return;
+        case "browser":
+          if (isPreviewSupportedInRuntime()) {
+            useRightPanelStore.getState().toggle(activeThreadRef, "preview");
+          }
+          return;
+      }
+    };
+    window.addEventListener(WORKSPACE_ACTION_EVENT, onWorkspaceAction);
+    return () => window.removeEventListener(WORKSPACE_ACTION_EVENT, onWorkspaceAction);
+  }, [activeProject, activeThreadRef, onToggleDiff, toggleRightPanel, toggleTerminalVisibility]);
+
+  // pill nav slot that hosts the thread actions cluster (resolved after both trees mount)
+  const [pillThreadActionsSlot, setPillThreadActionsSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    setPillThreadActionsSlot(document.getElementById(PILL_THREAD_ACTIONS_SLOT_ID));
+  }, []);
+
   const onRevertToTurnCount = useCallback(
     async (turnCount: number) => {
       const localApi = readLocalApi();
@@ -5101,17 +5233,17 @@ function ChatViewContent(props: ChatViewProps) {
       onToggleRightPanel={toggleRightPanel}
     />
   );
-  const panelLayoutControls = (
-    <div className="workspace-titlebar-controls z-50 gap-1 [-webkit-app-region:no-drag]">
-      {rightPanelOpen && !shouldUsePlanSidebarSheet ? (
+  // the standalone header toggles moved into the pill nav's workspace category;
+  // only the maximize control remains, shown while the panel is open
+  const panelLayoutControls =
+    rightPanelOpen && !shouldUsePlanSidebarSheet ? (
+      <div className="workspace-titlebar-controls z-50 gap-1 [-webkit-app-region:no-drag]">
         <RightPanelMaximizeControl
           maximized={rightPanelMaximized}
           onToggle={toggleRightPanelMaximized}
         />
-      ) : null}
-      {panelToggleControls}
-    </div>
-  );
+      </div>
+    ) : null;
   const rightPanelContent = activeThreadRef ? (
     activeRightPanelSurface?.kind === "preview" ? (
       <Suspense fallback={null}>
@@ -5189,7 +5321,7 @@ function ChatViewContent(props: ChatViewProps) {
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
-      {rightPanelOpen && !shouldUsePlanSidebarSheet ? panelLayoutControls : null}
+      {panelLayoutControls}
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-col overflow-x-hidden",
@@ -5213,28 +5345,33 @@ function ChatViewContent(props: ChatViewProps) {
             COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
           )}
         >
-          {!rightPanelOpen ? panelLayoutControls : null}
-          <ChatHeader
-            activeThreadEnvironmentId={activeThread.environmentId}
-            activeThreadId={activeThread.id}
-            {...(routeKind === "draft" && draftId ? { draftId } : {})}
-            activeThreadTitle={activeThread.title}
-            activeProjectName={activeProject?.title}
-            openInCwd={gitCwd}
-            activeProjectScripts={activeProject?.scripts}
-            preferredScriptId={
-              activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
-            }
-            keybindings={keybindings}
-            availableEditors={availableEditors}
-            rightPanelOpen={rightPanelOpen}
-            gitCwd={gitCwd}
-            onRunProjectScript={runProjectScript}
-            onAddProjectScript={saveProjectScript}
-            onUpdateProjectScript={updateProjectScript}
-            onDeleteProjectScript={deleteProjectScript}
-          />
+          <ChatHeader activeThreadTitle={activeThread.title} />
         </header>
+
+        {/* thread actions live in the pill nav's workspace slot */}
+        {pillThreadActionsSlot
+          ? createPortal(
+              <ThreadActionsCluster
+                activeThreadEnvironmentId={activeThread.environmentId}
+                activeThreadId={activeThread.id}
+                {...(routeKind === "draft" && draftId ? { draftId } : {})}
+                activeProjectName={activeProject?.title}
+                openInCwd={gitCwd}
+                activeProjectScripts={activeProject?.scripts}
+                preferredScriptId={
+                  activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
+                }
+                keybindings={keybindings}
+                availableEditors={availableEditors}
+                gitCwd={gitCwd}
+                onRunProjectScript={runProjectScript}
+                onAddProjectScript={saveProjectScript}
+                onUpdateProjectScript={updateProjectScript}
+                onDeleteProjectScript={deleteProjectScript}
+              />,
+              pillThreadActionsSlot,
+            )
+          : null}
 
         {/* Error banner */}
         <ProviderStatusBanner status={activeProviderStatus} />

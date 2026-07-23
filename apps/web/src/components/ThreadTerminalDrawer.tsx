@@ -1,17 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
 import { FitAddon } from "@xterm/addon-fit";
+import { SearchAddon, type ISearchOptions } from "@xterm/addon-search";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import {
-  Plus,
-  SquareSplitHorizontal,
-  SquareSplitVertical,
-  TerminalSquare,
-  Trash2,
-  XIcon,
-} from "lucide-react";
 import {
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,
@@ -20,8 +13,10 @@ import {
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import {
+  Fragment,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
   useCallback,
   useEffect,
@@ -30,9 +25,30 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
-import { cn } from "~/lib/utils";
+// Terminal chrome is filled-icon only, one family. Lucide outlines used to be
+// mixed in here; they read thinner than everything else in the pill surfaces.
+import {
+  AddSquareFilled,
+  ArrowDownFilled,
+  ArrowUp1Filled,
+  CloseSquareFilled,
+  Code1Filled,
+  FullFilled,
+  RowHorizontalFilled,
+  RowVerticalFilled,
+  SearchNormal1Filled,
+  SidebarBottomFilled,
+  SidebarRightFilled,
+} from "@aliimam/icons";
+import { usePillNavPreferences, type TerminalPlacement } from "~/editor/pill-prefs";
+import { useRightPanelStore } from "~/rightPanelStore";
+import { useTerminalUiStateStore } from "~/terminalUiStateStore";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import { cn, isMacPlatform } from "~/lib/utils";
+import { pillIconButtonClass } from "./FloatingPillNav";
 import { type TerminalContextSelection } from "~/lib/terminalContext";
 import { useOpenInPreferredEditor } from "../editorPreferences";
 import {
@@ -70,6 +86,100 @@ import { useAtomCommand } from "../state/use-atom-command";
 const MIN_DRAWER_HEIGHT = 180;
 const MAX_DRAWER_HEIGHT_RATIO = 0.75;
 const MULTI_CLICK_SELECTION_ACTION_DELAY_MS = 260;
+
+/**
+ * One icon size per chrome. Mixed sizes in a single control row have shipped
+ * here twice; `sm` is the session-sidebar header, `md` the no-sidebar cluster.
+ */
+// `titlebar` is the panel titlebar's own scale — the pill's 32px/16px. Placement
+// buttons portal up there next to Maximize/Close and have to match their
+// row-mates, not the denser cluster they came from.
+const CHROME_ICON_CLASS = { sm: "size-3", md: "size-3.25", titlebar: "size-4" } as const;
+type ChromeSize = keyof typeof CHROME_ICON_CLASS;
+
+/**
+ * Box size per chrome. Square on purpose — the cluster used to render 20x21
+ * (`h-full` inside a 21.44px row), which is not a square and not a pill.
+ *
+ * Two scales, deliberately: `sm` is the session-sidebar header, six controls
+ * inside a 144px-wide column, so 24px does not fit; `md` is the free-floating
+ * cluster. The panel titlebar keeps the pill's own 32px scale via
+ * `pillIconButtonClass()` untouched. Everything is round; nothing is square-
+ * cornered, and no chrome mixes box sizes.
+ */
+const CHROME_BOX_CLASS = { sm: "size-5", md: "size-6", titlebar: "size-8" } as const;
+
+/**
+ * The pill's button language, at terminal-chrome density.
+ *
+ * Reuses `pillIconButtonClass` (borderless, round, tinted on hover) and only
+ * overrides the box, so the cluster cannot drift away from the pill again.
+ * Disabled is styled here rather than via `:disabled` because these buttons are
+ * soft-disabled with `aria-disabled` — see TerminalActionButton.
+ */
+function terminalChromeButtonClass(
+  size: ChromeSize,
+  options: { active?: boolean; disabled?: boolean } = {},
+): string {
+  return cn(
+    pillIconButtonClass(options.active ?? false),
+    CHROME_BOX_CLASS[size],
+    options.disabled ? "cursor-not-allowed opacity-45 hover:bg-transparent hover:text-inherit" : "",
+  );
+}
+
+/** Hex-only (xterm requires #RRGGBB) and mid-tone so both themes stay legible. */
+const SEARCH_DECORATIONS = {
+  matchBackground: "#5f6b7a",
+  matchBorder: "#94a3b8",
+  matchOverviewRuler: "#94a3b8",
+  activeMatchBackground: "#c2410c",
+  activeMatchBorder: "#fb923c",
+  activeMatchColorOverviewRuler: "#fb923c",
+} as const;
+
+function terminalSearchOptions(caseSensitive: boolean, incremental: boolean): ISearchOptions {
+  return {
+    caseSensitive,
+    incremental,
+    regex: false,
+    wholeWord: false,
+    decorations: SEARCH_DECORATIONS,
+  };
+}
+
+export interface TerminalSearchResults {
+  readonly resultIndex: number;
+  readonly resultCount: number;
+}
+
+/**
+ * The search addon is per-terminal (it owns that instance's decorations), but
+ * the find UI lives in the chrome. Each viewport publishes this handle so the
+ * chrome can drive whichever terminal is active.
+ */
+export interface TerminalSearchController {
+  findNext: (term: string, caseSensitive: boolean, incremental: boolean) => boolean;
+  findPrevious: (term: string, caseSensitive: boolean) => boolean;
+  clear: () => void;
+  focusTerminal: () => void;
+  setResultsListener: (listener: ((results: TerminalSearchResults) => void) | null) => void;
+}
+
+export type TerminalSearchControllerMap = Map<string, TerminalSearchController>;
+
+export function terminalFindShortcutLabel(platform = navigator.platform): string {
+  return isMacPlatform(platform) ? "⌘F" : "Ctrl+Shift+F";
+}
+
+/** Cmd+F on macOS; Ctrl+Shift+F elsewhere, because Ctrl+F is readline forward-char. */
+export function isTerminalFindShortcut(event: KeyboardEvent): boolean {
+  if (event.type !== "keydown") return false;
+  if (event.key.toLowerCase() !== "f") return false;
+  if (event.altKey) return false;
+  if (event.metaKey && !event.ctrlKey && !event.shiftKey) return true;
+  return event.ctrlKey && event.shiftKey && !event.metaKey;
+}
 
 function maxDrawerHeight(): number {
   if (typeof window === "undefined") return DEFAULT_THREAD_TERMINAL_HEIGHT;
@@ -284,6 +394,13 @@ interface TerminalViewportProps {
   resizeEpoch: number;
   drawerHeight: number;
   keybindings: ResolvedKeybindingsConfig;
+  /** Publishes/retracts this terminal's search handle for the chrome's find bar. */
+  onSearchControllerChange?: (
+    terminalId: string,
+    controller: TerminalSearchController | null,
+  ) => void;
+  /** Cmd+F inside the terminal opens the chrome's find bar instead of Chrome's. */
+  onRequestSearch?: () => void;
 }
 
 interface TerminalLaunchLocation {
@@ -307,10 +424,20 @@ export function TerminalViewport({
   resizeEpoch,
   drawerHeight,
   keybindings,
+  onSearchControllerChange,
+  onRequestSearch,
 }: TerminalViewportProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalRef = useRef<Terminal | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
+  const searchAddonRef = useRef<SearchAddon | null>(null);
+  const searchResultsListenerRef = useRef<((results: TerminalSearchResults) => void) | null>(null);
+  const publishSearchController = useEffectEvent((controller: TerminalSearchController | null) => {
+    onSearchControllerChange?.(terminalId, controller);
+  });
+  const requestSearch = useEffectEvent(() => {
+    onRequestSearch?.();
+  });
   const environmentId = threadRef.environmentId;
   const serverConfig = useAtomValue(serverEnvironment.configValueAtom(environmentId));
   const openInPreferredEditor = useOpenInPreferredEditor(
@@ -386,21 +513,63 @@ export function TerminalViewport({
     const localApi = readLocalApi();
 
     const fitAddon = new FitAddon();
+    const searchAddon = new SearchAddon();
     const terminal = new Terminal({
       cursorBlink: true,
       lineHeight: 1,
       fontSize: 12,
       scrollback: 5_000,
+      // Required by the search addon: highlight-all and the match counter go
+      // through registerDecoration, which throws without this.
+      allowProposedApi: true,
       fontFamily:
         '"SF Mono", "SFMono-Regular", "JetBrains Mono", Consolas, "Liberation Mono", Menlo, monospace',
       theme: terminalThemeFromApp(mount),
     });
     terminal.loadAddon(fitAddon);
+    terminal.loadAddon(searchAddon);
     terminal.open(mount);
     fitTerminalSafely(fitAddon);
 
     terminalRef.current = terminal;
     fitAddonRef.current = fitAddon;
+    searchAddonRef.current = searchAddon;
+
+    const searchResultsDisposable = searchAddon.onDidChangeResults((results) => {
+      searchResultsListenerRef.current?.(results);
+    });
+    // A throw from the addon must never reach React — an addon failure has to
+    // degrade to "no results", not unmount the terminal and kill the session.
+    const guardSearch = (run: () => boolean): boolean => {
+      try {
+        return run();
+      } catch (error) {
+        console.warn("[terminal] search failed", error);
+        return false;
+      }
+    };
+    publishSearchController({
+      findNext: (term, caseSensitive, incremental) =>
+        guardSearch(() =>
+          searchAddon.findNext(term, terminalSearchOptions(caseSensitive, incremental)),
+        ),
+      findPrevious: (term, caseSensitive) =>
+        guardSearch(() =>
+          searchAddon.findPrevious(term, terminalSearchOptions(caseSensitive, false)),
+        ),
+      clear: () => {
+        guardSearch(() => {
+          searchAddon.clearDecorations();
+          return true;
+        });
+        terminalRef.current?.clearSelection();
+      },
+      focusTerminal: () => terminalRef.current?.focus(),
+      setResultsListener: (listener) => {
+        searchResultsListenerRef.current = listener;
+      },
+    });
+
     previousSessionRef.current = {
       buffer: "",
       status: "closed",
@@ -528,6 +697,15 @@ export function TerminalViewport({
     terminal.attachCustomKeyEventHandler((event) => {
       const currentKeybindings = keybindingsRef.current;
       const options = { context: { terminalFocus: true, terminalOpen: true } };
+
+      // Must preventDefault or Chrome's own find bar opens over the panel.
+      if (isTerminalFindShortcut(event)) {
+        event.preventDefault();
+        event.stopPropagation();
+        requestSearch();
+        return false;
+      }
+
       if (
         isTerminalToggleShortcut(event, currentKeybindings, options) ||
         isTerminalSplitShortcut(event, currentKeybindings, options) ||
@@ -721,14 +899,22 @@ export function TerminalViewport({
       inputDisposable.dispose();
       selectionDisposable.dispose();
       terminalLinksDisposable.dispose();
+      searchResultsDisposable.dispose();
       if (selectionActionTimerRef.current !== null) {
         window.clearTimeout(selectionActionTimerRef.current);
       }
       window.removeEventListener("mouseup", handleMouseUp);
       mount.removeEventListener("pointerdown", handlePointerDown);
       themeObserver.disconnect();
+      // Sessions persist across mounts, so an addon left loaded per mount is a
+      // real leak — retract the handle and dispose both addons explicitly.
+      publishSearchController(null);
+      searchResultsListenerRef.current = null;
       terminalRef.current = null;
       fitAddonRef.current = null;
+      searchAddonRef.current = null;
+      searchAddon.dispose();
+      fitAddon.dispose();
       terminal.dispose();
     };
     // autoFocus is intentionally omitted;
@@ -826,13 +1012,15 @@ export function TerminalViewport({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-[4px] bg-background"
+      // p-2 keeps the xterm rows off the panel edge; FitAddon measures this element,
+      // so the padding correctly shrinks the usable grid instead of clipping it.
+      className="relative h-full w-full overflow-hidden rounded-[4px] bg-background p-2"
     />
   );
 }
 
 interface ThreadTerminalDrawerProps {
-  mode?: "drawer" | "panel";
+  mode?: "drawer" | "panel" | "floating";
   threadRef: ScopedThreadRef;
   threadId: ThreadId;
   cwd: string;
@@ -863,19 +1051,145 @@ interface ThreadTerminalDrawerProps {
   terminalLaunchLocationsById?: ReadonlyMap<string, TerminalLaunchLocation>;
 }
 
+/**
+ * Placement controls — bottom / right / float.
+ *
+ * Rendered in BOTH terminal chromes (the session sidebar and the no-sidebar
+ * action cluster). Living in only one of them stranded the user: the right
+ * panel renders the cluster, so docking right hid the only way back out.
+ *
+ * The option matching the current placement is NOT rendered. It used to render
+ * as a live button whose onClick set the placement it already had — a dead
+ * control that read as a choice. The user can already see where the terminal
+ * is, so there is nothing left for an "active" state to tell them. Two buttons
+ * always render, so the row width is constant and nothing shifts on change.
+ */
+interface TerminalPlacementOption {
+  readonly value: TerminalPlacement;
+  readonly label: string;
+  readonly Icon: (props: { className?: string }) => ReactNode;
+}
+
+const TERMINAL_PLACEMENT_OPTIONS: ReadonlyArray<TerminalPlacementOption> = [
+  { value: "bottom", label: "Dock Terminal to Bottom", Icon: SidebarBottomFilled },
+  { value: "right", label: "Dock Terminal to Right", Icon: SidebarRightFilled },
+  { value: "floating", label: "Float Terminal", Icon: FullFilled },
+];
+
+/** Every rendered placement button must actually move the terminal. */
+export function visibleTerminalPlacementOptions(
+  placement: TerminalPlacement,
+): ReadonlyArray<TerminalPlacementOption> {
+  return TERMINAL_PLACEMENT_OPTIONS.filter((option) => option.value !== placement);
+}
+
+function TerminalPlacementControls({
+  placement,
+  onChange,
+  size = "sm",
+}: {
+  placement: TerminalPlacement;
+  onChange: (next: TerminalPlacement) => void;
+  size?: ChromeSize;
+}) {
+  const iconClass = CHROME_ICON_CLASS[size];
+  return (
+    <>
+      {visibleTerminalPlacementOptions(placement).map((option) => (
+        <TerminalActionButton
+          key={option.value}
+          className={terminalChromeButtonClass(size)}
+          label={option.label}
+          onClick={() => onChange(option.value)}
+        >
+          <option.Icon className={iconClass} />
+        </TerminalActionButton>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Placement, routed to whichever chrome owns it.
+ *
+ * Floating has a titlebar, and dock/float belongs there with maximize and close
+ * — it is window chrome, not a terminal action, and that row already carries the
+ * pill's round 32px treatment instead of this cluster's denser scale. Docked
+ * has no titlebar, so the cluster keeps them.
+ *
+ * Portaled rather than lifted: the placement setter does real store handoff
+ * (opening/closing the right-panel surface, setting terminalOpen), so it stays
+ * here and only the rendered buttons move.
+ */
+function TerminalPlacementSlot({
+  placement,
+  onChange,
+  size = "sm",
+}: {
+  placement: TerminalPlacement;
+  onChange: (next: TerminalPlacement) => void;
+  size?: ChromeSize;
+}) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const floating = placement === "floating";
+  useEffect(() => {
+    if (!floating) {
+      setSlot(null);
+      return;
+    }
+    // The shell renders its titlebar before children, so the slot exists by the
+    // time this runs — but the panel also unmounts on close, so re-read rather
+    // than caching a node that can go stale.
+    setSlot(document.querySelector<HTMLElement>("[data-terminal-titlebar-slot]"));
+  }, [floating]);
+
+  const controls = (
+    <TerminalPlacementControls
+      placement={placement}
+      onChange={onChange}
+      size={floating ? "titlebar" : size}
+    />
+  );
+  if (!floating) return controls;
+  return slot ? createPortal(controls, slot) : null;
+}
+
 interface TerminalActionButtonProps {
   label: string;
   className: string;
   onClick: () => void;
   children: ReactNode;
+  /**
+   * Soft-disabled: `aria-disabled`, not `disabled`. A real `disabled` button
+   * stops firing pointer events in the trigger, which kills the tooltip that
+   * carries the *reason* — a silently dead button is exactly the bug.
+   */
+  disabled?: boolean;
+  pressed?: boolean;
 }
 
-function TerminalActionButton({ label, className, onClick, children }: TerminalActionButtonProps) {
+function TerminalActionButton({
+  label,
+  className,
+  onClick,
+  children,
+  disabled = false,
+  pressed,
+}: TerminalActionButtonProps) {
   return (
     <Popover>
       <PopoverTrigger
         openOnHover
-        render={<button type="button" className={className} onClick={onClick} aria-label={label} />}
+        render={
+          <button
+            type="button"
+            className={className}
+            onClick={disabled ? undefined : onClick}
+            aria-label={label}
+            aria-disabled={disabled ? true : undefined}
+            {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
+          />
+        }
       >
         {children}
       </PopoverTrigger>
@@ -889,6 +1203,328 @@ function TerminalActionButton({ label, className, onClick, children }: TerminalA
         {label}
       </PopoverPopup>
     </Popover>
+  );
+}
+
+/**
+ * The action set shared by both terminal chromes.
+ *
+ * It exists as one component on purpose: split/new/find/close previously lived
+ * inline in the sidebar header AND in the no-sidebar cluster, and every fix
+ * landed in one copy. Chrome-specific styling is a parameter; *which controls
+ * exist, with which icon and label*, is not.
+ */
+interface TerminalChromeActionsProps {
+  size: ChromeSize;
+  splitLabel: string;
+  splitVerticalLabel: string;
+  newLabel: string;
+  closeLabel: string;
+  findLabel: string;
+  findOpen: boolean;
+  splitDisabled: boolean;
+  /** The sidebar chrome gives every session row its own close, so it omits this. */
+  showClose: boolean;
+  onSplit: () => void;
+  onSplitVertical: () => void;
+  onNew: () => void;
+  onClose: () => void;
+  onToggleFind: () => void;
+}
+
+function TerminalChromeActions({
+  size,
+  splitLabel,
+  splitVerticalLabel,
+  newLabel,
+  closeLabel,
+  findLabel,
+  findOpen,
+  splitDisabled,
+  showClose,
+  onSplit,
+  onSplitVertical,
+  onNew,
+  onClose,
+  onToggleFind,
+}: TerminalChromeActionsProps) {
+  const iconClass = CHROME_ICON_CLASS[size];
+  const actions: ReadonlyArray<{
+    key: string;
+    label: string;
+    disabled: boolean;
+    pressed?: boolean;
+    onClick: () => void;
+    icon: ReactNode;
+  }> = [
+    {
+      key: "split",
+      label: splitLabel,
+      disabled: splitDisabled,
+      onClick: onSplit,
+      icon: <RowHorizontalFilled className={iconClass} />,
+    },
+    {
+      key: "split-vertical",
+      label: splitVerticalLabel,
+      disabled: splitDisabled,
+      onClick: onSplitVertical,
+      icon: <RowVerticalFilled className={iconClass} />,
+    },
+    {
+      key: "find",
+      label: findLabel,
+      disabled: false,
+      pressed: findOpen,
+      onClick: onToggleFind,
+      icon: <SearchNormal1Filled className={iconClass} />,
+    },
+    {
+      key: "new",
+      label: newLabel,
+      disabled: false,
+      onClick: onNew,
+      icon: <AddSquareFilled className={iconClass} />,
+    },
+    ...(showClose
+      ? [
+          {
+            key: "close",
+            label: closeLabel,
+            disabled: false,
+            onClick: onClose,
+            icon: <CloseSquareFilled className={iconClass} />,
+          },
+        ]
+      : []),
+  ];
+  return (
+    <>
+      {/* No 1px rules between these: round pills separate by spacing, and the
+          rules were the last thing making this row read as a bordered toolbar
+          instead of part of the pill surface. */}
+      {actions.map((action) => (
+        <Fragment key={action.key}>
+          <TerminalActionButton
+            className={terminalChromeButtonClass(size, {
+              active: action.key === "find" && findOpen,
+              disabled: action.disabled,
+            })}
+            label={action.label}
+            disabled={action.disabled}
+            {...(action.pressed === undefined ? {} : { pressed: action.pressed })}
+            onClick={action.onClick}
+          >
+            {action.icon}
+          </TerminalActionButton>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Find bar — one instance per drawer, driving whichever terminal is active.
+ *
+ * Anchored top-right in both chromes; in the no-sidebar chrome it sits below
+ * the floating action cluster so the two never overlap.
+ */
+function TerminalFindBar({
+  open,
+  size,
+  activeTerminalId,
+  controllersRef,
+  onClose,
+}: {
+  open: boolean;
+  size: ChromeSize;
+  activeTerminalId: string;
+  controllersRef: RefObject<TerminalSearchControllerMap>;
+  onClose: () => void;
+}) {
+  const iconClass = CHROME_ICON_CLASS[size];
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [results, setResults] = useState<TerminalSearchResults>({
+    resultIndex: -1,
+    resultCount: 0,
+  });
+
+  const controllerFor = useCallback(
+    (terminalId: string) => controllersRef.current?.get(terminalId) ?? null,
+    [controllersRef],
+  );
+
+  // Subscribe to the active terminal only, and always hand the previous one
+  // back its null listener — otherwise a closed session keeps pushing counts.
+  useEffect(() => {
+    if (!open) return;
+    const controller = controllerFor(activeTerminalId);
+    if (!controller) return;
+    controller.setResultsListener(setResults);
+    return () => {
+      controller.setResultsListener(null);
+    };
+  }, [activeTerminalId, controllerFor, open]);
+
+  // The toolbar toggle is a popover trigger, and the popup claims focus a tick
+  // after the click — a single rAF focus loses the race and the user types into
+  // nothing. Retry briefly until the input actually holds focus.
+  useEffect(() => {
+    if (!open) return;
+    let attempts = 0;
+    const claimFocus = () => {
+      const input = inputRef.current;
+      if (!input) return;
+      if (document.activeElement !== input) {
+        input.focus();
+        input.select();
+      }
+      attempts += 1;
+      if (attempts < 5 && document.activeElement !== input) {
+        timer = window.setTimeout(claimFocus, 40);
+      }
+    };
+    let timer = window.setTimeout(claimFocus, 0);
+    return () => window.clearTimeout(timer);
+  }, [open]);
+
+  // Live search as the query/case changes, so the highlight tracks typing.
+  const lastCaseSensitiveRef = useRef(caseSensitive);
+  useEffect(() => {
+    if (!open) return;
+    const controller = controllerFor(activeTerminalId);
+    if (!controller) return;
+    if (query.length === 0) {
+      controller.clear();
+      lastCaseSensitiveRef.current = caseSensitive;
+      setResults({ resultIndex: -1, resultCount: 0 });
+      return;
+    }
+    // The addon caches highlights keyed on the term alone, so toggling case
+    // with the same term reuses the stale match set and reports a wrong count.
+    if (lastCaseSensitiveRef.current !== caseSensitive) {
+      controller.clear();
+      lastCaseSensitiveRef.current = caseSensitive;
+    }
+    controller.findNext(query, caseSensitive, true);
+  }, [activeTerminalId, caseSensitive, controllerFor, open, query]);
+
+  const closeFind = useCallback(
+    (returnFocus: boolean) => {
+      const controller = controllerFor(activeTerminalId);
+      controller?.setResultsListener(null);
+      controller?.clear();
+      setResults({ resultIndex: -1, resultCount: 0 });
+      onClose();
+      if (returnFocus) controller?.focusTerminal();
+    },
+    [activeTerminalId, controllerFor, onClose],
+  );
+
+  // Closing from the toolbar toggle must still clear decorations.
+  useEffect(() => {
+    if (open) return;
+    controllerFor(activeTerminalId)?.clear();
+    setResults({ resultIndex: -1, resultCount: 0 });
+  }, [activeTerminalId, controllerFor, open]);
+
+  const step = useCallback(
+    (direction: "next" | "previous") => {
+      if (query.length === 0) return;
+      const controller = controllerFor(activeTerminalId);
+      if (!controller) return;
+      if (direction === "next") controller.findNext(query, caseSensitive, false);
+      else controller.findPrevious(query, caseSensitive);
+    },
+    [activeTerminalId, caseSensitive, controllerFor, query],
+  );
+
+  if (!open) return null;
+
+  const hasQuery = query.length > 0;
+  const hasMatches = results.resultCount > 0;
+  const stepDisabled = !hasQuery || !hasMatches;
+  // A disabled control always states why, or it reads as a broken button.
+  const stepSuffix = !hasQuery ? " (Type to Search)" : hasMatches ? "" : " (No Matches)";
+  const countLabel = !hasQuery
+    ? ""
+    : hasMatches
+      ? `${Math.max(results.resultIndex + 1, 1)}/${results.resultCount}`
+      : "0/0";
+
+  return (
+    <div
+      data-terminal-find-bar=""
+      className={cn("pointer-events-none absolute right-2 z-30", size === "sm" ? "top-2" : "top-9")}
+    >
+      <div className="pointer-events-auto inline-flex items-center gap-0.5 rounded-full border border-border/80 bg-background/95 p-0.5 pl-2.5 shadow-sm backdrop-blur">
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="Find in Terminal"
+          placeholder="Find"
+          className="h-5 w-36 border-0 bg-transparent p-0 text-[11px] text-foreground outline-none placeholder:text-muted-foreground"
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              closeFind(true);
+              return;
+            }
+            if (event.key === "Enter") {
+              event.preventDefault();
+              step(event.shiftKey ? "previous" : "next");
+              return;
+            }
+            // A second Cmd+F re-selects instead of falling through to Chrome.
+            if (isTerminalFindShortcut(event.nativeEvent)) {
+              event.preventDefault();
+              event.stopPropagation();
+              inputRef.current?.select();
+            }
+          }}
+        />
+        <span
+          className="min-w-8 shrink-0 text-right text-[10px] tabular-nums text-muted-foreground"
+          aria-live="polite"
+        >
+          {countLabel}
+        </span>
+        <TerminalActionButton
+          className={cn(
+            terminalChromeButtonClass(size, { active: caseSensitive }),
+            "text-[10px] font-semibold leading-none",
+          )}
+          label="Match Case"
+          pressed={caseSensitive}
+          onClick={() => setCaseSensitive((value) => !value)}
+        >
+          Aa
+        </TerminalActionButton>
+        <TerminalActionButton
+          className={terminalChromeButtonClass(size, { disabled: stepDisabled })}
+          label={`Previous Match${stepSuffix}`}
+          disabled={stepDisabled}
+          onClick={() => step("previous")}
+        >
+          <ArrowUp1Filled className={iconClass} />
+        </TerminalActionButton>
+        <TerminalActionButton
+          className={terminalChromeButtonClass(size, { disabled: stepDisabled })}
+          label={`Next Match${stepSuffix}`}
+          disabled={stepDisabled}
+          onClick={() => step("next")}
+        >
+          <ArrowDownFilled className={iconClass} />
+        </TerminalActionButton>
+      </div>
+    </div>
   );
 }
 
@@ -921,7 +1557,43 @@ export default function ThreadTerminalDrawer({
   terminalLabelsById,
   terminalLaunchLocationsById,
 }: ThreadTerminalDrawerProps) {
-  const isPanel = mode === "panel";
+  // "floating" shares the panel layout (fill the container, no self-resize);
+  // only the ownership attribute differs, so the store can tell them apart.
+  const terminalPlacement = usePillNavPreferences((state) => state.prefs.terminalPlacement);
+  const setTerminalPlacementPref = usePillNavPreferences((state) => state.setTerminalPlacement);
+  const openRightPanelTerminalGroups = useRightPanelStore((state) => state.openTerminalGroups);
+  const closeRightPanelSurface = useRightPanelStore((state) => state.closeSurface);
+  // One place owns the terminal at a time. Moving it hands the surface over and
+  // tears down the old host, or the same session renders in two places at once.
+  const setTerminalPlacement = useCallback(
+    (next: TerminalPlacement) => {
+      const surfaces =
+        useRightPanelStore.getState().byThreadKey[scopedThreadKey(threadRef)]?.surfaces ?? [];
+      const terminalSurfaces = surfaces.filter((surface) => surface.kind === "terminal");
+      if (next === "right") {
+        // Every group, not just the active one — the panel shows a surface per tab,
+        // so handing over a single id silently left the other sessions with no host.
+        openRightPanelTerminalGroups(threadRef, terminalGroups, activeTerminalId);
+      } else {
+        for (const surface of terminalSurfaces) closeRightPanelSurface(threadRef, surface.id);
+        // The drawer/floating hosts are gated on terminalOpen. Coming back from
+        // the right panel it is false, so without this the terminal just vanishes.
+        useTerminalUiStateStore.getState().setTerminalOpen(threadRef, true);
+      }
+      setTerminalPlacementPref(next);
+    },
+    [
+      activeTerminalId,
+      closeRightPanelSurface,
+      openRightPanelTerminalGroups,
+      setTerminalPlacementPref,
+      terminalGroups,
+      threadRef,
+    ],
+  );
+  const isPanel = mode === "panel" || mode === "floating";
+  const terminalOwner =
+    mode === "floating" ? "floating" : mode === "panel" ? "right-panel" : "drawer";
   const controlledDrawerHeight = clampDrawerHeight(height);
   const [drawerHeightState, setDrawerHeightState] = useState(() => ({
     threadId,
@@ -946,6 +1618,17 @@ export default function ThreadTerminalDrawer({
     setDrawerHeight(nextHeight);
   });
   const [resizeEpoch, setResizeEpoch] = useState(0);
+  const [findOpen, setFindOpen] = useState(false);
+  const searchControllersRef = useRef<TerminalSearchControllerMap>(new Map());
+  const handleSearchControllerChange = useCallback(
+    (terminalId: string, controller: TerminalSearchController | null) => {
+      if (controller) searchControllersRef.current.set(terminalId, controller);
+      else searchControllersRef.current.delete(terminalId);
+    },
+    [],
+  );
+  const openFind = useCallback(() => setFindOpen(true), []);
+  const toggleFind = useCallback(() => setFindOpen((value) => !value), []);
   const drawerHeightRef = useRef(drawerHeight);
   const lastSyncedHeightRef = useRef(controlledDrawerHeight);
   const onHeightChangeRef = useRef(onHeightChange);
@@ -1106,6 +1789,9 @@ export default function ThreadTerminalDrawer({
   const closeTerminalActionLabel = closeShortcutLabel
     ? `Close Terminal (${closeShortcutLabel})`
     : "Close Terminal";
+  const findTerminalActionLabel = findOpen
+    ? "Hide Find"
+    : `Find in Terminal (${terminalFindShortcutLabel()})`;
   const onSplitTerminalAction = useCallback(() => {
     if (hasReachedSplitLimit) return;
     onSplitTerminal();
@@ -1223,7 +1909,7 @@ export default function ThreadTerminalDrawer({
   if (normalizedTerminalIds.length === 0) {
     return (
       <aside
-        data-terminal-owner={isPanel ? "right-panel" : "drawer"}
+        data-terminal-owner={terminalOwner}
         className={cn(
           "thread-terminal-drawer relative flex min-w-0 flex-col overflow-hidden bg-background",
           isPanel ? "h-full flex-1" : "shrink-0 border-t border-border/80",
@@ -1239,6 +1925,18 @@ export default function ThreadTerminalDrawer({
             onPointerCancel={handleResizePointerEnd}
           />
         ) : null}
+        {/* Placement stays reachable with zero sessions. Without it, closing the
+            last terminal in the right panel or the floating window stranded the
+            surface with no way to dock it back. */}
+        <div className="pointer-events-none absolute right-2 top-2 z-20">
+          <div className="pointer-events-auto inline-flex items-center gap-0.5 rounded-full border border-border/80 bg-background/70 p-0.5">
+            <TerminalPlacementSlot
+              placement={terminalPlacement}
+              onChange={setTerminalPlacement}
+              size="md"
+            />
+          </div>
+        </div>
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-6 text-center text-sm text-muted-foreground">
           <p>No terminal sessions for this thread yet.</p>
           <button
@@ -1257,7 +1955,7 @@ export default function ThreadTerminalDrawer({
 
   return (
     <aside
-      data-terminal-owner={isPanel ? "right-panel" : "drawer"}
+      data-terminal-owner={terminalOwner}
       className={cn(
         "thread-terminal-drawer relative flex min-w-0 flex-col overflow-hidden bg-background",
         isPanel ? "h-full flex-1" : "shrink-0 border-t border-border/80",
@@ -1276,49 +1974,39 @@ export default function ThreadTerminalDrawer({
 
       {!hasTerminalSidebar && (
         <div className="pointer-events-none absolute right-2 top-2 z-20">
-          <div className="pointer-events-auto inline-flex items-center overflow-hidden rounded-md border border-border/80 bg-background/70">
-            <TerminalActionButton
-              className={`p-1 text-foreground/90 transition-colors ${
-                hasReachedSplitLimit
-                  ? "cursor-not-allowed opacity-45 hover:bg-transparent"
-                  : "hover:bg-accent"
-              }`}
-              onClick={onSplitTerminalAction}
-              label={splitTerminalActionLabel}
-            >
-              <SquareSplitHorizontal className="size-3.25" />
-            </TerminalActionButton>
-            <div className="h-4 w-px bg-border/80" />
-            <TerminalActionButton
-              className={`p-1 text-foreground/90 transition-colors ${
-                hasReachedSplitLimit
-                  ? "cursor-not-allowed opacity-45 hover:bg-transparent"
-                  : "hover:bg-accent"
-              }`}
-              onClick={onSplitTerminalVerticalAction}
-              label={splitTerminalVerticalActionLabel}
-            >
-              <SquareSplitVertical className="size-3.25" />
-            </TerminalActionButton>
-            <div className="h-4 w-px bg-border/80" />
-            <TerminalActionButton
-              className="p-1 text-foreground/90 transition-colors hover:bg-accent"
-              onClick={onNewTerminalAction}
-              label={newTerminalActionLabel}
-            >
-              <Plus className="size-3.25" />
-            </TerminalActionButton>
-            <div className="h-4 w-px bg-border/80" />
-            <TerminalActionButton
-              className="p-1 text-foreground/90 transition-colors hover:bg-accent"
-              onClick={() => onCloseTerminal(resolvedActiveTerminalId)}
-              label={closeTerminalActionLabel}
-            >
-              <Trash2 className="size-3.25" />
-            </TerminalActionButton>
+          <div className="pointer-events-auto inline-flex items-center gap-0.5 rounded-full border border-border/80 bg-background/70 p-0.5">
+            <TerminalPlacementSlot
+              placement={terminalPlacement}
+              onChange={setTerminalPlacement}
+              size="md"
+            />
+            <TerminalChromeActions
+              size="md"
+              splitLabel={splitTerminalActionLabel}
+              splitVerticalLabel={splitTerminalVerticalActionLabel}
+              newLabel={newTerminalActionLabel}
+              closeLabel={closeTerminalActionLabel}
+              findLabel={findTerminalActionLabel}
+              findOpen={findOpen}
+              splitDisabled={hasReachedSplitLimit}
+              showClose
+              onSplit={onSplitTerminalAction}
+              onSplitVertical={onSplitTerminalVerticalAction}
+              onNew={onNewTerminalAction}
+              onClose={() => onCloseTerminal(resolvedActiveTerminalId)}
+              onToggleFind={toggleFind}
+            />
           </div>
         </div>
       )}
+
+      <TerminalFindBar
+        open={findOpen}
+        size={hasTerminalSidebar ? "sm" : "md"}
+        activeTerminalId={resolvedActiveTerminalId}
+        controllersRef={searchControllersRef}
+        onClose={() => setFindOpen(false)}
+      />
 
       <div className="min-h-0 w-full flex-1">
         <div className={`flex h-full min-h-0 ${hasTerminalSidebar ? "gap-1.5" : ""}`}>
@@ -1376,6 +2064,8 @@ export default function ThreadTerminalDrawer({
                           resizeEpoch={resizeEpoch}
                           drawerHeight={drawerHeight}
                           keybindings={keybindings}
+                          onSearchControllerChange={handleSearchControllerChange}
+                          onRequestSearch={openFind}
                         />
                       </div>
                     </div>
@@ -1404,104 +2094,88 @@ export default function ThreadTerminalDrawer({
                   resizeEpoch={resizeEpoch}
                   drawerHeight={drawerHeight}
                   keybindings={keybindings}
+                  onSearchControllerChange={handleSearchControllerChange}
+                  onRequestSearch={openFind}
                 />
               </div>
             )}
           </div>
 
           {hasTerminalSidebar && (
-            <aside className="flex w-36 min-w-36 flex-col border border-border/70 bg-muted/10">
-              <div className="flex h-[22px] items-stretch justify-end border-b border-border/70">
-                <div className="inline-flex h-full items-stretch">
-                  <TerminalActionButton
-                    className={`inline-flex h-full items-center px-1 text-foreground/90 transition-colors ${
-                      hasReachedSplitLimit
-                        ? "cursor-not-allowed opacity-45 hover:bg-transparent"
-                        : "hover:bg-accent/70"
-                    }`}
-                    onClick={onSplitTerminalAction}
-                    label={splitTerminalActionLabel}
-                  >
-                    <SquareSplitHorizontal className="size-3.25" />
-                  </TerminalActionButton>
-                  <TerminalActionButton
-                    className={`inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors ${
-                      hasReachedSplitLimit
-                        ? "cursor-not-allowed opacity-45 hover:bg-transparent"
-                        : "hover:bg-accent/70"
-                    }`}
-                    onClick={onSplitTerminalVerticalAction}
-                    label={splitTerminalVerticalActionLabel}
-                  >
-                    <SquareSplitVertical className="size-3.25" />
-                  </TerminalActionButton>
-                  <TerminalActionButton
-                    className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
-                    onClick={onNewTerminalAction}
-                    label={newTerminalActionLabel}
-                  >
-                    <Plus className="size-3.25" />
-                  </TerminalActionButton>
-                  <TerminalActionButton
-                    className="inline-flex h-full items-center border-l border-border/70 px-1 text-foreground/90 transition-colors hover:bg-accent/70"
-                    onClick={() => onCloseTerminal(resolvedActiveTerminalId)}
-                    label={closeTerminalActionLabel}
-                  >
-                    <Trash2 className="size-3.25" />
-                  </TerminalActionButton>
+            <aside className="order-first flex w-36 min-w-36 flex-col border border-border/70 bg-muted/10">
+              {/* h-6, not h-[22px]: the buttons are square 20px pills now, and a
+                  22px row forced them to stretch to 20x21 — not a square, not a
+                  pill. Height follows the control, never the other way round. */}
+              <div className="flex h-6 items-center justify-between gap-1 border-b border-border/70 px-0.5">
+                <div className="inline-flex items-center gap-0.5">
+                  <TerminalPlacementSlot
+                    placement={terminalPlacement}
+                    onChange={setTerminalPlacement}
+                  />
+                </div>
+                <div className="inline-flex items-center gap-0.5">
+                  {/* No Close here: every session row below carries its own
+                      close, so a header close would be the same action twice. */}
+                  <TerminalChromeActions
+                    size="sm"
+                    splitLabel={splitTerminalActionLabel}
+                    splitVerticalLabel={splitTerminalVerticalActionLabel}
+                    newLabel={newTerminalActionLabel}
+                    closeLabel={closeTerminalActionLabel}
+                    findLabel={findTerminalActionLabel}
+                    findOpen={findOpen}
+                    splitDisabled={hasReachedSplitLimit}
+                    showClose={false}
+                    onSplit={onSplitTerminalAction}
+                    onSplitVertical={onSplitTerminalVerticalAction}
+                    onNew={onNewTerminalAction}
+                    onClose={() => onCloseTerminal(resolvedActiveTerminalId)}
+                    onToggleFind={toggleFind}
+                  />
                 </div>
               </div>
 
               <div className="min-h-0 flex-1 overflow-y-auto px-1 py-1">
-                {resolvedTerminalGroups.map((terminalGroup, groupIndex) => {
+                {resolvedTerminalGroups.map((terminalGroup) => {
                   const isGroupActive =
                     terminalGroup.terminalIds.includes(resolvedActiveTerminalId);
-                  const groupActiveTerminalId = isGroupActive
-                    ? resolvedActiveTerminalId
-                    : (terminalGroup.terminalIds[0] ?? resolvedActiveTerminalId);
-
                   return (
-                    <div key={terminalGroup.id} className="pb-0.5">
-                      {showGroupHeaders && (
-                        <button
-                          type="button"
-                          className={`flex w-full items-center rounded px-1 py-0.5 text-[10px] uppercase tracking-[0.08em] ${
-                            isGroupActive
-                              ? "bg-accent/70 text-foreground"
-                              : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-                          }`}
-                          onClick={() => onActiveTerminalChange(groupActiveTerminalId)}
-                        >
-                          Group {groupIndex + 1}
-                        </button>
-                      )}
-
-                      <div
-                        className={showGroupHeaders ? "ml-1 border-l border-border/60 pl-1.5" : ""}
-                      >
+                    // A group reads as one block of subtle grey — no header row,
+                    // no connector rule, no elbow glyphs. Membership is the tint.
+                    <div
+                      key={terminalGroup.id}
+                      className={
+                        showGroupHeaders
+                          ? `mb-1 rounded-md p-0.5 ${
+                              isGroupActive ? "bg-foreground/[0.07]" : "bg-foreground/[0.035]"
+                            }`
+                          : "pb-0.5"
+                      }
+                    >
+                      <div>
                         {terminalGroup.terminalIds.map((terminalId) => {
                           const isActive = terminalId === resolvedActiveTerminalId;
                           const closeTerminalLabel = `Close ${
-                            terminalLabelById.get(terminalId) ?? "terminal"
+                            terminalLabelById.get(terminalId) ?? "Terminal"
                           }${isActive && closeShortcutLabel ? ` (${closeShortcutLabel})` : ""}`;
                           return (
                             <div
                               key={terminalId}
-                              className={`group flex items-center gap-1 rounded px-1 py-0.5 text-[11px] ${
+                              // Rounded-full, like everything else in this chrome.
+                              // A 4px-radius chip next to round pills was the
+                              // last square corner in the surface.
+                              className={`group flex h-6 items-center gap-1 rounded-full pl-1.5 pr-0.5 text-[11px] ${
                                 isActive
                                   ? "bg-accent text-foreground"
                                   : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
                               }`}
                             >
-                              {showGroupHeaders && (
-                                <span className="text-[10px] text-muted-foreground/80">└</span>
-                              )}
                               <button
                                 type="button"
-                                className="flex min-w-0 flex-1 items-center gap-1 text-left"
+                                className="flex h-full min-w-0 flex-1 items-center gap-1 rounded-full text-left"
                                 onClick={() => onActiveTerminalChange(terminalId)}
                               >
-                                <TerminalSquare className="size-3 shrink-0" />
+                                <Code1Filled className="size-3 shrink-0" />
                                 <span className="truncate">
                                   {terminalLabelById.get(terminalId) ?? "Terminal"}
                                 </span>
@@ -1513,13 +2187,16 @@ export default function ThreadTerminalDrawer({
                                     render={
                                       <button
                                         type="button"
-                                        className="inline-flex size-3.5 items-center justify-center rounded text-xs font-medium leading-none text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
+                                        className={cn(
+                                          terminalChromeButtonClass("sm"),
+                                          "opacity-0 group-hover:opacity-100",
+                                        )}
                                         onClick={() => onCloseTerminal(terminalId)}
                                         aria-label={closeTerminalLabel}
                                       />
                                     }
                                   >
-                                    <XIcon className="size-2.5" />
+                                    <CloseSquareFilled className="size-3" />
                                   </PopoverTrigger>
                                   <PopoverPopup
                                     tooltipStyle

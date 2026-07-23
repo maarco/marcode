@@ -25,11 +25,20 @@ import {
   CloudUploadIcon,
   ExternalLinkIcon,
   GitBranchPlusIcon,
-  GitCommitIcon,
-  InfoIcon,
   LockIcon,
   GlobeIcon,
 } from "lucide-react";
+import {
+  ArrowSquareDownFilled,
+  CloudPlusFilled,
+  FlashFilled,
+  Export3Filled,
+  Hierarchy2Filled,
+  InfoCircleFilled,
+  RecordCircleFilled,
+} from "@aliimam/icons";
+import { PillTooltip, pillIconButtonClass, pillMenuRowClass } from "~/components/FloatingPillNav";
+import { PillNavHoverCard } from "~/components/PillNavHoverCard";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { AzureDevOpsIcon, BitbucketIcon, GitHubIcon, GitLabIcon } from "~/components/Icons";
 import { RadioGroup } from "~/components/ui/radio-group";
@@ -95,6 +104,14 @@ interface GitActionsControlProps {
   gitCwd: string | null;
   activeThreadRef: ScopedThreadRef | null;
   draftId?: DraftId;
+  /** render every action as a direct icon button instead of split button + menu */
+  flat?: boolean;
+  /**
+   * Narrow viewports: collapse the flat cluster to a single pill trigger whose
+   * hover/press surface lists every action as a labelled row. Ignored unless
+   * `flat`.
+   */
+  collapsed?: boolean;
 }
 
 interface PendingDefaultBranchAction {
@@ -330,6 +347,10 @@ const COMMIT_DIALOG_TITLE = "Commit changes";
 const COMMIT_DIALOG_DESCRIPTION =
   "Review and confirm your commit. Leave the message blank to auto-generate one.";
 
+// 16px everywhere: these sit shoulder-to-shoulder with the pill's own children,
+// and the @aliimam components default to 24px when no size class is given.
+const GIT_ICON_CLASS = "size-4";
+
 function GitActionItemIcon({
   icon,
   SourceControlIcon,
@@ -337,9 +358,10 @@ function GitActionItemIcon({
   icon: GitActionIconName;
   SourceControlIcon: ReturnType<typeof getSourceControlPresentation>["Icon"];
 }) {
-  if (icon === "commit") return <GitCommitIcon />;
-  if (icon === "push") return <CloudUploadIcon />;
-  return <SourceControlIcon />;
+  if (icon === "commit") return <RecordCircleFilled className={GIT_ICON_CLASS} />;
+  if (icon === "push") return <Export3Filled className={GIT_ICON_CLASS} />;
+  // "pr" keeps the provider mark — it tells you *where* the PR lands.
+  return <SourceControlIcon className={GIT_ICON_CLASS} />;
 }
 
 function GitQuickActionIcon({
@@ -349,19 +371,20 @@ function GitQuickActionIcon({
   quickAction: GitQuickAction;
   SourceControlIcon: ReturnType<typeof getSourceControlPresentation>["Icon"];
 }) {
-  const iconClassName = "size-3.5";
+  const iconClassName = GIT_ICON_CLASS;
   if (quickAction.kind === "open_pr") return <SourceControlIcon className={iconClassName} />;
-  if (quickAction.kind === "open_publish") return <CloudUploadIcon className={iconClassName} />;
-  if (quickAction.kind === "run_pull") return <InfoIcon className={iconClassName} />;
+  if (quickAction.kind === "open_publish") return <CloudPlusFilled className={iconClassName} />;
+  if (quickAction.kind === "run_pull") return <ArrowSquareDownFilled className={iconClassName} />;
   if (quickAction.kind === "run_action") {
-    if (quickAction.action === "commit") return <GitCommitIcon className={iconClassName} />;
-    if (quickAction.action === "push" || quickAction.action === "commit_push") {
-      return <CloudUploadIcon className={iconClassName} />;
-    }
+    if (quickAction.action === "commit") return <RecordCircleFilled className={iconClassName} />;
+    // commit_push sits next to the plain Push menu item in the pill — give it its
+    // own glyph so the two aren't the same arrow twice.
+    if (quickAction.action === "commit_push") return <FlashFilled className={iconClassName} />;
+    if (quickAction.action === "push") return <Export3Filled className={iconClassName} />;
     return <SourceControlIcon className={iconClassName} />;
   }
-  if (quickAction.label === "Commit") return <GitCommitIcon className={iconClassName} />;
-  return <InfoIcon className={iconClassName} />;
+  if (quickAction.label === "Commit") return <RecordCircleFilled className={iconClassName} />;
+  return <InfoCircleFilled className={iconClassName} />;
 }
 
 interface PublishRepositoryDialogProps {
@@ -971,6 +994,8 @@ export default function GitActionsControl({
   gitCwd,
   activeThreadRef,
   draftId,
+  flat = false,
+  collapsed = false,
 }: GitActionsControlProps) {
   const updateThreadMetadata = useAtomCommand(
     threadEnvironment.updateMetadata,
@@ -1650,11 +1675,68 @@ export default function GitActionsControl({
 
   const canPublishRepository = isRepo && gitStatusForActions !== null && !hasPrimaryRemote;
 
+  // In the pill the quick action and the menu items render as bare icons, so an
+  // overlap between them shows up as two identical glyphs with identical
+  // tooltips side by side. `push`, `create_pr` and `open_pr` run *exactly* the
+  // same code path from either control (see `openDialogForMenuItem`), and the
+  // publish button repeats the quick action verbatim. Keep the quick action —
+  // it is the resolved recommendation — and drop the redundant twin.
+  const quickActionAlreadyRuns = (item: GitActionMenuItem): boolean => {
+    if (item.kind === "open_pr") return quickAction.kind === "open_pr";
+    if (quickAction.kind !== "run_action") return false;
+    if (item.dialogAction === "push") return quickAction.action === "push";
+    if (item.dialogAction === "create_pr") return quickAction.action === "create_pr";
+    return false;
+  };
+  const flatMenuItems = gitActionMenuItems.filter((item) => !quickActionAlreadyRuns(item));
+  const showPublishButton = canPublishRepository && quickAction.kind !== "open_publish";
+  // Commit is the one overlap that is *not* redundant: the quick action commits
+  // straight away, this one opens the review dialog. Trailing ellipsis is the
+  // standard "opens a dialog" tell, and it stops the two sharing a name.
+  const flatMenuItemLabel = (item: GitActionMenuItem): string =>
+    item.kind === "open_dialog" && item.dialogAction === "commit" ? `${item.label}…` : item.label;
+
   if (!gitCwd) return null;
 
   return (
     <>
-      {!isRepo ? (
+      {!isRepo && flat ? (
+        // Pill form: icon-only and borderless like every other pill control. The
+        // labelled button below is the header form.
+        <PillNavHoverCard
+          metaKey="thread:git-init"
+          render={
+            <button
+              type="button"
+              className={pillIconButtonClass()}
+              aria-disabled={initAction.isPending}
+              // The in-flight state rides the accessible name; the pill itself dims
+              // via `aria-disabled` while the init runs.
+              aria-label={initAction.isPending ? "Initializing Git…" : "Initialize Git"}
+              onClick={() => {
+                if (initAction.isPending) return;
+                void (async () => {
+                  const result = await initAction.run();
+                  if (result._tag === "Success" || isAtomCommandInterrupted(result)) {
+                    return;
+                  }
+                  const error = squashAtomCommandFailure(result);
+                  toastManager.add(
+                    stackedThreadToast({
+                      type: "error",
+                      title: "Git initialization failed",
+                      description: error instanceof Error ? error.message : "An error occurred.",
+                      ...(threadToastData !== undefined ? { data: threadToastData } : {}),
+                    }),
+                  );
+                })();
+              }}
+            >
+              <Hierarchy2Filled className="size-4" aria-hidden />
+            </button>
+          }
+        />
+      ) : !isRepo ? (
         <Button
           variant="outline"
           size="xs"
@@ -1682,6 +1764,165 @@ export default function GitActionsControl({
             {initAction.isPending ? "Initializing..." : "Initialize Git"}
           </span>
         </Button>
+      ) : flat && collapsed ? (
+        // Narrow viewports: one trigger instead of up to five. Same shape as the
+        // open-in picker — filled pill trigger, hover/press opens a card of
+        // labelled rows. The trigger itself carries no side effect: the git
+        // actions are the destructive ones, and on touch there is no hover, so
+        // press has to mean "show me the list", never "commit and push now".
+        <Popover>
+          <PopoverTrigger
+            openOnHover
+            render={
+              // no `title`: this trigger already opens its card on hover, and a
+              // native tooltip on top of it is two hover surfaces for one control.
+              <button type="button" aria-label="Git actions" className={pillIconButtonClass()} />
+            }
+          >
+            <GitQuickActionIcon quickAction={quickAction} SourceControlIcon={SourceControlIcon} />
+          </PopoverTrigger>
+          <PopoverPopup align="center" className="p-1" side="bottom">
+            <div aria-label="Git actions" className="flex min-w-44 flex-col">
+              <button
+                type="button"
+                disabled={isGitActionRunning || quickAction.disabled}
+                title={quickActionDisabledReason ?? quickAction.label}
+                aria-label={quickAction.label}
+                className={pillMenuRowClass()}
+                onClick={runQuickAction}
+              >
+                <GitQuickActionIcon
+                  quickAction={quickAction}
+                  SourceControlIcon={SourceControlIcon}
+                />
+                <span className="flex-1 truncate">{quickAction.label}</span>
+              </button>
+              {flatMenuItems.map((item) => {
+                const disabledReason = getMenuActionDisabledReason({
+                  item,
+                  gitStatus: gitStatusForActions,
+                  isBusy: isGitActionRunning,
+                  hasPrimaryRemote,
+                });
+                const label = flatMenuItemLabel(item);
+                return (
+                  <button
+                    key={`${item.id}-${item.label}`}
+                    type="button"
+                    disabled={item.disabled || isGitActionRunning}
+                    title={(item.disabled && disabledReason) || label}
+                    aria-label={label}
+                    className={pillMenuRowClass()}
+                    onClick={() => {
+                      openDialogForMenuItem(item);
+                    }}
+                  >
+                    <GitActionItemIcon icon={item.icon} SourceControlIcon={SourceControlIcon} />
+                    <span className="flex-1 truncate">{label}</span>
+                  </button>
+                );
+              })}
+              {showPublishButton ? (
+                <button
+                  type="button"
+                  disabled={isGitActionRunning}
+                  title="Publish repository..."
+                  aria-label="Publish repository"
+                  className={pillMenuRowClass()}
+                  onClick={() => {
+                    setIsPublishDialogOpen(true);
+                  }}
+                >
+                  <CloudPlusFilled className={GIT_ICON_CLASS} />
+                  <span className="flex-1 truncate">Publish repository...</span>
+                </button>
+              ) : null}
+            </div>
+          </PopoverPopup>
+        </Popover>
+      ) : flat ? (
+        <div aria-label="Git actions" className="flex shrink-0 items-center gap-0.5">
+          {/* aria-disabled, not disabled: the reason an action is blocked lives in the
+              tooltip, and a disabled button never fires the hover that opens it. */}
+          <PillTooltip
+            label={quickActionDisabledReason ?? quickAction.label}
+            render={
+              <button
+                type="button"
+                className={pillIconButtonClass()}
+                aria-disabled={isGitActionRunning || quickAction.disabled}
+                aria-label={quickAction.label}
+                onClick={(event) => {
+                  if (isGitActionRunning || quickAction.disabled) {
+                    event.preventDefault();
+                    return;
+                  }
+                  runQuickAction();
+                }}
+              >
+                <GitQuickActionIcon
+                  quickAction={quickAction}
+                  SourceControlIcon={SourceControlIcon}
+                />
+              </button>
+            }
+          />
+          {flatMenuItems.map((item) => {
+            const disabledReason = getMenuActionDisabledReason({
+              item,
+              gitStatus: gitStatusForActions,
+              isBusy: isGitActionRunning,
+              hasPrimaryRemote,
+            });
+            const label = flatMenuItemLabel(item);
+            const blocked = item.disabled || isGitActionRunning;
+            return (
+              <PillTooltip
+                key={`${item.id}-${item.label}`}
+                label={(item.disabled && disabledReason) || label}
+                render={
+                  <button
+                    type="button"
+                    className={pillIconButtonClass()}
+                    aria-disabled={blocked}
+                    aria-label={label}
+                    onClick={(event) => {
+                      if (blocked) {
+                        event.preventDefault();
+                        return;
+                      }
+                      openDialogForMenuItem(item);
+                    }}
+                  >
+                    <GitActionItemIcon icon={item.icon} SourceControlIcon={SourceControlIcon} />
+                  </button>
+                }
+              />
+            );
+          })}
+          {showPublishButton ? (
+            <PillTooltip
+              label="Publish repository…"
+              render={
+                <button
+                  type="button"
+                  className={pillIconButtonClass()}
+                  aria-disabled={isGitActionRunning}
+                  aria-label="Publish repository"
+                  onClick={(event) => {
+                    if (isGitActionRunning) {
+                      event.preventDefault();
+                      return;
+                    }
+                    setIsPublishDialogOpen(true);
+                  }}
+                >
+                  <CloudPlusFilled className={GIT_ICON_CLASS} />
+                </button>
+              }
+            />
+          ) : null}
+        </div>
       ) : (
         <Group aria-label="Git actions" className="shrink-0">
           {quickActionDisabledReason ? (

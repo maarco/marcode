@@ -8,17 +8,16 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
+import { ChevronDownIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import {
-  BugIcon,
-  ChevronDownIcon,
-  FlaskConicalIcon,
-  HammerIcon,
-  ListChecksIcon,
-  PlayIcon,
-  PlusIcon,
-  SettingsIcon,
-  WrenchIcon,
-} from "lucide-react";
+  AddFilled,
+  Box1Filled,
+  ClipboardTickFilled,
+  MicroscopeFilled,
+  PlayFilled,
+  ScanFilled,
+  Setting3Filled,
+} from "@aliimam/icons";
 import React, { type FormEvent, type KeyboardEvent, useCallback, useMemo, useState } from "react";
 
 import {
@@ -41,6 +40,8 @@ import {
   AlertDialogPopup,
   AlertDialogTitle,
 } from "./ui/alert-dialog";
+import { PillTooltip, pillIconButtonClass } from "./FloatingPillNav";
+import { PillNavHoverCard } from "./PillNavHoverCard";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -69,19 +70,22 @@ const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "debug", label: "Debug" },
 ];
 
+// These render inside the floating pill, so they follow its icon language:
+// @aliimam filled glyphs at 16px. The pack has no filled bug/flask/hammer, so
+// the closest filled equivalent stands in for each concept.
 function ScriptIcon({
   icon,
-  className = "size-3.5",
+  className = "size-4",
 }: {
   icon: ProjectScriptIcon;
   className?: string;
 }) {
-  if (icon === "test") return <FlaskConicalIcon className={className} />;
-  if (icon === "lint") return <ListChecksIcon className={className} />;
-  if (icon === "configure") return <WrenchIcon className={className} />;
-  if (icon === "build") return <HammerIcon className={className} />;
-  if (icon === "debug") return <BugIcon className={className} />;
-  return <PlayIcon className={className} />;
+  if (icon === "test") return <MicroscopeFilled className={className} />;
+  if (icon === "lint") return <ClipboardTickFilled className={className} />;
+  if (icon === "configure") return <Setting3Filled className={className} />;
+  if (icon === "build") return <Box1Filled className={className} />;
+  if (icon === "debug") return <ScanFilled className={className} />;
+  return <PlayFilled className={className} />;
 }
 
 export interface NewProjectScriptInput {
@@ -109,6 +113,8 @@ interface ProjectScriptsControlProps {
     input: NewProjectScriptInput,
   ) => Promise<ProjectScriptActionResult>;
   onDeleteScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
+  /** render one direct button per script (right-click edits) instead of split button + menu */
+  flat?: boolean;
 }
 
 export default function ProjectScriptsControl({
@@ -119,6 +125,7 @@ export default function ProjectScriptsControl({
   onAddScript,
   onUpdateScript,
   onDeleteScript,
+  flat = false,
 }: ProjectScriptsControlProps) {
   const addScriptFormId = React.useId();
   const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
@@ -249,7 +256,49 @@ export default function ProjectScriptsControl({
 
   return (
     <>
-      {primaryScript ? (
+      {flat && primaryScript ? (
+        <div aria-label="Project scripts" className="flex shrink-0 items-center gap-0.5">
+          {scripts.map((script) => {
+            const shortcutLabel = shortcutLabelForCommand(
+              keybindings,
+              commandForProjectScript(script.id),
+            );
+            return (
+              <PillTooltip
+                key={script.id}
+                label={`Run ${script.name}${shortcutLabel ? ` (${shortcutLabel})` : ""} — right-click to edit`}
+                render={
+                  <button
+                    type="button"
+                    className={pillIconButtonClass()}
+                    aria-label={`Run ${script.name}`}
+                    onClick={() => onRunScript(script)}
+                    onContextMenu={(event) => {
+                      event.preventDefault();
+                      openEditDialog(script);
+                    }}
+                  >
+                    <ScriptIcon icon={script.icon} />
+                  </button>
+                }
+              />
+            );
+          })}
+          <PillNavHoverCard
+            metaKey="thread:add-action"
+            render={
+              <button
+                type="button"
+                className={pillIconButtonClass()}
+                aria-label="Add action"
+                onClick={openAddDialog}
+              >
+                <AddFilled className="size-4" />
+              </button>
+            }
+          />
+        </div>
+      ) : primaryScript ? (
         <Group aria-label="Project scripts">
           <Tooltip>
             <TooltipTrigger
@@ -327,6 +376,20 @@ export default function ProjectScriptsControl({
             </MenuPopup>
           </Menu>
         </Group>
+      ) : flat ? (
+        <PillNavHoverCard
+          metaKey="thread:add-action"
+          render={
+            <button
+              type="button"
+              className={pillIconButtonClass()}
+              aria-label="Add action"
+              onClick={openAddDialog}
+            >
+              <AddFilled className="size-4" />
+            </button>
+          }
+        />
       ) : (
         <Tooltip>
           <TooltipTrigger

@@ -410,6 +410,13 @@ export function CommandPalette({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [keybindings, terminalOpen, toggleOpen]);
 
+  // the floating pill nav's search button toggles the palette via this event
+  useEffect(() => {
+    const onToggle = () => toggleOpen();
+    window.addEventListener("marcode:toggle-command-palette", onToggle);
+    return () => window.removeEventListener("marcode:toggle-command-palette", onToggle);
+  }, [toggleOpen]);
+
   return (
     <OpenAddProjectCommandPaletteProvider openAddProject={openAddProject}>
       <ComposerHandleContext value={composerHandleRef}>
