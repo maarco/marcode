@@ -136,10 +136,29 @@ function ambientDirname(relativePath: string): string {
   return lastSlash < 0 ? "" : relativePath.slice(0, lastSlash);
 }
 
-/** Folders before files, alphabetical within each (spec override rule: sorting). */
+/**
+ * Folders before files; within each kind, dot-prefixed entries sort last, then
+ * alphabetical (spec override rule: sorting).
+ *
+ * Dot entries are demoted rather than hidden: a repo root is mostly `.github`,
+ * `.vscode`, `.devcontainer` and friends, which buries `apps`/`packages`/`docs`
+ * under infrastructure the user rarely clicks. Hiding them outright would be
+ * worse — those paths are legitimately edited, and silently omitting a file the
+ * user knows exists is a nastier failure than showing it lower down.
+ *
+ * ponytail: ordering only. If demotion alone proves insufficient, the upgrade
+ * path is a user-facing "show hidden entries" toggle threaded through
+ * `BuildUnifiedWorkspaceTreeInput`, not an ad hoc filter here — the on-disk
+ * index (gitignore-aware) stays the single source of truth for what exists.
+ */
 function compareAmbientEntries(a: ProjectEntry, b: ProjectEntry): number {
   if (a.kind !== b.kind) return a.kind === "directory" ? -1 : 1;
-  return basename(a.path).localeCompare(basename(b.path));
+  const aName = basename(a.path);
+  const bName = basename(b.path);
+  const aDot = aName.startsWith(".");
+  const bDot = bName.startsWith(".");
+  if (aDot !== bDot) return aDot ? 1 : -1;
+  return aName.localeCompare(bName);
 }
 
 /**
