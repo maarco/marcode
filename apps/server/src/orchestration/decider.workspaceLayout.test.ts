@@ -14,17 +14,21 @@ import {
   type OrchestrationCommand,
   type OrchestrationReadModel,
   ProjectId,
+  ProjectWorkspaceItemId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 
 import { decideOrchestrationCommand } from "./decider.ts";
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 
 const now = "2026-01-01T00:00:00.000Z";
+
+const isOrchestrationCommandInvariantError = Schema.is(OrchestrationCommandInvariantError);
 
 function rejectionTag(error: unknown): string {
   expect(error).toBeInstanceOf(OrchestrationCommandInvariantError);
@@ -87,25 +91,38 @@ const readModel: OrchestrationReadModel = {
       ],
       workspaceLayoutVersion: 5,
       workspaceLayout: [
-        { kind: "folder", id: "folder-1", parentId: null, rank: "a", relativePath: "src" },
+        {
+          kind: "folder",
+          id: ProjectWorkspaceItemId.make("folder-1"),
+          parentId: null,
+          rank: "a",
+          relativePath: "src",
+        },
         {
           kind: "file",
-          id: "file-1",
-          parentId: "folder-1",
+          id: ProjectWorkspaceItemId.make("file-1"),
+          parentId: ProjectWorkspaceItemId.make("folder-1"),
           rank: "a",
           relativePath: "src/auth.ts",
         },
         {
           kind: "thread",
-          id: "thread:thread-a",
-          parentId: "file-1",
+          id: ProjectWorkspaceItemId.make("thread:thread-a"),
+          parentId: ProjectWorkspaceItemId.make("file-1"),
           rank: "a",
           threadId: ThreadId.make("thread-a"),
         },
-        { kind: "url", id: "url-1", parentId: null, rank: "b", label: "Local", url: "http://localhost:3000" },
+        {
+          kind: "url",
+          id: ProjectWorkspaceItemId.make("url-1"),
+          parentId: null,
+          rank: "b",
+          label: "Local",
+          url: "http://localhost:3000",
+        },
         {
           kind: "command",
-          id: "command:script-1",
+          id: ProjectWorkspaceItemId.make("command:script-1"),
           parentId: null,
           rank: "c",
           scriptId: "script-1",
@@ -123,7 +140,13 @@ const readModel: OrchestrationReadModel = {
       scripts: [],
       workspaceLayoutVersion: 0,
       workspaceLayout: [
-        { kind: "folder", id: "folder-b1", parentId: null, rank: "a", relativePath: "lib" },
+        {
+          kind: "folder",
+          id: ProjectWorkspaceItemId.make("folder-b1"),
+          parentId: null,
+          rank: "a",
+          relativePath: "lib",
+        },
       ],
       createdAt: now,
       updatedAt: now,
@@ -167,13 +190,16 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
   it.effect("rejects when the project does not exist or is inactive (missing-target)", () =>
     Effect.gen(function* () {
       const missing = yield* Effect.flip(
-        applyCommand({ type: "remove", itemId: "url-1" }, { projectId: "project-missing" }),
+        applyCommand(
+          { type: "remove", itemId: ProjectWorkspaceItemId.make("url-1") },
+          { projectId: "project-missing" },
+        ),
       );
       expect(rejectionTag(missing)).toBe("missing-target");
 
       const inactive = yield* Effect.flip(
         applyCommand(
-          { type: "remove", itemId: "url-1" },
+          { type: "remove", itemId: ProjectWorkspaceItemId.make("url-1") },
           { projectId: "project-deleted", expectedVersion: 0 },
         ),
       );
@@ -184,10 +210,17 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
   it.effect("rejects a stale expectedVersion (version-conflict) and reports currentVersion", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        applyCommand({ type: "remove", itemId: "url-1" }, { expectedVersion: 999 }),
+        applyCommand(
+          { type: "remove", itemId: ProjectWorkspaceItemId.make("url-1") },
+          { expectedVersion: 999 },
+        ),
       );
       expect(rejectionTag(error)).toBe("version-conflict");
-      const detail = JSON.parse((error as OrchestrationCommandInvariantError).detail);
+      if (!isOrchestrationCommandInvariantError(error)) {
+        throw new Error("expected an OrchestrationCommandInvariantError");
+      }
+      // @effect-diagnostics-next-line preferSchemaOverJson:off - Decoding the invariant error's raw detail for assertions.
+      const detail = JSON.parse(error.detail);
       expect(detail.currentVersion).toBe(5);
     }),
   );
@@ -198,7 +231,7 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
         type: "attach-path",
         entry: {
           kind: "file",
-          id: "file-new",
+          id: ProjectWorkspaceItemId.make("file-new"),
           parentId: null,
           rank: "z",
           relativePath: "./docs/../docs/readme.md",
@@ -206,7 +239,10 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
       });
       const event = Array.isArray(result) ? result[0]! : result;
       expect(event.type).toBe("project.workspace-layout-applied");
-      if (event.type === "project.workspace-layout-applied" && event.payload.operation.type === "attach-path") {
+      if (
+        event.type === "project.workspace-layout-applied" &&
+        event.payload.operation.type === "attach-path"
+      ) {
         expect(event.payload.operation.entry.relativePath).toBe("docs/readme.md");
       }
       expect((event as { payload: { layoutVersion: number } }).payload.layoutVersion).toBe(6);
@@ -218,7 +254,13 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
       const error = yield* Effect.flip(
         applyCommand({
           type: "attach-path",
-          entry: { kind: "file", id: "file-new", parentId: null, rank: "z", relativePath: "../outside.ts" },
+          entry: {
+            kind: "file",
+            id: ProjectWorkspaceItemId.make("file-new"),
+            parentId: null,
+            rank: "z",
+            relativePath: "../outside.ts",
+          },
         }),
       );
       expect(rejectionTag(error)).toBe("invalid-path");
@@ -230,7 +272,13 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
       const error = yield* Effect.flip(
         applyCommand({
           type: "attach-path",
-          entry: { kind: "file", id: "file-new", parentId: null, rank: "z", relativePath: "src/auth.ts" },
+          entry: {
+            kind: "file",
+            id: ProjectWorkspaceItemId.make("file-new"),
+            parentId: null,
+            rank: "z",
+            relativePath: "src/auth.ts",
+          },
         }),
       );
       expect(rejectionTag(error)).toBe("duplicate-path");
@@ -244,8 +292,8 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
           type: "add-url",
           entry: {
             kind: "url",
-            id: "url-new",
-            parentId: "does-not-exist",
+            id: ProjectWorkspaceItemId.make("url-new"),
+            parentId: ProjectWorkspaceItemId.make("does-not-exist"),
             rank: "z",
             label: "x",
             url: "http://example.com",
@@ -263,8 +311,8 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
           type: "add-url",
           entry: {
             kind: "url",
-            id: "url-new",
-            parentId: "folder-b1",
+            id: ProjectWorkspaceItemId.make("url-new"),
+            parentId: ProjectWorkspaceItemId.make("folder-b1"),
             rank: "z",
             label: "x",
             url: "http://example.com",
@@ -282,8 +330,8 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
           type: "add-url",
           entry: {
             kind: "url",
-            id: "url-new",
-            parentId: "command:script-1",
+            id: ProjectWorkspaceItemId.make("url-new"),
+            parentId: ProjectWorkspaceItemId.make("command:script-1"),
             rank: "z",
             label: "x",
             url: "http://example.com",
@@ -295,7 +343,14 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
       const viaUrl = yield* Effect.flip(
         applyCommand({
           type: "add-url",
-          entry: { kind: "url", id: "url-new", parentId: "url-1", rank: "z", label: "x", url: "http://example.com" },
+          entry: {
+            kind: "url",
+            id: ProjectWorkspaceItemId.make("url-new"),
+            parentId: ProjectWorkspaceItemId.make("url-1"),
+            rank: "z",
+            label: "x",
+            url: "http://example.com",
+          },
         }),
       );
       expect(rejectionTag(viaUrl)).toBe("invalid-parent");
@@ -309,8 +364,8 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
           type: "add-url",
           entry: {
             kind: "url",
-            id: "url-new",
-            parentId: "terminal:env-1:thread-a:term-1",
+            id: ProjectWorkspaceItemId.make("url-new"),
+            parentId: ProjectWorkspaceItemId.make("terminal:env-1:thread-a:term-1"),
             rank: "z",
             label: "x",
             url: "http://example.com",
@@ -345,18 +400,20 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
     }),
   );
 
-  it.effect("place-resource: rejects a thread belonging to a different project (cross-project)", () =>
-    Effect.gen(function* () {
-      const error = yield* Effect.flip(
-        applyCommand({
-          type: "place-resource",
-          resource: { kind: "thread", threadId: ThreadId.make("thread-b") },
-          parentId: null,
-          beforeId: null,
-        }),
-      );
-      expect(rejectionTag(error)).toBe("cross-project");
-    }),
+  it.effect(
+    "place-resource: rejects a thread belonging to a different project (cross-project)",
+    () =>
+      Effect.gen(function* () {
+        const error = yield* Effect.flip(
+          applyCommand({
+            type: "place-resource",
+            resource: { kind: "thread", threadId: ThreadId.make("thread-b") },
+            parentId: null,
+            beforeId: null,
+          }),
+        );
+        expect(rejectionTag(error)).toBe("cross-project");
+      }),
   );
 
   it.effect("place-resource: rejects an unknown script (missing-target)", () =>
@@ -376,13 +433,23 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
   it.effect("move: rejects self-parent and descendant-cycle (cycle)", () =>
     Effect.gen(function* () {
       const selfParent = yield* Effect.flip(
-        applyCommand({ type: "move", itemId: "folder-1", parentId: "folder-1", beforeId: null }),
+        applyCommand({
+          type: "move",
+          itemId: ProjectWorkspaceItemId.make("folder-1"),
+          parentId: ProjectWorkspaceItemId.make("folder-1"),
+          beforeId: null,
+        }),
       );
       expect(rejectionTag(selfParent)).toBe("cycle");
 
       // file-1 is a child of folder-1; moving folder-1 under file-1 is a cycle.
       const descendantCycle = yield* Effect.flip(
-        applyCommand({ type: "move", itemId: "folder-1", parentId: "file-1", beforeId: null }),
+        applyCommand({
+          type: "move",
+          itemId: ProjectWorkspaceItemId.make("folder-1"),
+          parentId: ProjectWorkspaceItemId.make("file-1"),
+          beforeId: null,
+        }),
       );
       expect(rejectionTag(descendantCycle)).toBe("cycle");
     }),
@@ -391,7 +458,12 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
   it.effect("move: rejects an unknown itemId (missing-target)", () =>
     Effect.gen(function* () {
       const error = yield* Effect.flip(
-        applyCommand({ type: "move", itemId: "does-not-exist", parentId: null, beforeId: null }),
+        applyCommand({
+          type: "move",
+          itemId: ProjectWorkspaceItemId.make("does-not-exist"),
+          parentId: null,
+          beforeId: null,
+        }),
       );
       expect(rejectionTag(error)).toBe("missing-target");
     }),
@@ -402,7 +474,7 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
       const error = yield* Effect.flip(
         applyCommand({
           type: "move",
-          itemId: "browser:env-1:thread-a:tab-1",
+          itemId: ProjectWorkspaceItemId.make("browser:env-1:thread-a:tab-1"),
           parentId: null,
           beforeId: null,
         }),
@@ -411,43 +483,71 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
     }),
   );
 
-  it.effect("beforeId: rejects an unknown beforeId (missing-target) and a mismatched-parent beforeId (invalid-parent)", () =>
-    Effect.gen(function* () {
-      const missing = yield* Effect.flip(
-        applyCommand({ type: "move", itemId: "url-1", parentId: null, beforeId: "does-not-exist" }),
-      );
-      expect(rejectionTag(missing)).toBe("missing-target");
+  it.effect(
+    "beforeId: rejects an unknown beforeId (missing-target) and a mismatched-parent beforeId (invalid-parent)",
+    () =>
+      Effect.gen(function* () {
+        const missing = yield* Effect.flip(
+          applyCommand({
+            type: "move",
+            itemId: ProjectWorkspaceItemId.make("url-1"),
+            parentId: null,
+            beforeId: ProjectWorkspaceItemId.make("does-not-exist"),
+          }),
+        );
+        expect(rejectionTag(missing)).toBe("missing-target");
 
-      // file-1's parent is folder-1, not null — beforeId must share the
-      // resulting parent (here: root/null).
-      const mismatched = yield* Effect.flip(
-        applyCommand({ type: "move", itemId: "url-1", parentId: null, beforeId: "file-1" }),
-      );
-      expect(rejectionTag(mismatched)).toBe("invalid-parent");
-    }),
+        // file-1's parent is folder-1, not null — beforeId must share the
+        // resulting parent (here: root/null).
+        const mismatched = yield* Effect.flip(
+          applyCommand({
+            type: "move",
+            itemId: ProjectWorkspaceItemId.make("url-1"),
+            parentId: null,
+            beforeId: ProjectWorkspaceItemId.make("file-1"),
+          }),
+        );
+        expect(rejectionTag(mismatched)).toBe("invalid-parent");
+      }),
   );
 
-  it.effect("rename: rejects thread/command entries (missing-target) and accepts file/folder/url", () =>
-    Effect.gen(function* () {
-      const threadRename = yield* Effect.flip(
-        applyCommand({ type: "rename", itemId: "thread:thread-a", label: "New label" }),
-      );
-      expect(rejectionTag(threadRename)).toBe("missing-target");
+  it.effect(
+    "rename: rejects thread/command entries (missing-target) and accepts file/folder/url",
+    () =>
+      Effect.gen(function* () {
+        const threadRename = yield* Effect.flip(
+          applyCommand({
+            type: "rename",
+            itemId: ProjectWorkspaceItemId.make("thread:thread-a"),
+            label: "New label",
+          }),
+        );
+        expect(rejectionTag(threadRename)).toBe("missing-target");
 
-      const commandRename = yield* Effect.flip(
-        applyCommand({ type: "rename", itemId: "command:script-1", label: "New label" }),
-      );
-      expect(rejectionTag(commandRename)).toBe("missing-target");
+        const commandRename = yield* Effect.flip(
+          applyCommand({
+            type: "rename",
+            itemId: ProjectWorkspaceItemId.make("command:script-1"),
+            label: "New label",
+          }),
+        );
+        expect(rejectionTag(commandRename)).toBe("missing-target");
 
-      const result = yield* applyCommand({ type: "rename", itemId: "folder-1", label: "Renamed" });
-      const event = Array.isArray(result) ? result[0]! : result;
-      expect(event.type).toBe("project.workspace-layout-applied");
-    }),
+        const result = yield* applyCommand({
+          type: "rename",
+          itemId: ProjectWorkspaceItemId.make("folder-1"),
+          label: "Renamed",
+        });
+        const event = Array.isArray(result) ? result[0]! : result;
+        expect(event.type).toBe("project.workspace-layout-applied");
+      }),
   );
 
   it.effect("remove: rejects an unknown itemId (missing-target)", () =>
     Effect.gen(function* () {
-      const error = yield* Effect.flip(applyCommand({ type: "remove", itemId: "does-not-exist" }));
+      const error = yield* Effect.flip(
+        applyCommand({ type: "remove", itemId: ProjectWorkspaceItemId.make("does-not-exist") }),
+      );
       expect(rejectionTag(error)).toBe("missing-target");
     }),
   );
