@@ -183,6 +183,7 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
       assert.equal(report.changedPaths.length, 0);
       assert.equal(probedTree, null);
       assert.deepStrictEqual(yield* callerSnapshot(fixture.caller), before);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
       yield* decodePlanReport(JSON.parse(JSON.stringify(report)));
     }),
   );
@@ -202,6 +203,7 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
       assert.equal(report.upstreamCommits[0]?.title, "upstream clean");
       assert.equal(report.upstreamCommits[0]?.author, "fixture");
       assert.deepStrictEqual(yield* callerSnapshot(fixture.caller), before);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
       yield* decodePlanReport(JSON.parse(JSON.stringify(report)));
     }),
   );
@@ -218,6 +220,7 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
         report.conflicts.map((conflict) => conflict.path),
         ["shared.txt"],
       );
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
       yield* decodePlanReport(JSON.parse(JSON.stringify(report)));
     }),
   );

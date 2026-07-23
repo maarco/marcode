@@ -398,6 +398,7 @@ export const assertWorkflowScheduleParity = Effect.fn("assertWorkflowSchedulePar
     return yield* policy(
       workflowPath,
       "workflow-cron-mismatch",
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
       `workflow cron ${JSON.stringify(crons)} does not match manifest schedule.cron "${manifest.schedule.cron}".`,
     );
   }

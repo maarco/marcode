@@ -1,4 +1,5 @@
 import * as Console from "effect/Console";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
@@ -410,7 +411,7 @@ export const planUpstreamSync = Effect.fn("planUpstreamSync")(function* (
   );
 
   const base = {
-    generatedAt: new Date().toISOString(),
+    generatedAt: DateTime.formatIso(yield* DateTime.now),
     source: {
       url: redactRemoteUrl(manifest.source.url),
       branch: manifest.source.branch,
@@ -448,7 +449,7 @@ export const planUpstreamSync = Effect.fn("planUpstreamSync")(function* (
       report: emptyReport("unrelated-history", null),
       probedTree: null,
       manifest,
-    };
+    } satisfies UpstreamSyncPlan as UpstreamSyncPlan;
   }
 
   const ancestor = yield* git(["merge-base", "--is-ancestor", sourceSha, targetSha], {
@@ -457,7 +458,11 @@ export const planUpstreamSync = Effect.fn("planUpstreamSync")(function* (
     allowExitCodes: [1],
   });
   if (ancestor.exitCode === 0) {
-    return { report: emptyReport("up-to-date", mergeBase), probedTree: null, manifest };
+    return {
+      report: emptyReport("up-to-date", mergeBase),
+      probedTree: null,
+      manifest,
+    } satisfies UpstreamSyncPlan as UpstreamSyncPlan;
   }
 
   const commitsRaw = yield* gitText(
@@ -495,7 +500,7 @@ export const planUpstreamSync = Effect.fn("planUpstreamSync")(function* (
     },
     probedTree: conflicted ? null : tree,
     manifest,
-  };
+  } satisfies UpstreamSyncPlan as UpstreamSyncPlan;
 });
 
 export interface UpstreamSyncIntegrateOptions extends UpstreamSyncOptions {
@@ -651,7 +656,13 @@ export const integrateUpstreamSync = Effect.fn("integrateUpstreamSync")(function
     pushed = true;
   }
 
-  return { status: "integrated", integrationBranch: branch, mergeSha, pushed, plan: report };
+  return {
+    status: "integrated",
+    integrationBranch: branch,
+    mergeSha,
+    pushed,
+    plan: report,
+  } satisfies UpstreamSyncIntegrateReport as UpstreamSyncIntegrateReport;
 });
 
 const verifyMerge = Effect.fn("verifyMerge")(function* (input: {

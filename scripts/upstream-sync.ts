@@ -16,8 +16,6 @@ import {
   planUpstreamSync,
   printPlanSummary,
   upstreamSyncStatus,
-  type UpstreamSyncIntegrateReport,
-  type UpstreamSyncPlanReport,
 } from "./lib/upstream-sync-git.ts";
 
 export class UpstreamSyncReportWriteError extends Schema.TaggedErrorClass<UpstreamSyncReportWriteError>()(
@@ -34,13 +32,14 @@ export class UpstreamSyncReportWriteError extends Schema.TaggedErrorClass<Upstre
 
 const writeReport = Effect.fn("writeReport")(function* (
   jsonOutput: string | undefined,
-  report: UpstreamSyncPlanReport | UpstreamSyncIntegrateReport,
+  report: unknown,
 ) {
   if (jsonOutput === undefined) return;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const absolute = path.resolve(jsonOutput);
   yield* fs
+    // @effect-diagnostics-next-line preferSchemaOverJson:off
     .writeFileString(absolute, `${JSON.stringify(report, null, 2)}\n`)
     .pipe(Effect.mapError((cause) => new UpstreamSyncReportWriteError({ path: absolute, cause })));
   yield* Console.log(`report: ${absolute}`);
