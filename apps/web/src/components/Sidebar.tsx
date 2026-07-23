@@ -43,6 +43,7 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   type ContextMenuItem,
   DEFAULT_SERVER_SETTINGS,
+  type EnvironmentId,
   ProjectId,
   type ScopedThreadRef,
   type ResolvedKeybindingsConfig,
@@ -184,7 +185,9 @@ import { useOpenAddProjectCommandPalette } from "../commandPaletteContext";
 import {
   archiveSelectedThreadEntries,
   buildMultiSelectThreadContextMenuItems,
+  type ClientSettingsWithUnifiedWorkspaceFlag,
   getSidebarThreadIdsToPrewarm,
+  isUnifiedWorkspaceSidebarEnabled,
   resolveAdjacentThreadId,
   isContextMenuPointerDown,
   isTrailingDoubleClick,
@@ -196,6 +199,7 @@ import {
   resolveThreadStatusPill,
   orderItemsByPreferredIds,
   shouldClearThreadSelectionOnMouseDown,
+  shouldRenderUnifiedWorkspaceTree,
   sortProjectsForSidebar,
   useThreadJumpHintVisibility,
   ThreadStatusPill,
@@ -221,6 +225,12 @@ import {
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
 import { SidebarProviderUpdatePill } from "./sidebar/SidebarProviderUpdatePill";
+import { useUnifiedWorkspaceProject } from "../unifiedWorkspace/useUnifiedWorkspaceProject";
+import { qualifyUnifiedWorkspaceNodeId } from "../unifiedWorkspace/treeOperations";
+import {
+  UnifiedWorkspaceTree,
+  type UnifiedWorkspaceTreeThreadAction,
+} from "./unified-workspace/UnifiedWorkspaceTree";
 const SIDEBAR_SORT_LABELS: Record<SidebarProjectSortOrder, string> = {
   updated_at: "Last user message",
   created_at: "Created at",
@@ -1063,6 +1073,147 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
   );
 });
 
+interface SidebarProjectWorkspaceTreeProps {
+  environmentId: EnvironmentId;
+  projectId: ProjectId;
+  isMobile: boolean;
+  activeRouteThreadKey: string | null;
+  workspaceRootFallback: string;
+  appSettingsConfirmThreadDelete: boolean;
+  markThreadUnread: (threadKey: string, latestTurnCompletedAt: string | null | undefined) => void;
+  copyPathToClipboard: (value: string, ctx: { path: string }) => void;
+  copyThreadIdToClipboard: (value: string, ctx: { threadId: ThreadId }) => void;
+  attemptArchiveThread: (threadRef: ScopedThreadRef) => Promise<void>;
+  deleteThread: ReturnType<typeof useThreadActions>["deleteThread"];
+  openPrLink: (event: React.MouseEvent<HTMLElement>, prUrl: string) => void;
+  sidebarThreadByKeyRef: React.RefObject<Map<string, SidebarThreadSummary>>;
+}
+
+/**
+ * Spec §17 render seam: mounted only when `shouldRenderUnifiedWorkspaceTree`
+ * is true for this project (flag on, project expanded, nothing pinned while
+ * collapsed). Owns nothing of its own — `useUnifiedWorkspaceProject` is Agent
+ * 3's controller/projection hook; this component only renders it and bridges
+ * the five `UnifiedWorkspaceTreeThreadAction`s back onto the exact same
+ * archive/delete/mark-unread/copy handlers the flat list already uses, so
+ * enabling the flag doesn't create a second implementation of those flows.
+ *
+ * Thread-row extras (PR badge, worktree badge, jump hint, relative time) are
+ * intentionally not threaded through in this pass — the tree falls back to
+ * the controller's own narrower pending-approval/awaiting-input status. See
+ * the primary agent's finish-line report for that named gap.
+ */
+const SidebarProjectWorkspaceTree = memo(function SidebarProjectWorkspaceTree(
+  props: SidebarProjectWorkspaceTreeProps,
+) {
+  const {
+    environmentId,
+    projectId,
+    isMobile,
+    activeRouteThreadKey,
+    workspaceRootFallback,
+    appSettingsConfirmThreadDelete,
+    markThreadUnread,
+    copyPathToClipboard,
+    copyThreadIdToClipboard,
+    attemptArchiveThread,
+    deleteThread,
+    openPrLink,
+    sidebarThreadByKeyRef,
+  } = props;
+
+  const controller = useUnifiedWorkspaceProject({ environmentId, projectId });
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+
+  const activeNodeId = useMemo(() => {
+    if (!activeRouteThreadKey) return null;
+    const activeRef = parseScopedThreadKey(activeRouteThreadKey);
+    if (!activeRef || activeRef.environmentId !== environmentId) return null;
+    // Thread entries always carry the deterministic `thread:<threadId>` item
+    // id (spec §6.1) regardless of where they've been placed in the layout.
+    return qualifyUnifiedWorkspaceNodeId(environmentId, projectId, `thread:${activeRef.threadId}`);
+  }, [activeRouteThreadKey, environmentId, projectId]);
+
+  const handleThreadAction = useCallback(
+    (threadId: string, action: UnifiedWorkspaceTreeThreadAction) => {
+      const threadRef = scopeThreadRef(environmentId, ThreadId.make(threadId));
+      const threadKey = scopedThreadKey(threadRef);
+      const thread = sidebarThreadByKeyRef.current?.get(threadKey) ?? null;
+      switch (action) {
+        case "archive":
+          void attemptArchiveThread(threadRef);
+          return;
+        case "mark-unread":
+          markThreadUnread(threadKey, thread?.latestTurn?.completedAt);
+          return;
+        case "copy-id":
+          copyThreadIdToClipboard(threadId, { threadId: ThreadId.make(threadId) });
+          return;
+        case "copy-path": {
+          const path = thread?.worktreePath ?? workspaceRootFallback;
+          copyPathToClipboard(path, { path });
+          return;
+        }
+        case "delete": {
+          void (async () => {
+            const api = readLocalApi();
+            if (appSettingsConfirmThreadDelete) {
+              const confirmed = api
+                ? await api.dialogs.confirm(
+                    [
+                      `Delete thread "${thread?.title ?? "this thread"}"?`,
+                      "This permanently clears conversation history for this thread.",
+                    ].join("\n"),
+                  )
+                : true;
+              if (!confirmed) return;
+            }
+            const result = await deleteThread(threadRef);
+            if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+              const error = squashAtomCommandFailure(result);
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Failed to delete thread",
+                  description: error instanceof Error ? error.message : "An error occurred.",
+                }),
+              );
+            }
+          })();
+          return;
+        }
+      }
+    },
+    [
+      environmentId,
+      sidebarThreadByKeyRef,
+      attemptArchiveThread,
+      markThreadUnread,
+      copyThreadIdToClipboard,
+      copyPathToClipboard,
+      workspaceRootFallback,
+      appSettingsConfirmThreadDelete,
+      deleteThread,
+    ],
+  );
+
+  return (
+    <div className="mx-0.5 my-0 w-full px-1 py-0 sm:mx-1 sm:px-1.5">
+      <UnifiedWorkspaceTree
+        controller={controller}
+        projectId={projectId}
+        environmentId={environmentId}
+        isMobile={isMobile}
+        focusedNodeId={focusedNodeId}
+        onFocusedNodeIdChange={setFocusedNodeId}
+        activeNodeId={activeNodeId}
+        onThreadAction={handleThreadAction}
+        onOpenPrLink={openPrLink}
+      />
+    </div>
+  );
+});
+
 interface SidebarProjectItemProps {
   project: SidebarProjectSnapshot;
   isThreadListExpanded: boolean;
@@ -1109,6 +1260,13 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   );
   const appSettingsConfirmThreadArchive = useClientSettings<boolean>(
     (settings) => settings.confirmThreadArchive,
+  );
+  // Spec §17 rollout flag. Not yet in `ClientSettingsSchema` (packages/contracts
+  // is a different lane) — read through the same structural-typing extension
+  // `Sidebar.logic.ts` already defines, over the same client-settings plumbing
+  // every other flag here uses. Default off.
+  const unifiedWorkspaceSidebarEnabled = useClientSettings((settings) =>
+    isUnifiedWorkspaceSidebarEnabled(settings as ClientSettingsWithUnifiedWorkspaceFlag),
   );
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const serverConfigs = useServerConfigs();
@@ -1292,6 +1450,23 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       ) ?? null
     );
   }, [activeRouteThreadKey, projectExpanded, visibleProjectThreads]);
+
+  // The unified tree is scoped to one physical project/environment
+  // (`useUnifiedWorkspaceProject`), but a *grouped* logical project can span
+  // several physical members (spec §4) each with their own persisted layout.
+  // Rendering one tree per member is a real design surface this pass doesn't
+  // attempt — grouped projects keep the existing flat list unconditionally
+  // until that's designed, named as a gap in the finish-line report rather
+  // than shipped as a half-built multi-tree stack.
+  const soleWorkspaceTreeMember =
+    project.memberProjects.length === 1 ? project.memberProjects[0] : null;
+  const shouldRenderWorkspaceTree =
+    soleWorkspaceTreeMember !== null &&
+    shouldRenderUnifiedWorkspaceTree({
+      featureEnabled: unifiedWorkspaceSidebarEnabled,
+      projectExpanded,
+      hasPinnedCollapsedThread: pinnedCollapsedThread !== null,
+    });
 
   const {
     hasOverflowingThreads,
@@ -2352,42 +2527,60 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         </Tooltip>
       </div>
 
-      <SidebarProjectThreadList
-        projectKey={project.projectKey}
-        projectExpanded={projectExpanded}
-        hasOverflowingThreads={hasOverflowingThreads}
-        hiddenThreadStatus={hiddenThreadStatus}
-        orderedProjectThreadKeys={orderedProjectThreadKeys}
-        renderedThreads={renderedThreads}
-        showEmptyThreadState={showEmptyThreadState}
-        shouldShowThreadPanel={shouldShowThreadPanel}
-        isThreadListExpanded={isThreadListExpanded}
-        projectCwd={project.workspaceRoot}
-        activeRouteThreadKey={activeRouteThreadKey}
-        threadJumpLabelByKey={threadJumpLabelByKey}
-        appSettingsConfirmThreadArchive={appSettingsConfirmThreadArchive}
-        renamingThreadKey={renamingThreadKey}
-        renamingTitle={renamingTitle}
-        setRenamingTitle={setRenamingTitle}
-        startThreadRename={startThreadRename}
-        renamingInputRef={renamingInputRef}
-        renamingCommittedRef={renamingCommittedRef}
-        confirmingArchiveThreadKey={confirmingArchiveThreadKey}
-        setConfirmingArchiveThreadKey={setConfirmingArchiveThreadKey}
-        confirmArchiveButtonRefs={confirmArchiveButtonRefs}
-        attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
-        handleThreadClick={handleThreadClick}
-        navigateToThread={navigateToThread}
-        handleMultiSelectContextMenu={handleMultiSelectContextMenu}
-        handleThreadContextMenu={handleThreadContextMenu}
-        clearSelection={clearSelection}
-        commitRename={commitRename}
-        cancelRename={cancelRename}
-        attemptArchiveThread={attemptArchiveThread}
-        openPrLink={openPrLink}
-        expandThreadListForProject={expandThreadListForProject}
-        collapseThreadListForProject={collapseThreadListForProject}
-      />
+      {shouldRenderWorkspaceTree && soleWorkspaceTreeMember ? (
+        <SidebarProjectWorkspaceTree
+          environmentId={soleWorkspaceTreeMember.environmentId}
+          projectId={soleWorkspaceTreeMember.id}
+          isMobile={isMobile}
+          activeRouteThreadKey={activeRouteThreadKey}
+          workspaceRootFallback={project.workspaceRoot}
+          appSettingsConfirmThreadDelete={appSettingsConfirmThreadDelete}
+          markThreadUnread={markThreadUnread}
+          copyPathToClipboard={copyPathToClipboard}
+          copyThreadIdToClipboard={copyThreadIdToClipboard}
+          attemptArchiveThread={attemptArchiveThread}
+          deleteThread={deleteThread}
+          openPrLink={openPrLink}
+          sidebarThreadByKeyRef={sidebarThreadByKeyRef}
+        />
+      ) : (
+        <SidebarProjectThreadList
+          projectKey={project.projectKey}
+          projectExpanded={projectExpanded}
+          hasOverflowingThreads={hasOverflowingThreads}
+          hiddenThreadStatus={hiddenThreadStatus}
+          orderedProjectThreadKeys={orderedProjectThreadKeys}
+          renderedThreads={renderedThreads}
+          showEmptyThreadState={showEmptyThreadState}
+          shouldShowThreadPanel={shouldShowThreadPanel}
+          isThreadListExpanded={isThreadListExpanded}
+          projectCwd={project.workspaceRoot}
+          activeRouteThreadKey={activeRouteThreadKey}
+          threadJumpLabelByKey={threadJumpLabelByKey}
+          appSettingsConfirmThreadArchive={appSettingsConfirmThreadArchive}
+          renamingThreadKey={renamingThreadKey}
+          renamingTitle={renamingTitle}
+          setRenamingTitle={setRenamingTitle}
+          startThreadRename={startThreadRename}
+          renamingInputRef={renamingInputRef}
+          renamingCommittedRef={renamingCommittedRef}
+          confirmingArchiveThreadKey={confirmingArchiveThreadKey}
+          setConfirmingArchiveThreadKey={setConfirmingArchiveThreadKey}
+          confirmArchiveButtonRefs={confirmArchiveButtonRefs}
+          attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
+          handleThreadClick={handleThreadClick}
+          navigateToThread={navigateToThread}
+          handleMultiSelectContextMenu={handleMultiSelectContextMenu}
+          handleThreadContextMenu={handleThreadContextMenu}
+          clearSelection={clearSelection}
+          commitRename={commitRename}
+          cancelRename={cancelRename}
+          attemptArchiveThread={attemptArchiveThread}
+          openPrLink={openPrLink}
+          expandThreadListForProject={expandThreadListForProject}
+          collapseThreadListForProject={collapseThreadListForProject}
+        />
+      )}
 
       <Dialog
         open={projectRenameTarget !== null}
