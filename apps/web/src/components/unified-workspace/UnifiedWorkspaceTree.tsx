@@ -183,7 +183,10 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     else rowElementsRef.current.delete(nodeId);
   }, []);
 
-  const autoExpandTimeoutRef = useRef<ReturnType<typeof window.setTimeout> | null>(null);
+  // `number`, not `ReturnType<typeof window.setTimeout>` — this repo's tsconfig
+  // pulls in Node's ambient `setTimeout` overload too, which would otherwise
+  // resolve to Node's `Timeout` handle instead of the DOM `number` handle.
+  const autoExpandTimeoutRef = useRef<number | null>(null);
   const autoExpandNodeIdRef = useRef<string | null>(null);
   const clearAutoExpandTimer = useCallback(() => {
     if (autoExpandTimeoutRef.current !== null) {

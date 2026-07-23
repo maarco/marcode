@@ -7,13 +7,20 @@ import {
   ThreadId,
   type OrchestrationCommand,
   type OrchestrationReadModel,
+  type ProjectWorkspaceEntry,
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 
 import {
+  applyWorkspaceLayoutOperation,
+  collectWorkspaceLayoutDescendantIds,
+  computeWorkspaceLayoutPlacementRank,
   findThreadById,
+  isLiveWorkspaceResourceItemId,
   listThreadsByProjectId,
+  normalizeWorkspaceRelativePath,
+  removeWorkspaceLayoutEntryById,
   requireNonNegativeInteger,
   requireThread,
   requireThreadAbsent,
@@ -215,5 +222,173 @@ describe("commandInvariants", () => {
         }),
       ),
     ).rejects.toThrow("greater than or equal to 0");
+  });
+});
+
+describe("normalizeWorkspaceRelativePath", () => {
+  it("resolves . and .. segments within the path", () => {
+    expect(normalizeWorkspaceRelativePath("./src/../src/auth.ts")).toBe("src/auth.ts");
+    expect(normalizeWorkspaceRelativePath("src//auth.ts")).toBe("src/auth.ts");
+    expect(normalizeWorkspaceRelativePath("src\\auth.ts")).toBe("src/auth.ts");
+  });
+
+  it("rejects paths that escape the workspace root", () => {
+    expect(normalizeWorkspaceRelativePath("../outside.ts")).toBeNull();
+    expect(normalizeWorkspaceRelativePath("src/../../outside.ts")).toBeNull();
+  });
+
+  it("rejects absolute and empty paths", () => {
+    expect(normalizeWorkspaceRelativePath("/etc/passwd")).toBeNull();
+    expect(normalizeWorkspaceRelativePath("C:\\Windows")).toBeNull();
+    expect(normalizeWorkspaceRelativePath("\\\\server\\share")).toBeNull();
+    expect(normalizeWorkspaceRelativePath("")).toBeNull();
+    expect(normalizeWorkspaceRelativePath("   ")).toBeNull();
+    expect(normalizeWorkspaceRelativePath(".")).toBeNull();
+  });
+});
+
+describe("isLiveWorkspaceResourceItemId", () => {
+  it("recognizes live terminal/browser ids and rejects persisted ids", () => {
+    expect(isLiveWorkspaceResourceItemId("terminal:env-1:thread-1:term-1")).toBe(true);
+    expect(isLiveWorkspaceResourceItemId("browser:env-1:thread-1:tab-1")).toBe(true);
+    expect(isLiveWorkspaceResourceItemId("thread:thread-1")).toBe(false);
+    expect(isLiveWorkspaceResourceItemId("command:script-1")).toBe(false);
+    expect(isLiveWorkspaceResourceItemId("some-uuid")).toBe(false);
+  });
+});
+
+describe("collectWorkspaceLayoutDescendantIds", () => {
+  const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
+    { kind: "folder", id: "a", parentId: null, rank: "a", relativePath: "a" },
+    { kind: "folder", id: "b", parentId: "a", rank: "a", relativePath: "a/b" },
+    { kind: "folder", id: "c", parentId: "b", rank: "a", relativePath: "a/b/c" },
+    { kind: "folder", id: "sibling", parentId: null, rank: "b", relativePath: "sibling" },
+  ];
+
+  it("collects all transitive descendants, not just direct children", () => {
+    expect([...collectWorkspaceLayoutDescendantIds(layout, "a" as never)].toSorted()).toEqual([
+      "b",
+      "c",
+    ]);
+  });
+
+  it("returns an empty set for a leaf with no children", () => {
+    expect([...collectWorkspaceLayoutDescendantIds(layout, "c" as never)]).toEqual([]);
+    expect([...collectWorkspaceLayoutDescendantIds(layout, "sibling" as never)]).toEqual([]);
+  });
+});
+
+describe("computeWorkspaceLayoutPlacementRank", () => {
+  const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
+    { kind: "url", id: "first", parentId: null, rank: "a", label: "First", url: "http://a" },
+    { kind: "url", id: "second", parentId: null, rank: "m", label: "Second", url: "http://b" },
+    { kind: "url", id: "last", parentId: null, rank: "z", label: "Last", url: "http://c" },
+  ];
+
+  it("computes a rank after the last sibling when beforeId is null", () => {
+    const rank = computeWorkspaceLayoutPlacementRank({ layout, parentId: null, beforeId: null });
+    expect(rank > "z").toBe(true);
+  });
+
+  it("computes a rank strictly between the two siblings around beforeId", () => {
+    const rank = computeWorkspaceLayoutPlacementRank({
+      layout,
+      parentId: null,
+      beforeId: "second",
+    });
+    expect(rank > "a").toBe(true);
+    expect(rank < "m").toBe(true);
+  });
+
+  it("computes a rank before the first sibling when beforeId is the first sibling", () => {
+    const rank = computeWorkspaceLayoutPlacementRank({ layout, parentId: null, beforeId: "first" });
+    expect(rank < "a").toBe(true);
+  });
+
+  it("excludes the item itself from the sibling scan (re-placement)", () => {
+    // Moving "second" to before "last" must not compare it against its own
+    // prior rank ("m") — only against "first"/"last".
+    const rank = computeWorkspaceLayoutPlacementRank({
+      layout,
+      parentId: null,
+      beforeId: "last",
+      excludeItemId: "second" as never,
+    });
+    expect(rank > "a").toBe(true);
+    expect(rank < "z").toBe(true);
+  });
+});
+
+describe("removeWorkspaceLayoutEntryById", () => {
+  it("is a no-op when the item is not present", () => {
+    const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
+      { kind: "url", id: "x", parentId: null, rank: "a", label: "X", url: "http://x" },
+    ];
+    expect(removeWorkspaceLayoutEntryById(layout, "does-not-exist" as never)).toBe(layout);
+  });
+
+  it("removes a leaf with no children", () => {
+    const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
+      { kind: "url", id: "x", parentId: null, rank: "a", label: "X", url: "http://x" },
+    ];
+    expect(removeWorkspaceLayoutEntryById(layout, "x" as never)).toEqual([]);
+  });
+
+  it("reparents children to the removed node's own parent, preserving their relative order", () => {
+    const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
+      { kind: "folder", id: "root-sibling", parentId: null, rank: "a", relativePath: "existing" },
+      { kind: "folder", id: "mid", parentId: null, rank: "b", relativePath: "mid" },
+      { kind: "file", id: "child-1", parentId: "mid", rank: "a", relativePath: "mid/1.ts" },
+      { kind: "file", id: "child-2", parentId: "mid", rank: "b", relativePath: "mid/2.ts" },
+    ];
+    const result = removeWorkspaceLayoutEntryById(layout, "mid" as never);
+    expect(result.some((entry) => entry.id === "mid")).toBe(false);
+    const child1 = result.find((entry) => entry.id === "child-1")!;
+    const child2 = result.find((entry) => entry.id === "child-2")!;
+    expect(child1.parentId).toBeNull();
+    expect(child2.parentId).toBeNull();
+    // relative order preserved, and both sort after the pre-existing root sibling
+    expect(child1.rank < child2.rank).toBe(true);
+    const rootSibling = result.find((entry) => entry.id === "root-sibling")!;
+    expect(rootSibling.rank < child1.rank).toBe(true);
+  });
+});
+
+describe("applyWorkspaceLayoutOperation", () => {
+  it("appends new entries for attach-path and add-url", () => {
+    const result = applyWorkspaceLayoutOperation([], {
+      type: "attach-path",
+      entry: { kind: "file", id: "f", parentId: null, rank: "a", relativePath: "a.ts" },
+    });
+    expect(result).toEqual([{ kind: "file", id: "f", parentId: null, rank: "a", relativePath: "a.ts" }]);
+  });
+
+  it("materializes a place-resource entry with a computed rank, then re-places it on a second call", () => {
+    const afterPlace = applyWorkspaceLayoutOperation([], {
+      type: "place-resource",
+      resource: { kind: "thread", threadId: "thread-1" as never },
+      parentId: null,
+      beforeId: null,
+    });
+    expect(afterPlace.length).toBe(1);
+    expect(afterPlace[0]?.id).toBe("thread:thread-1");
+
+    const afterReplace = applyWorkspaceLayoutOperation(afterPlace, {
+      type: "place-resource",
+      resource: { kind: "thread", threadId: "thread-1" as never },
+      parentId: "some-folder" as never,
+      beforeId: null,
+    });
+    expect(afterReplace.length).toBe(1); // upsert, not a duplicate
+    expect(afterReplace[0]?.parentId).toBe("some-folder");
+  });
+
+  it("delegates remove to removeWorkspaceLayoutEntryById", () => {
+    const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
+      { kind: "url", id: "x", parentId: null, rank: "a", label: "X", url: "http://x" },
+    ];
+    expect(applyWorkspaceLayoutOperation(layout, { type: "remove", itemId: "x" as never })).toEqual(
+      [],
+    );
   });
 });

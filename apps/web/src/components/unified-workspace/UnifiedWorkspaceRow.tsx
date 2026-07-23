@@ -7,6 +7,7 @@ import {
   EllipsisIcon,
   FileIcon,
   FlaskConicalIcon,
+  FolderGit2Icon,
   FolderIcon,
   Globe2Icon,
   HammerIcon,
@@ -28,12 +29,10 @@ import {
 } from "react";
 import type { UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
 import { cn } from "../../lib/utils";
-import {
-  ChangeRequestStatusIcon,
-  ThreadStatusLabel,
-  ThreadWorktreeIndicator,
-} from "../ThreadStatusIndicators";
+import { ChangeRequestStatusIcon, ThreadStatusLabel } from "../ThreadStatusIndicators";
+import type { ThreadStatusPill } from "../Sidebar.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { formatWorktreePathForDisplay } from "../../worktreeCleanup";
 import type { UnifiedWorkspaceDropZone } from "./UnifiedWorkspaceTree.logic";
 import { unifiedWorkspaceRowIndentStyle } from "./UnifiedWorkspaceTree.logic";
 import {
@@ -72,12 +71,7 @@ const COMMAND_ICON_BY_SCRIPT_ICON: Record<ProjectScriptIcon, typeof PlayIcon> = 
  * this component still makes no store reads of its own.
  */
 export interface UnifiedWorkspaceThreadRowExtras {
-  readonly statusPill: {
-    label: string;
-    colorClass: string;
-    dotClass: string;
-    pulse: boolean;
-  } | null;
+  readonly statusPill: ThreadStatusPill | null;
   readonly prStatus: { tooltip: string; url: string; colorClass: string } | null;
   readonly terminalRunning: { label: string; colorClass: string; pulse: boolean } | null;
   readonly remoteEnvironmentLabel: string | null;
@@ -148,9 +142,18 @@ function iconForNode(node: UnifiedWorkspaceNode, commandIcon: ProjectScriptIcon 
  * prefer it and don't also render the controller's narrower pending badge —
  * otherwise a pending-approval thread would show the same pill twice.
  */
-function fallbackThreadStatusPill(
-  node: UnifiedWorkspaceNode,
-): { label: string; colorClass: string; dotClass: string; pulse: boolean } | null {
+/**
+ * Mirrors `ThreadWorktreeIndicator`'s tooltip copy exactly, without needing
+ * that component's branded `ThreadId` — this row only has the tree node's own
+ * compound id (`node:<env>:<project>:<item>`), not a real `ThreadId`, and the
+ * indicator's rendering only ever depends on branch/worktreePath strings.
+ */
+function worktreeTooltip(worktreePath: string, branch: string | null): string {
+  const displayPath = formatWorktreePathForDisplay(worktreePath);
+  return branch ? `Worktree: ${displayPath} (${branch})` : `Worktree: ${displayPath}`;
+}
+
+function fallbackThreadStatusPill(node: UnifiedWorkspaceNode): ThreadStatusPill | null {
   if (node.status?.kind !== "thread") return null;
   if (node.status.hasPendingApprovals) {
     return {
@@ -206,6 +209,12 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     disabled: !node.canMove,
   });
   const { attributes, listeners, setNodeRef, isDragging } = sortable;
+  // dnd-kit's default `attributes` include their own `role`/`tabIndex`
+  // (generic "draggable button" semantics) that would silently clobber this
+  // row's own ARIA-treeitem role and roving-tabindex if spread wholesale —
+  // keep the rest (e.g. `aria-roledescription`, `aria-disabled`) but let this
+  // row's own JSX attributes win for those two.
+  const { role: _dndRole, tabIndex: _dndTabIndex, ...dndAttributesWithoutRoleOrTabIndex } = attributes;
 
   const combinedNodeRef = useCallback(
     (element: HTMLElement | null) => {
@@ -352,7 +361,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       data-node-id={node.id}
       className={cn(UW_TREE_ROW_CLASS, isDragging && "opacity-40", dropZoneClassName)}
       style={indentStyle}
-      {...attributes}
+      {...dndAttributesWithoutRoleOrTabIndex}
       {...listeners}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
@@ -473,13 +482,22 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
           </Tooltip>
         )}
         {threadExtras?.worktreePath && (
-          <ThreadWorktreeIndicator
-            thread={{
-              id: node.id,
-              branch: threadExtras.branch,
-              worktreePath: threadExtras.worktreePath,
-            }}
-          />
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span
+                  role="img"
+                  aria-label={worktreeTooltip(threadExtras.worktreePath, threadExtras.branch)}
+                  className="inline-flex items-center justify-center"
+                />
+              }
+            >
+              <FolderGit2Icon className="size-3 text-muted-foreground/40" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">
+              {worktreeTooltip(threadExtras.worktreePath, threadExtras.branch)}
+            </TooltipPopup>
+          </Tooltip>
         )}
         {threadExtras?.remoteEnvironmentLabel && (
           <Tooltip>

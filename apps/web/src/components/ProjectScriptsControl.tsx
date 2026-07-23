@@ -60,6 +60,8 @@ import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { stackedThreadToast, toastManager } from "./ui/toast";
+import type { UnifiedWorkspaceMutationResult } from "~/unifiedWorkspace/types";
 
 const SCRIPT_ICONS: Array<{ id: ProjectScriptIcon; label: string }> = [
   { id: "play", label: "Play" },
@@ -115,6 +117,18 @@ interface ProjectScriptsControlProps {
   onDeleteScript: (scriptId: string) => Promise<ProjectScriptActionResult>;
   /** render one direct button per script (right-click edits) instead of split button + menu */
   flat?: boolean;
+  /**
+   * Unified workspace sidebar placement (spec §9 "Add command"). When set, a
+   * newly-created (not edited) script is placed under `parentId` immediately
+   * after `onAddScript` succeeds. On placement failure the script is left at
+   * the project root (the default for an unplaced command) and the failure
+   * is reported — the script itself is never deleted.
+   */
+  placement?: { parentId: string | null } | null;
+  onPlaceScript?: (input: {
+    scriptId: string;
+    parentId: string | null;
+  }) => Promise<UnifiedWorkspaceMutationResult>;
 }
 
 export default function ProjectScriptsControl({
@@ -126,6 +140,8 @@ export default function ProjectScriptsControl({
   onUpdateScript,
   onDeleteScript,
   flat = false,
+  placement = null,
+  onPlaceScript,
 }: ProjectScriptsControlProps) {
   const addScriptFormId = React.useId();
   const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
@@ -179,8 +195,9 @@ export default function ProjectScriptsControl({
 
     setValidationError(null);
     let payload: NewProjectScriptInput;
+    let newScriptId: string;
     try {
-      const scriptIdForValidation =
+      newScriptId =
         editingScriptId ??
         nextProjectScriptId(
           trimmedName,
@@ -188,7 +205,7 @@ export default function ProjectScriptsControl({
         );
       const keybindingRule = decodeProjectScriptKeybindingRule({
         keybinding,
-        command: commandForProjectScript(scriptIdForValidation),
+        command: commandForProjectScript(newScriptId),
       });
       const trimmedPreviewUrl = previewUrl.trim();
       payload = {
@@ -205,6 +222,7 @@ export default function ProjectScriptsControl({
       return;
     }
 
+    const wasEditing = editingScriptId !== null;
     const result = editingScriptId
       ? await onUpdateScript(editingScriptId, payload)
       : await onAddScript(payload);
@@ -217,6 +235,21 @@ export default function ProjectScriptsControl({
     }
     setDialogOpen(false);
     setIconPickerOpen(false);
+
+    // Placement only applies to a freshly-created command, and only when the
+    // caller opted in — editing an existing command never moves it.
+    if (!wasEditing && placement && onPlaceScript) {
+      const placementResult = await onPlaceScript({ scriptId: newScriptId, parentId: placement.parentId });
+      if (!placementResult.ok) {
+        toastManager.add(
+          stackedThreadToast({
+            type: "error",
+            title: "Action created, but couldn't be placed",
+            description: `"${trimmedName}" is visible at the project root instead. ${placementResult.message}`,
+          }),
+        );
+      }
+    }
   };
 
   const openAddDialog = () => {
