@@ -34,6 +34,8 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
           model: "gpt-5.4",
         },
         scripts: [],
+        workspaceLayoutVersion: 0,
+        workspaceLayout: [],
         createdAt: "2026-03-24T00:00:00.000Z",
         updatedAt: "2026-03-24T00:00:00.000Z",
         deletedAt: null,
@@ -67,6 +69,94 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
         instanceId: ProviderInstanceId.make("codex"),
         model: "gpt-5.4",
       });
+    }),
+  );
+
+  it.effect("stores and reads back the workspace layout version and entries as JSON", () =>
+    Effect.gen(function* () {
+      const projects = yield* ProjectionProjectRepository;
+      const sql = yield* SqlClient.SqlClient;
+
+      const layout = [
+        {
+          kind: "folder" as const,
+          id: "folder-1",
+          parentId: null,
+          rank: "a",
+          relativePath: "src",
+        },
+        {
+          kind: "file" as const,
+          id: "file-1",
+          parentId: "folder-1",
+          rank: "a",
+          relativePath: "src/index.ts",
+        },
+      ];
+
+      yield* projects.upsert({
+        projectId: ProjectId.make("project-with-layout"),
+        title: "Project with layout",
+        workspaceRoot: "/tmp/project-with-layout",
+        defaultModelSelection: null,
+        scripts: [],
+        workspaceLayoutVersion: 3,
+        workspaceLayout: layout,
+        createdAt: "2026-03-24T00:00:00.000Z",
+        updatedAt: "2026-03-24T00:00:00.000Z",
+        deletedAt: null,
+      });
+
+      const rows = yield* sql<{
+        readonly workspaceLayoutVersion: number;
+        readonly workspaceLayout: string;
+      }>`
+        SELECT
+          workspace_layout_version AS "workspaceLayoutVersion",
+          workspace_layout_json AS "workspaceLayout"
+        FROM projection_projects
+        WHERE project_id = 'project-with-layout'
+      `;
+      const row = rows[0];
+      if (!row) {
+        return yield* Effect.die("Expected projection_projects row to exist.");
+      }
+      assert.strictEqual(row.workspaceLayoutVersion, 3);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off
+      assert.deepStrictEqual(JSON.parse(row.workspaceLayout), layout);
+
+      const persisted = yield* projects.getById({
+        projectId: ProjectId.make("project-with-layout"),
+      });
+      const persistedProject = Option.getOrNull(persisted);
+      assert.strictEqual(persistedProject?.workspaceLayoutVersion, 3);
+      assert.deepStrictEqual(persistedProject?.workspaceLayout, layout);
+    }),
+  );
+
+  it.effect("defaults workspace layout version to 0 and layout to empty when omitted by an older writer", () =>
+    Effect.gen(function* () {
+      const sql = yield* SqlClient.SqlClient;
+
+      // Simulates a row written before migration 033's DEFAULT-backed
+      // columns existed, by inserting through the legacy column set only.
+      yield* sql`
+        INSERT INTO projection_projects (
+          project_id, title, workspace_root, default_model_selection_json,
+          scripts_json, created_at, updated_at, deleted_at
+        ) VALUES (
+          'project-legacy-row', 'Legacy row', '/tmp/project-legacy-row', NULL,
+          '[]', '2026-03-24T00:00:00.000Z', '2026-03-24T00:00:00.000Z', NULL
+        )
+      `;
+
+      const projects = yield* ProjectionProjectRepository;
+      const persisted = yield* projects.getById({
+        projectId: ProjectId.make("project-legacy-row"),
+      });
+      const persistedProject = Option.getOrNull(persisted);
+      assert.strictEqual(persistedProject?.workspaceLayoutVersion, 0);
+      assert.deepStrictEqual(persistedProject?.workspaceLayout, []);
     }),
   );
 

@@ -1,6 +1,10 @@
 import {
   ApprovalRequestId,
   type ChatAttachment,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  makeCommandWorkspaceItemId,
+  makeThreadWorkspaceItemId,
   type OrchestrationEvent,
   type OrchestrationSessionStatus,
   ThreadId,
@@ -14,6 +18,10 @@ import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/unstable/sql/SqlClient";
 
 import { toPersistenceSqlError, type ProjectionRepositoryError } from "../../persistence/Errors.ts";
+import {
+  applyWorkspaceLayoutOperation,
+  removeWorkspaceLayoutEntryById,
+} from "../commandInvariants.ts";
 import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts";
 import { ProjectionPendingApprovalRepository } from "../../persistence/Services/ProjectionPendingApprovals.ts";
 import { ProjectionProjectRepository } from "../../persistence/Services/ProjectionProjects.ts";
@@ -496,6 +504,8 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             workspaceRoot: event.payload.workspaceRoot,
             defaultModelSelection: event.payload.defaultModelSelection,
             scripts: event.payload.scripts,
+            workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+            workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
             createdAt: event.payload.createdAt,
             updatedAt: event.payload.updatedAt,
             deletedAt: null,
@@ -509,6 +519,21 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
           if (Option.isNone(existingRow)) {
             return;
           }
+          const nextScripts = event.payload.scripts ?? existingRow.value.scripts;
+          // Lifecycle pruning: a script dropped from the scripts array (the
+          // only way a project script is ever "deleted") prunes its
+          // workspace-layout command entry, same as a deleted thread below.
+          const removedScriptIds =
+            event.payload.scripts !== undefined
+              ? existingRow.value.scripts
+                  .filter((script) => !nextScripts.some((next) => next.id === script.id))
+                  .map((script) => script.id)
+              : [];
+          const nextWorkspaceLayout = removedScriptIds.reduce(
+            (layout, scriptId) =>
+              removeWorkspaceLayoutEntryById(layout, makeCommandWorkspaceItemId(scriptId)),
+            existingRow.value.workspaceLayout,
+          );
           yield* projectionProjectRepository.upsert({
             ...existingRow.value,
             ...(event.payload.title !== undefined ? { title: event.payload.title } : {}),
@@ -518,8 +543,55 @@ const makeOrchestrationProjectionPipeline = Effect.fn("makeOrchestrationProjecti
             ...(event.payload.defaultModelSelection !== undefined
               ? { defaultModelSelection: event.payload.defaultModelSelection }
               : {}),
-            ...(event.payload.scripts !== undefined ? { scripts: event.payload.scripts } : {}),
+            scripts: nextScripts,
+            workspaceLayout: nextWorkspaceLayout,
             updatedAt: event.payload.updatedAt,
+          });
+          return;
+        }
+
+        case "project.workspace-layout-applied": {
+          const existingRow = yield* projectionProjectRepository.getById({
+            projectId: event.payload.projectId,
+          });
+          if (Option.isNone(existingRow)) {
+            return;
+          }
+          yield* projectionProjectRepository.upsert({
+            ...existingRow.value,
+            workspaceLayout: applyWorkspaceLayoutOperation(
+              existingRow.value.workspaceLayout,
+              event.payload.operation,
+            ),
+            workspaceLayoutVersion: event.payload.layoutVersion,
+          });
+          return;
+        }
+
+        case "thread.deleted": {
+          // Lifecycle pruning: deleting a thread prunes its workspace-layout
+          // entry (if it was ever placed) on the owning project. This
+          // projector runs before the "threads" projector below (see the
+          // `projectors` array order), so the thread row is still readable
+          // here.
+          const threadRow = yield* projectionThreadRepository.getById({
+            threadId: event.payload.threadId,
+          });
+          if (Option.isNone(threadRow)) {
+            return;
+          }
+          const projectRow = yield* projectionProjectRepository.getById({
+            projectId: threadRow.value.projectId,
+          });
+          if (Option.isNone(projectRow)) {
+            return;
+          }
+          yield* projectionProjectRepository.upsert({
+            ...projectRow.value,
+            workspaceLayout: removeWorkspaceLayoutEntryById(
+              projectRow.value.workspaceLayout,
+              makeThreadWorkspaceItemId(event.payload.threadId),
+            ),
           });
           return;
         }
