@@ -629,6 +629,13 @@ const makeWsRpcLayer = (
         switch (event.type) {
           case "project.created":
           case "project.meta-updated":
+          // The sidebar workspace layout rides on the project shell, so a
+          // layout mutation has to re-publish the shell or connected clients
+          // keep rendering the pre-mutation tree until they remount. Without
+          // this case the event falls to `default`, which drops every
+          // non-thread aggregate — the row lands in SQLite and no client is
+          // ever told.
+          case "project.workspace-layout-applied":
             return projectUpsertOrRemove(event.payload.projectId, event.sequence);
           case "project.deleted":
             return Effect.succeed(
