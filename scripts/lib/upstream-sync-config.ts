@@ -133,10 +133,7 @@ export function renderTemplate(template: string, shortSha: string): string {
   return template.replaceAll(`{${UPSTREAM_SHORT_SHA_PLACEHOLDER}}`, shortSha);
 }
 
-export function renderIntegrationBranch(
-  manifest: UpstreamSyncManifest,
-  shortSha: string,
-): string {
+export function renderIntegrationBranch(manifest: UpstreamSyncManifest, shortSha: string): string {
   return renderTemplate(manifest.integration.branchTemplate, shortSha);
 }
 
@@ -167,7 +164,9 @@ export function isValidBranchName(branch: string): boolean {
   if ([...branch].some((character) => (character.codePointAt(0) ?? 0) < 0x20)) return false;
   return branch
     .split("/")
-    .every((segment) => segment.length > 0 && !segment.startsWith(".") && !segment.endsWith(".lock"));
+    .every(
+      (segment) => segment.length > 0 && !segment.startsWith(".") && !segment.endsWith(".lock"),
+    );
 }
 
 /** Rejects patterns that cannot describe a repository-relative path. */
@@ -367,7 +366,9 @@ function workflowCrons(workflow: unknown): ReadonlyArray<string> | undefined {
   const schedule = (triggers as Record<string, unknown>)["schedule"];
   if (!Array.isArray(schedule)) return undefined;
   return schedule.map((entry) =>
-    typeof entry === "object" && entry !== null ? String((entry as Record<string, unknown>).cron) : "",
+    typeof entry === "object" && entry !== null
+      ? String((entry as Record<string, unknown>).cron)
+      : "",
   );
 }
 
@@ -408,22 +409,26 @@ export const loadUpstreamSyncConfig = Effect.fn("loadUpstreamSyncConfig")(functi
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const manifestPath = path.join(rootDir, UPSTREAM_SYNC_MANIFEST_PATH);
-  const content = yield* fs.readFileString(manifestPath).pipe(
-    Effect.mapError(
-      (cause) =>
-        new UpstreamSyncConfigFileError({ operation: "read", path: manifestPath, cause }),
-    ),
-  );
+  const content = yield* fs
+    .readFileString(manifestPath)
+    .pipe(
+      Effect.mapError(
+        (cause) =>
+          new UpstreamSyncConfigFileError({ operation: "read", path: manifestPath, cause }),
+      ),
+    );
   const manifest = yield* parseUpstreamSyncConfig(content, manifestPath);
 
   const workflowPath = path.join(rootDir, UPSTREAM_SYNC_WORKFLOW_PATH);
   if (yield* fs.exists(workflowPath)) {
-    const workflowContent = yield* fs.readFileString(workflowPath).pipe(
-      Effect.mapError(
-        (cause) =>
-          new UpstreamSyncConfigFileError({ operation: "read", path: workflowPath, cause }),
-      ),
-    );
+    const workflowContent = yield* fs
+      .readFileString(workflowPath)
+      .pipe(
+        Effect.mapError(
+          (cause) =>
+            new UpstreamSyncConfigFileError({ operation: "read", path: workflowPath, cause }),
+        ),
+      );
     yield* assertWorkflowScheduleParity(manifest, workflowContent, workflowPath);
   }
 

@@ -122,14 +122,20 @@ it.layer(NodeServices.layer)("upstream-sync-config", (it) => {
 
   it.effect("rejects a non-HTTPS source url", () =>
     expectPolicy(
-      VALID.replace("https://github.com/pingdotgg/t3code.git", "http://github.com/pingdotgg/t3code.git"),
+      VALID.replace(
+        "https://github.com/pingdotgg/t3code.git",
+        "http://github.com/pingdotgg/t3code.git",
+      ),
       "source-url-not-https",
     ),
   );
 
   it.effect("rejects identical source and target urls", () =>
     expectPolicy(
-      VALID.replace("https://github.com/maarco/marcode.git", "https://github.com/pingdotgg/t3code.git"),
+      VALID.replace(
+        "https://github.com/maarco/marcode.git",
+        "https://github.com/pingdotgg/t3code.git",
+      ),
       "source-target-url-identical",
     ),
   );
@@ -148,14 +154,19 @@ it.layer(NodeServices.layer)("upstream-sync-config", (it) => {
       ]) {
         yield* expectParseFailure(VALID.replace(`${field}: false`, `${field}: true`));
       }
-      yield* expectParseFailure(VALID.replace("requireCleanWorktree: true", "requireCleanWorktree: false"));
+      yield* expectParseFailure(
+        VALID.replace("requireCleanWorktree: true", "requireCleanWorktree: false"),
+      );
       yield* expectParseFailure(VALID.replace("draft: true", "draft: false"));
     }),
   );
 
   it.effect("rejects a branch template without the short sha placeholder", () =>
     expectPolicy(
-      VALID.replace('branchTemplate: "chore/upstream-{upstreamShortSha}"', 'branchTemplate: "chore/upstream"'),
+      VALID.replace(
+        'branchTemplate: "chore/upstream-{upstreamShortSha}"',
+        'branchTemplate: "chore/upstream"',
+      ),
       "branch-template-missing-sha",
     ),
   );
@@ -172,7 +183,7 @@ it.layer(NodeServices.layer)("upstream-sync-config", (it) => {
 
   it.effect("rejects an unknown template placeholder", () =>
     expectPolicy(
-      VALID.replace("{upstreamShortSha}\"\n  branchTemplate", "{upstreamSha}\"\n  branchTemplate"),
+      VALID.replace('{upstreamShortSha}"\n  branchTemplate', '{upstreamSha}"\n  branchTemplate'),
       "template-unknown-placeholder",
     ),
   );
@@ -245,7 +256,9 @@ it.layer(NodeServices.layer)("upstream-sync-config", (it) => {
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
-      const root = yield* fs.makeTempDirectoryScoped({ prefix: "upstream-sync-config-noworkflow-" });
+      const root = yield* fs.makeTempDirectoryScoped({
+        prefix: "upstream-sync-config-noworkflow-",
+      });
       yield* fs.makeDirectory(path.join(root, ".github"), { recursive: true });
       yield* fs.writeFileString(path.join(root, UPSTREAM_SYNC_MANIFEST_PATH), VALID);
       const manifest = yield* loadUpstreamSyncConfig(root);
