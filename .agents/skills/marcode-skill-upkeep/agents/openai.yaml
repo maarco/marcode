@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marcode Skill Upkeep"
+  short_description: "Re-verify Marcode's skills against upstream drift"
+  default_prompt: "Use $marcode-skill-upkeep to re-verify .agents/skills/** against the live repo and decide what upstream drift changed."

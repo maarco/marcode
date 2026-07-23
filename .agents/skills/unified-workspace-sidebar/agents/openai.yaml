@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unified Workspace Sidebar"
+  short_description: "Test and verify Marcode's unified workspace tree"
+  default_prompt: "Use $unified-workspace-sidebar to enable the unifiedWorkspaceSidebar flag and verify Marcode's unified workspace tree."
