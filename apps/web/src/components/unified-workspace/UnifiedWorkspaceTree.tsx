@@ -16,7 +16,11 @@ import {
   type DropAnimation,
 } from "@dnd-kit/core";
 import { restrictToFirstScrollableAncestor, restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
 import type { ProjectScriptIcon } from "@t3tools/contracts";
 import {
   FileIcon,
@@ -38,7 +42,11 @@ import {
   type MouseEvent,
 } from "react";
 import { readLocalApi } from "../../localApi";
-import type { UnifiedWorkspaceController, UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
+import type {
+  UnifiedWorkspaceController,
+  UnifiedWorkspaceMutationResult,
+  UnifiedWorkspaceNode,
+} from "../../unifiedWorkspace/types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { UnifiedWorkspaceMoveDialog } from "./UnifiedWorkspaceMoveDialog";
@@ -95,7 +103,6 @@ export interface UnifiedWorkspaceTreeProps {
   readonly onThreadAction?: (threadId: string, action: UnifiedWorkspaceTreeThreadAction) => void;
   readonly onOpenPrLink?: (event: MouseEvent, url: string) => void;
   readonly onAddToChat?: (relativePath: string) => void;
-  readonly onAddCommand?: (parentId: string | null) => void;
   readonly onOpenInFiles?: (node: UnifiedWorkspaceNode) => void;
 }
 
@@ -118,13 +125,13 @@ function iconForOverlay(node: UnifiedWorkspaceNode) {
   }
 }
 
-function reportMutationFailure(action: string, result: { ok: boolean; message?: string }) {
+function reportMutationFailure(action: string, result: UnifiedWorkspaceMutationResult) {
   if (result.ok) return;
   toastManager.add(
     stackedThreadToast({
       type: "error",
       title: `Unable to ${action}`,
-      description: "message" in result ? result.message : "An error occurred.",
+      description: result.message,
     }),
   );
 }
@@ -155,7 +162,6 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     onThreadAction,
     onOpenPrLink,
     onAddToChat,
-    onAddCommand,
     onOpenInFiles,
   } = props;
 
@@ -168,13 +174,8 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
   } | null>(null);
   const [liveMessage, setLiveMessage] = useState("");
   const [moveDialogNode, setMoveDialogNode] = useState<UnifiedWorkspaceNode | null>(null);
-  const [attachDialogKind, setAttachDialogKind] = useState<"file" | "folder" | null>(null);
-  const [addUrlDialogOpen, setAddUrlDialogOpen] = useState(false);
-  const [addUrlLabel, setAddUrlLabel] = useState("");
-  const [addUrlUrl, setAddUrlUrl] = useState("");
   const [renamingNodeId, setRenamingNodeId] = useState<string | null>(null);
   const [renamingValue, setRenamingValue] = useState("");
-  const pendingParentIdRef = useRef<string | null>(null);
 
   const rowElementsRef = useRef(new Map<string, HTMLElement>());
   const registerRowElement = useCallback((nodeId: string, element: HTMLElement | null) => {
@@ -192,7 +193,10 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     autoExpandNodeIdRef.current = null;
   }, []);
 
-  const nodeIndex = useMemo(() => buildUnifiedWorkspaceNodeIndex(controller.roots), [controller.roots]);
+  const nodeIndex = useMemo(
+    () => buildUnifiedWorkspaceNodeIndex(controller.roots),
+    [controller.roots],
+  );
   const flatRows = useMemo(
     () => flattenVisibleUnifiedWorkspaceNodes(controller.roots, collapsedIds),
     [controller.roots, collapsedIds],
@@ -486,19 +490,21 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      const node = event.active.data.current?.node as UnifiedWorkspaceNode | undefined;
-      setDragState({ activeId: String(event.active.id), overNodeId: null, zone: null, overRootGutter: false });
-      setLiveMessage(
-        buildUnifiedWorkspaceDragAnnouncement({
-          phase: "start",
-          draggedLabel: node ? node.label : String(event.active.id),
-        }),
-      );
-    },
-    [],
-  );
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    const node = event.active.data.current?.node as UnifiedWorkspaceNode | undefined;
+    setDragState({
+      activeId: String(event.active.id),
+      overNodeId: null,
+      zone: null,
+      overRootGutter: false,
+    });
+    setLiveMessage(
+      buildUnifiedWorkspaceDragAnnouncement({
+        phase: "start",
+        draggedLabel: node ? node.label : String(event.active.id),
+      }),
+    );
+  }, []);
 
   const handleDragOver = useCallback(
     (event: DragOverEvent) => {
@@ -527,7 +533,9 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
 
       const overRect = event.over.rect;
       const activeRect = event.active.rect.current.translated ?? event.active.rect.current.initial;
-      const pointerOffsetY = activeRect ? activeRect.top + activeRect.height / 2 - overRect.top : overRect.height / 2;
+      const pointerOffsetY = activeRect
+        ? activeRect.top + activeRect.height / 2 - overRect.top
+        : overRect.height / 2;
       const rawZone = resolveUnifiedWorkspaceDropZone({
         pointerOffsetY,
         rowHeight: overRect.height,
@@ -543,7 +551,11 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
 
       if (autoExpandNodeIdRef.current !== overNodeId) {
         clearAutoExpandTimer();
-        if (rawZone === "inside" && overNode.canHaveChildren && isUnifiedWorkspaceNodeCollapsed(overNode, collapsedIds)) {
+        if (
+          rawZone === "inside" &&
+          overNode.canHaveChildren &&
+          isUnifiedWorkspaceNodeCollapsed(overNode, collapsedIds)
+        ) {
           autoExpandNodeIdRef.current = overNodeId;
           autoExpandTimeoutRef.current = window.setTimeout(() => {
             toggleCollapse(overNodeId);
@@ -583,7 +595,12 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
 
       if (currentDragState?.overRootGutter) {
         if (!canDropUnifiedWorkspaceNodeAtRoot({ index: nodeIndex, draggedNodeId: draggedId })) {
-          setLiveMessage(buildUnifiedWorkspaceDropResultAnnouncement({ draggedLabel: label, result: "rejected" }));
+          setLiveMessage(
+            buildUnifiedWorkspaceDropResultAnnouncement({
+              draggedLabel: label,
+              result: "rejected",
+            }),
+          );
           return;
         }
         const target = resolveMoveTargetForRootGutterDrop(draggedId);
@@ -601,7 +618,9 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
       }
 
       if (!currentDragState?.overNodeId || !currentDragState.zone) {
-        setLiveMessage(buildUnifiedWorkspaceDragAnnouncement({ phase: "cancel", draggedLabel: label }));
+        setLiveMessage(
+          buildUnifiedWorkspaceDragAnnouncement({ phase: "cancel", draggedLabel: label }),
+        );
         return;
       }
 
@@ -644,72 +663,6 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
 
   useEffect(() => clearAutoExpandTimer, [clearAutoExpandTimer]);
 
-  const handleAttachFile = useCallback((parentId: string | null) => {
-    pendingParentIdRef.current = parentId;
-    setAttachDialogKind("file");
-  }, []);
-
-  const handleAttachFolder = useCallback((parentId: string | null) => {
-    pendingParentIdRef.current = parentId;
-    setAttachDialogKind("folder");
-  }, []);
-
-  const handleOpenAddUrlDialog = useCallback((parentId: string | null) => {
-    pendingParentIdRef.current = parentId;
-    setAddUrlLabel("");
-    setAddUrlUrl("");
-    setAddUrlDialogOpen(true);
-  }, []);
-
-  const handleAddCommand = useCallback(
-    (parentId: string | null) => {
-      if (onAddCommand) {
-        onAddCommand(parentId);
-      } else {
-        toastManager.add({
-          type: "info",
-          title: "Not available yet",
-          description: "Adding a command from the tree isn't wired to the script editor yet.",
-        });
-      }
-    },
-    [onAddCommand],
-  );
-
-  const handleAttachConfirm = useCallback(
-    (relativePath: string) => {
-      const kind = attachDialogKind;
-      if (!kind) return;
-      void controller
-        .attachPath({ kind, relativePath, parentId: pendingParentIdRef.current })
-        .then((result) => reportMutationFailure(`attach ${kind}`, result));
-    },
-    [attachDialogKind, controller],
-  );
-
-  const handleFocusExistingAttach = useCallback((relativePath: string) => {
-    // The controller doesn't expose "find node id by relative path" — the
-    // duplicate-focus behavior from §9 ("On duplicate, focus and reveal the
-    // existing node") needs either a controller lookup or for buildTree to
-    // surface it. Until then, tell the user plainly instead of silently
-    // doing nothing.
-    toastManager.add({
-      type: "info",
-      title: "Already attached",
-      description: relativePath,
-    });
-  }, []);
-
-  const handleAddUrlConfirm = useCallback(() => {
-    const label = addUrlLabel.trim();
-    const url = addUrlUrl.trim();
-    if (!label || !url) return;
-    void controller
-      .addUrlShortcut({ label, url, parentId: pendingParentIdRef.current })
-      .then((result) => reportMutationFailure("add URL shortcut", result));
-    setAddUrlDialogOpen(false);
-  }, [addUrlLabel, addUrlUrl, controller]);
-
   const handleMoveConfirm = useCallback(
     (target: { parentId: string | null }) => {
       if (!moveDialogNode) return;
@@ -718,11 +671,6 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
         .then((result) => reportMutationFailure("move", result));
     },
     [controller, moveDialogNode],
-  );
-
-  const attachCandidates = useMemo(
-    () => (attachDialogKind ? controller.listAttachCandidates(attachDialogKind) : []),
-    [attachDialogKind, controller],
   );
 
   const activeDraggedNode = dragState ? nodeIndex.byId.get(dragState.activeId) : null;
@@ -740,14 +688,18 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
           "--uw-tree-icon-size": "0.875rem",
           "--uw-tree-guide-color": "color-mix(in srgb, var(--border) 70%, transparent)",
           "--uw-tree-drop-color": "var(--ring)",
-        } as React.CSSProperties
+        } as CSSProperties
       }
     >
       {!controller.capabilities.canMutate && (
-        <Alert variant="warning" className="mx-1 mb-1 rounded-md border-warning/40 bg-warning/8 px-2 py-1.5">
+        <Alert
+          variant="warning"
+          className="mx-1 mb-1 rounded-md border-warning/40 bg-warning/8 px-2 py-1.5"
+        >
           <AlertTitle className="text-[11px]">Read-only tree</AlertTitle>
           <AlertDescription className="text-[10px]">
-            {controller.capabilities.reason ?? "Attaching and moving items isn't available right now."}
+            {controller.capabilities.reason ??
+              "Attaching and moving items isn't available right now."}
           </AlertDescription>
         </Alert>
       )}
@@ -762,19 +714,28 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <SortableContext items={flatRows.map((row) => row.node.id)} strategy={verticalListSortingStrategy}>
+        <SortableContext
+          items={flatRows.map((row) => row.node.id)}
+          strategy={verticalListSortingStrategy}
+        >
           <div role="tree" aria-label="Project workspace" className={UW_TREE_ROOT_CLASS}>
             {flatRows.map(({ node }) => (
               <UnifiedWorkspaceRow
                 key={node.id}
                 node={node}
                 isCollapsed={isUnifiedWorkspaceNodeCollapsed(node, collapsedIds)}
-                isFocused={focusedNodeId === node.id || (focusedNodeId === null && flatRows[0]?.node.id === node.id)}
+                isFocused={
+                  focusedNodeId === node.id ||
+                  (focusedNodeId === null && flatRows[0]?.node.id === node.id)
+                }
                 isActive={activeNodeId === node.id}
                 isSelected={false}
                 isDropTarget={
-                  dragState?.overNodeId === node.id && dragState.zone ? { zone: dragState.zone } : null
+                  dragState?.overNodeId === node.id && dragState.zone
+                    ? { zone: dragState.zone }
+                    : null
                 }
+                isMobile={isMobile}
                 threadExtras={threadRowExtrasByNodeId?.get(node.id) ?? null}
                 commandIcon={
                   node.activation.kind === "command"
@@ -820,19 +781,6 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
         {liveMessage}
       </div>
 
-      <div className="sr-only">
-        <UnifiedWorkspaceAddMenu
-          parentId={addMenuParentId}
-          canMutate={controller.capabilities.canMutate}
-          trigger={<button type="button" aria-hidden="true" tabIndex={-1} />}
-          onNewThread={handleNewThread}
-          onAttachFile={handleAttachFile}
-          onAttachFolder={handleAttachFolder}
-          onAddUrlShortcut={handleOpenAddUrlDialog}
-          onAddCommand={handleAddCommand}
-        />
-      </div>
-
       <UnifiedWorkspaceMoveDialog
         open={moveDialogNode !== null}
         onOpenChange={(open) => {
@@ -842,49 +790,6 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
         roots={controller.roots}
         onConfirm={handleMoveConfirm}
       />
-
-      {attachDialogKind && (
-        <UnifiedWorkspaceAttachDialog
-          open={attachDialogKind !== null}
-          onOpenChange={(open) => {
-            if (!open) setAttachDialogKind(null);
-          }}
-          kind={attachDialogKind}
-          candidates={attachCandidates}
-          onAttach={handleAttachConfirm}
-          onFocusExisting={handleFocusExistingAttach}
-        />
-      )}
-
-      <Dialog open={addUrlDialogOpen} onOpenChange={setAddUrlDialogOpen}>
-        <DialogPopup className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Add URL shortcut</DialogTitle>
-            <DialogDescription>A durable link, activated through the existing preview surface.</DialogDescription>
-          </DialogHeader>
-          <DialogPanel className="space-y-2">
-            <Input
-              autoFocus
-              placeholder="Label"
-              value={addUrlLabel}
-              onChange={(event) => setAddUrlLabel(event.target.value)}
-            />
-            <Input
-              placeholder="https://…"
-              value={addUrlUrl}
-              onChange={(event) => setAddUrlUrl(event.target.value)}
-            />
-          </DialogPanel>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddUrlDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button disabled={!addUrlLabel.trim() || !addUrlUrl.trim()} onClick={handleAddUrlConfirm}>
-              Add
-            </Button>
-          </DialogFooter>
-        </DialogPopup>
-      </Dialog>
     </div>
   );
 }
