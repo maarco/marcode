@@ -257,7 +257,9 @@ export const validateUpstreamSyncConfig = Effect.fn("validateUpstreamSyncConfig"
     ["source", manifest.source],
     ["target", manifest.target],
   ] as const) {
-    if (!ref.url.startsWith("https://")) {
+    // file:// is permitted so the merge machinery is testable against local repositories;
+    // the checked-in manifest is asserted to be https by its own test.
+    if (!ref.url.startsWith("https://") && !ref.url.startsWith("file://")) {
       return yield* policy(
         sourcePath,
         `${field}-url-not-https`,
