@@ -56,3 +56,17 @@ never ad-hoc git.
 - Hotspot paths in the manifest are mandatory-review paths, not "always keep Marcode" paths. An upstream
   security or correctness fix must not be dropped because it touched a customized file.
 - See [Upstream sync](./docs/operations/upstream-sync.md) for the runbook.
+
+### Pending: first live workflow run
+
+`.github/workflows/upstream-sync.yml` has never executed. It only becomes real once it is on the
+default branch on GitHub. When Marco is ready to push `main`:
+
+1. Push `main` to `origin`.
+2. Enable _Settings → Actions → General → Allow GitHub Actions to create and approve pull requests_
+   (without it the merge and branch push succeed but PR creation returns 403).
+3. Trigger the workflow manually via `workflow_dispatch` and watch the run.
+4. Expect a draft PR from `chore/upstream-<short-sha>` into `main`. Review it; nothing auto-merges.
+
+Do not push on Marco's behalf. Local `upstream:status` and `upstream:plan` are read-only and safe to
+run any time.
