@@ -11,6 +11,7 @@ import {
   OrchestrationThread,
   OrchestrationThreadDetailSnapshot,
   ProjectScript,
+  ProjectWorkspaceEntry,
   TurnId,
   type OrchestrationCheckpointSummary,
   type OrchestrationLatestTurn,
@@ -66,6 +67,7 @@ const ProjectionProjectDbRowSchema = ProjectionProject.mapFields(
   Struct.assign({
     defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
     scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+    workspaceLayout: Schema.fromJsonString(Schema.Array(ProjectWorkspaceEntry)),
   }),
 );
 const ProjectionThreadMessageDbRowSchema = ProjectionThreadMessage.mapFields(
@@ -235,6 +237,8 @@ function mapProjectShellRow(
     repositoryIdentity,
     defaultModelSelection: row.defaultModelSelection,
     scripts: row.scripts,
+    workspaceLayoutVersion: row.workspaceLayoutVersion,
+    workspaceLayout: row.workspaceLayout,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -308,6 +312,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           workspace_root AS "workspaceRoot",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
+          workspace_layout_version AS "workspaceLayoutVersion",
+          workspace_layout_json AS "workspaceLayout",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           deleted_at AS "deletedAt"
@@ -669,6 +675,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           workspace_root AS "workspaceRoot",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
+          workspace_layout_version AS "workspaceLayoutVersion",
+          workspace_layout_json AS "workspaceLayout",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           deleted_at AS "deletedAt"
@@ -691,6 +699,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
           workspace_root AS "workspaceRoot",
           default_model_selection_json AS "defaultModelSelection",
           scripts_json AS "scripts",
+          workspace_layout_version AS "workspaceLayoutVersion",
+          workspace_layout_json AS "workspaceLayout",
           created_at AS "createdAt",
           updated_at AS "updatedAt",
           deleted_at AS "deletedAt"
@@ -1168,6 +1178,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                 repositoryIdentity: repositoryIdentities.get(row.projectId) ?? null,
                 defaultModelSelection: row.defaultModelSelection,
                 scripts: row.scripts,
+                workspaceLayoutVersion: row.workspaceLayoutVersion,
+                workspaceLayout: row.workspaceLayout,
                 createdAt: row.createdAt,
                 updatedAt: row.updatedAt,
                 deletedAt: row.deletedAt,
@@ -1290,6 +1302,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                   workspaceRoot: row.workspaceRoot,
                   defaultModelSelection: row.defaultModelSelection,
                   scripts: row.scripts,
+                  // The command read model backs the decider's in-memory
+                  // invariant checks (expectedVersion match, cycle/parent
+                  // validation, duplicate-path lookup), so it must carry the
+                  // real persisted layout — not a default placeholder.
+                  workspaceLayoutVersion: row.workspaceLayoutVersion,
+                  workspaceLayout: row.workspaceLayout,
                   createdAt: row.createdAt,
                   updatedAt: row.updatedAt,
                   deletedAt: row.deletedAt,
@@ -1726,6 +1744,8 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
                     repositoryIdentity,
                     defaultModelSelection: option.value.defaultModelSelection,
                     scripts: option.value.scripts,
+                    workspaceLayoutVersion: option.value.workspaceLayoutVersion,
+                    workspaceLayout: option.value.workspaceLayout,
                     createdAt: option.value.createdAt,
                     updatedAt: option.value.updatedAt,
                     deletedAt: option.value.deletedAt,
