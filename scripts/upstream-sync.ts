@@ -39,6 +39,9 @@ const writeReport = Effect.fn("writeReport")(function* (
   const path = yield* Path.Path;
   const absolute = path.resolve(jsonOutput);
   yield* fs
+    .makeDirectory(path.dirname(absolute), { recursive: true })
+    .pipe(Effect.mapError((cause) => new UpstreamSyncReportWriteError({ path: absolute, cause })));
+  yield* fs
     // @effect-diagnostics-next-line preferSchemaOverJson:off
     .writeFileString(absolute, `${JSON.stringify(report, null, 2)}\n`)
     .pipe(Effect.mapError((cause) => new UpstreamSyncReportWriteError({ path: absolute, cause })));

@@ -1037,7 +1037,7 @@ export function FloatingPillNav() {
   }, [isMobile]);
 
   // touch drag: on the grip handle only (so taps on nav items aren't hijacked)
-  const gripRef = useRef<HTMLDivElement>(null);
+  const gripRef = useRef<HTMLButtonElement>(null);
   const touchActive = useRef(false);
   const isLockedRef = useRef(isLocked);
   const beginDragRef = useRef(beginDrag);
@@ -1454,26 +1454,34 @@ export function FloatingPillNav() {
           )}
         />
 
-        <div
-          ref={gripRef}
-          onClick={toggleLock}
-          className={cn(
-            "flex items-center justify-center w-8 h-8 sm:w-6 sm:h-6 rounded-full transition-colors",
-            "touch-none select-none",
-            isMobile && "hidden",
-            isLocked
-              ? "text-foreground/50 dark:text-white/50 hover:text-foreground/70 dark:hover:text-white/70 cursor-pointer"
-              : "text-foreground/20 dark:text-white/20 hover:text-foreground/40 dark:hover:text-white/40 cursor-grab active:cursor-grabbing",
-            vert && "rotate-90",
-          )}
-          title={isLocked ? "Unlock position" : "Lock position"}
-        >
-          {isLocked ? (
-            <LockFilled className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-          ) : (
-            <LockSlashFilled className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
-          )}
-        </div>
+        <PillNavHoverCard
+          metaKey="pill:lock"
+          side={overlaySide}
+          render={
+            <button
+              ref={gripRef}
+              type="button"
+              onClick={toggleLock}
+              className={cn(
+                "flex items-center justify-center w-8 h-8 sm:w-6 sm:h-6 rounded-full transition-colors",
+                "touch-none select-none",
+                isMobile && "hidden",
+                isLocked
+                  ? "text-foreground/50 dark:text-white/50 hover:text-foreground/70 dark:hover:text-white/70 cursor-pointer"
+                  : "text-foreground/20 dark:text-white/20 hover:text-foreground/40 dark:hover:text-white/40 cursor-grab active:cursor-grabbing",
+                vert && "rotate-90",
+              )}
+              aria-pressed={isLocked}
+              aria-label={isLocked ? "Unlock position" : "Lock position"}
+            >
+              {isLocked ? (
+                <LockFilled className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              ) : (
+                <LockSlashFilled className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              )}
+            </button>
+          }
+        />
 
         {showEdgeFades && rowOverflow.end && <RowEdgeFade narrow={isMobile} side="end" />}
       </div>

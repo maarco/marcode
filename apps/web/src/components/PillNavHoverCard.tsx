@@ -14,6 +14,7 @@ import {
   KeySquareFilled,
   LayerFilled,
   LinkFilled,
+  LockFilled,
   MessageCircleFilled,
   Setting2Filled,
   Setting5Filled,
@@ -199,6 +200,15 @@ export const PILL_NAV_META = {
       "This project has no repository yet. Runs git init in the project folder so the thread can stage, commit and diff its changes.",
     icon: Hierarchy2Filled,
     color: WORKSPACE_COLOR,
+  },
+  // The grip. Its three gestures are otherwise undiscoverable, which is exactly
+  // what a card is for — a one-line tooltip could only name one of them.
+  "pill:lock": {
+    title: "Lock Position",
+    description:
+      "The pill's handle. Drag it to move the pill, scroll it to resize, click to lock it in place — locked, it stays put and ignores dragging.",
+    icon: LockFilled,
+    color: UTILITY_COLOR,
   },
 } as const satisfies Record<string, PillNavMeta>;
 
