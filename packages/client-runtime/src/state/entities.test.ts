@@ -1,5 +1,7 @@
 import {
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EnvironmentId,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   ProviderInstanceId,
   ThreadId,
@@ -103,6 +105,11 @@ const THREAD_SHELL = {
   hasActionableProposedPlan: false,
 } as const;
 
+const PROJECT_WORKSPACE_LAYOUT_DEFAULTS = {
+  workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+} as const;
+
 const SNAPSHOT: OrchestrationShellSnapshot = {
   snapshotSequence: 1,
   updatedAt: "2026-06-01T00:00:00.000Z",
@@ -114,6 +121,7 @@ const SNAPSHOT: OrchestrationShellSnapshot = {
       repositoryIdentity: null,
       defaultModelSelection: null,
       scripts: [],
+      ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
       createdAt: "2026-06-01T00:00:00.000Z",
       updatedAt: "2026-06-01T00:00:00.000Z",
     },
@@ -124,6 +132,7 @@ const SNAPSHOT: OrchestrationShellSnapshot = {
       repositoryIdentity: null,
       defaultModelSelection: null,
       scripts: [],
+      ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
       createdAt: "2026-06-01T00:00:00.000Z",
       updatedAt: "2026-06-01T00:00:00.000Z",
     },

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   DEFAULT_MODEL,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EnvironmentId,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   CommandId,
   SourceControlDiscoveryResult,
@@ -93,6 +95,10 @@ describe("add project shared logic", () => {
   it("finds existing projects by normalized path in the target environment", () => {
     const env = EnvironmentId.make("env");
     const other = EnvironmentId.make("other");
+    const projectWorkspaceLayoutDefaults = {
+      workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+      workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+    } as const;
     const projects: EnvironmentProject[] = [
       {
         environmentId: other,
@@ -104,6 +110,7 @@ describe("add project shared logic", () => {
         repositoryIdentity: null,
         defaultModelSelection: null,
         scripts: [],
+        ...projectWorkspaceLayoutDefaults,
       },
       {
         environmentId: env,
@@ -115,6 +122,7 @@ describe("add project shared logic", () => {
         repositoryIdentity: null,
         defaultModelSelection: null,
         scripts: [],
+        ...projectWorkspaceLayoutDefaults,
       },
     ];
 

@@ -3,7 +3,9 @@ import {
   makeCommandWorkspaceItemId,
   makeThreadWorkspaceItemId,
   ORCHESTRATION_WS_METHODS,
+  ProjectWorkspaceItemId,
   ThreadId,
+  type EnvironmentAuthorizationError,
   type EnvironmentId,
   type ProjectId,
   type ProjectWorkspaceEntry,
@@ -15,12 +17,10 @@ import {
 import { rankSequence } from "@t3tools/shared/fractional-rank";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
+import { RpcClientError } from "effect/unstable/rpc";
 
 import type { EnvironmentSupervisor } from "../connection/supervisor.ts";
-import {
-  type EnvironmentRpcUnavailableError,
-  request,
-} from "../rpc/client.ts";
+import { type EnvironmentRpcUnavailableError, request } from "../rpc/client.ts";
 
 export interface ApplyProjectWorkspaceLayoutInput {
   readonly environmentId: EnvironmentId;
@@ -46,7 +46,10 @@ const WORKSPACE_LAYOUT_ERROR_TAGS: ReadonlySet<ProjectWorkspaceLayoutErrorTag> =
 ]);
 
 function isProjectWorkspaceLayoutErrorTag(value: unknown): value is ProjectWorkspaceLayoutErrorTag {
-  return typeof value === "string" && WORKSPACE_LAYOUT_ERROR_TAGS.has(value as ProjectWorkspaceLayoutErrorTag);
+  return (
+    typeof value === "string" &&
+    WORKSPACE_LAYOUT_ERROR_TAGS.has(value as ProjectWorkspaceLayoutErrorTag)
+  );
 }
 
 /**
@@ -66,7 +69,9 @@ function isProjectWorkspaceLayoutErrorTag(value: unknown): value is ProjectWorks
  * unrelated/older server, network-layer mangling, etc.) — this function
  * always returns a valid `ProjectWorkspaceLayoutRejection`, never throws.
  */
-export function parseProjectWorkspaceLayoutRejection(message: string): ProjectWorkspaceLayoutRejection {
+export function parseProjectWorkspaceLayoutRejection(
+  message: string,
+): ProjectWorkspaceLayoutRejection {
   const fallback: ProjectWorkspaceLayoutRejection = {
     tag: "missing-target",
     message: message.trim().length > 0 ? message : "The workspace layout change was rejected.",
@@ -122,7 +127,7 @@ export const applyProjectWorkspaceLayout: (
   input: ApplyProjectWorkspaceLayoutInput,
 ) => Effect.Effect<
   ApplyProjectWorkspaceLayoutResult,
-  EnvironmentRpcUnavailableError,
+  EnvironmentAuthorizationError | EnvironmentRpcUnavailableError | RpcClientError.RpcClientError,
   Crypto.Crypto | EnvironmentSupervisor
 > = Effect.fn("EnvironmentCommands.applyProjectWorkspaceLayout")(function* (input) {
   yield* Effect.annotateCurrentSpan({ "environment.id": input.environmentId });
@@ -197,15 +202,15 @@ const [folderRank, commandRank, urlRank] = rankSequence(3) as [string, string, s
 export const SAMPLE_PROJECT_WORKSPACE_LAYOUT: ReadonlyArray<ProjectWorkspaceEntry> = [
   {
     kind: "folder",
-    id: "fixture-folder-src",
+    id: ProjectWorkspaceItemId.make("fixture-folder-src"),
     parentId: null,
     rank: folderRank,
     relativePath: "src",
   },
   {
     kind: "file",
-    id: "fixture-file-auth",
-    parentId: "fixture-folder-src",
+    id: ProjectWorkspaceItemId.make("fixture-file-auth"),
+    parentId: ProjectWorkspaceItemId.make("fixture-folder-src"),
     rank: rankSequence(1)[0]!,
     relativePath: "src/auth.ts",
     label: "auth.ts",
@@ -213,7 +218,7 @@ export const SAMPLE_PROJECT_WORKSPACE_LAYOUT: ReadonlyArray<ProjectWorkspaceEntr
   {
     kind: "thread",
     id: makeThreadWorkspaceItemId(SAMPLE_PROJECT_WORKSPACE_THREAD_ID),
-    parentId: "fixture-file-auth",
+    parentId: ProjectWorkspaceItemId.make("fixture-file-auth"),
     rank: rankSequence(1)[0]!,
     threadId: ThreadId.make(SAMPLE_PROJECT_WORKSPACE_THREAD_ID),
   },
@@ -226,7 +231,7 @@ export const SAMPLE_PROJECT_WORKSPACE_LAYOUT: ReadonlyArray<ProjectWorkspaceEntr
   },
   {
     kind: "url",
-    id: "fixture-url-local",
+    id: ProjectWorkspaceItemId.make("fixture-url-local"),
     parentId: null,
     rank: urlRank,
     label: "Local app",
