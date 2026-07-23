@@ -300,9 +300,12 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
       assert.equal(result.plan.status, "clean-merge");
 
       const branches = yield* fs.readDirectory(path.join(fixture.caller, ".git", "refs", "heads"));
-      assert.deepStrictEqual(
-        [...branches].toSorted(),
-        ["main", result.integrationBranch!.split("/").at(-1)!].toSorted(),
+      // refs/heads/chore/upstream-<sha> nests, so the directory listing is ["chore", "main"].
+      assert.deepStrictEqual([...branches].toSorted(), ["chore", "main"]);
+      assert.ok(
+        yield* fs.exists(
+          path.join(fixture.caller, ".git", "refs", "heads", result.integrationBranch!),
+        ),
       );
 
       // The temporary merge worktree was removed; only the repository itself remains.
