@@ -156,6 +156,7 @@ import {
   projectScriptIdFromCommand,
 } from "~/projectScripts";
 import { newDraftId, newMessageId, newThreadId } from "~/lib/utils";
+import { subscribeUnifiedWorkspaceCommandRun } from "~/unifiedWorkspace/activateNode";
 import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
 import { useEnvironmentSettings } from "../hooks/useSettings";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
@@ -2797,6 +2798,24 @@ function ChatViewContent(props: ChatViewProps) {
       writeTerminal,
     ],
   );
+
+  // The unified workspace sidebar's command nodes reuse this exact `runProjectScript`
+  // (spec §8 Command: "Reuse the current runProjectScript behavior... Do not duplicate
+  // terminal-open/write logic"). The sidebar lives outside this component tree, so it
+  // can't call `runProjectScript` directly — it navigates to the resolved thread and
+  // dispatches a request over `t3code:unified-workspace-run-command` (mirrors the
+  // existing `previewActionBus` cross-component hand-off convention); whichever
+  // `ChatView` instance is active for that thread picks it up here.
+  useEffect(() => {
+    return subscribeUnifiedWorkspaceCommandRun((request) => {
+      if (request.environmentId !== environmentId || request.threadId !== activeThreadId) {
+        return;
+      }
+      const script = activeProject?.scripts.find((candidate) => candidate.id === request.scriptId);
+      if (!script) return;
+      void runProjectScript(script);
+    });
+  }, [environmentId, activeThreadId, activeProject, runProjectScript]);
 
   const persistProjectScripts = useCallback(
     async (input: {
