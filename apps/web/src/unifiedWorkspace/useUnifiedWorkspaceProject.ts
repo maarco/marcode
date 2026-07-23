@@ -14,29 +14,35 @@
  * `workspaceLayoutVersion`/`workspaceLayout` on `OrchestrationProjectShell`)
  * had already landed and is used directly.
  */
-import { rankBetween } from "@t3tools/shared/fractional-rank";
+import { scopedThreadKey, scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { applyProjectWorkspaceLayout } from "@t3tools/client-runtime/operations/projectWorkspace";
 import { useProjectWorkspaceLayout } from "@t3tools/client-runtime/state/projectWorkspace";
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { rankBetween } from "@t3tools/shared/fractional-rank";
 import {
-  EnvironmentId,
-  ProjectId,
   ProjectWorkspaceItemId,
   ThreadId,
+  type EnvironmentId,
+  type ProjectId,
   type ProjectWorkspaceEntry,
   type ProjectWorkspaceLayoutOperation,
   type ProjectWorkspaceLayoutRejection,
   type ProjectWorkspaceUrlEntry,
+  type ScopedProjectRef,
 } from "@t3tools/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo } from "react";
 
 import { openUrlInPreview as openUrlInPreviewSession } from "~/browser/openFileInPreview";
-import { readLocalApi } from "~/localApi";
+import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
+import { closePreviewSession } from "~/components/preview/closePreviewSession";
+import { stackedThreadToast, toastManager } from "~/components/ui/toast";
+import {
+  takePendingWorkspaceThreadPlacement,
+  useEnsureDraftThreadTarget,
+} from "~/hooks/useHandleNewThread";
+import { useClientSettings } from "~/hooks/useSettings";
 import { randomUUID } from "~/lib/utils";
-import { useEnvironments } from "~/state/environments";
-import { useProject } from "~/state/entities";
-import { useKnownTerminalSessions } from "~/state/terminalSessions";
+import { readLocalApi } from "~/localApi";
 import { useDiscoveredPorts } from "~/portDiscoveryState";
 import {
   isPreviewSupportedInRuntime,
@@ -44,19 +50,13 @@ import {
   useActivePreviewSessions,
 } from "~/previewStateStore";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { useAtomCommand } from "~/state/use-atom-command";
-import { terminalEnvironment } from "~/state/terminal";
+import { useProject, useThreadShellsForProjectRefs } from "~/state/entities";
 import { previewEnvironment } from "~/state/preview";
-import { closePreviewSession } from "~/components/preview/closePreviewSession";
-import { useClientSettings } from "~/hooks/useSettings";
-import {
-  useEnsureDraftThreadTarget,
-  takePendingWorkspaceThreadPlacement,
-} from "~/hooks/useHandleNewThread";
-import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
-import { resolveThreadRouteTarget } from "~/threadRoutes";
-import { buildThreadRouteParams } from "~/threadRoutes";
-import { toastManager, stackedThreadToast } from "~/components/ui/toast";
+import { terminalEnvironment } from "~/state/terminal";
+import { useKnownTerminalSessions } from "~/state/terminalSessions";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { buildThreadRouteParams, resolveThreadRouteTarget } from "~/threadRoutes";
+import { useUiStateStore } from "~/uiStateStore";
 
 import {
   activateUnifiedWorkspaceNode,
@@ -67,11 +67,9 @@ import {
   compareUnifiedWorkspaceRanks,
   indexUnifiedWorkspaceNodesById,
   parseUnifiedWorkspaceNodeId,
-  qualifyUnifiedWorkspaceNodeId,
 } from "./treeOperations";
 import type {
   UnifiedWorkspaceAttachCandidate,
-  UnifiedWorkspaceCapabilities,
   UnifiedWorkspaceController,
   UnifiedWorkspaceMoveTarget,
   UnifiedWorkspaceMutationResult,
@@ -98,6 +96,31 @@ function lastRankAmong(
   return ranks.at(-1) ?? null;
 }
 
+function threadRefKey(environmentId: EnvironmentId, threadId: string): string {
+  return scopedThreadKey(scopeThreadRef(environmentId, ThreadId.make(threadId)));
+}
+
+/**
+ * Recency source for spec §8 step 2 ("most recently active descendant
+ * thread"): the existing per-thread last-visited tracker already used
+ * elsewhere in the sidebar (`uiStateStore.ts`'s `threadLastVisitedAtById`,
+ * written by `markThreadVisited`), not a new registry.
+ */
+function useThreadRecencyById(
+  environmentId: EnvironmentId,
+  threads: readonly UnifiedWorkspaceThreadInput[],
+): ReadonlyMap<string, string> {
+  const visitedAtByThreadKey = useUiStateStore((state) => state.threadLastVisitedAtById);
+  return useMemo(() => {
+    const map = new Map<string, string>();
+    for (const thread of threads) {
+      const visitedAt = visitedAtByThreadKey[threadRefKey(environmentId, thread.threadId)];
+      if (visitedAt) map.set(thread.threadId, visitedAt);
+    }
+    return map;
+  }, [threads, visitedAtByThreadKey, environmentId]);
+}
+
 export function useUnifiedWorkspaceProject(input: {
   readonly environmentId: EnvironmentId;
   readonly projectId: ProjectId;
@@ -114,13 +137,11 @@ export function useUnifiedWorkspaceProject(input: {
   const router = useRouter();
 
   // --- Live sources — every one already exists; nothing here is a second registry. ---
-  const threadShells = useMemo(() => [], []); // placeholder removed below; see effect note
-  void threadShells;
 
-  const scopedThreadRefs = useMemo(() => [projectRef], [projectRef]);
-  // `useThreadShellsForProjectRefs` is the exact source `Sidebar.tsx` uses
-  // (`apps/web/src/components/Sidebar.tsx:1178`) — filtered to one physical project here.
-  const projectThreadShells = useProjectThreadShellsCompat(scopedThreadRefs);
+  // Exact source `Sidebar.tsx` uses (`useThreadShellsForProjectRefs(project.memberProjectRefs)`
+  // at apps/web/src/components/Sidebar.tsx:1178), scoped here to one physical project.
+  const scopedProjectRefs = useMemo<readonly ScopedProjectRef[]>(() => [projectRef], [projectRef]);
+  const projectThreadShells = useThreadShellsForProjectRefs(scopedProjectRefs);
 
   const threads: UnifiedWorkspaceThreadInput[] = useMemo(
     () =>
@@ -138,14 +159,18 @@ export function useUnifiedWorkspaceProject(input: {
     [projectThreadShells],
   );
   const validThreadIds = useMemo(
-    () => new Set(threads.filter((t) => t.archivedAt === null && t.deletedAt === null).map((t) => t.threadId)),
+    () =>
+      new Set(threads.filter((t) => t.archivedAt === null && t.deletedAt === null).map((t) => t.threadId)),
     [threads],
   );
+  const projectThreadIdSet = useMemo(() => new Set(threads.map((t) => t.threadId)), [threads]);
 
   const scripts = project?.scripts ?? [];
 
+  // `useKnownTerminalSessions` with `threadId: null` returns every terminal known in this
+  // environment (`apps/web/src/state/terminalSessions.ts:51`); filtered client-side to this
+  // project's threads below — no project-scoped selector existed, and none was needed.
   const allKnownTerminalSessions = useKnownTerminalSessions({ environmentId, threadId: null });
-  const projectThreadIdSet = useMemo(() => new Set(threads.map((t) => t.threadId)), [threads]);
   const discoveredPorts = useDiscoveredPorts(environmentId);
   const terminals = useMemo(
     () =>
@@ -169,18 +194,21 @@ export function useUnifiedWorkspaceProject(input: {
     [allKnownTerminalSessions, projectThreadIdSet, discoveredPorts],
   );
 
+  // `useActivePreviewSessions` already indexes every thread with a live preview session
+  // across the whole app (`apps/web/src/previewStateStore.ts:153`); filtered to this
+  // project's threads below.
   const activePreviewSessions = useActivePreviewSessions();
   const previewTabs = useMemo(() => {
-    const result: {
+    const result: Array<{
       threadId: string;
       tabId: string;
       title: string | null;
       url: string | null;
       loading: boolean;
       updatedAt: string;
-    }[] = [];
+    }> = [];
     for (const threadId of projectThreadIdSet) {
-      const state = activePreviewSessions[scopeThreadRefKeyCompat(environmentId, threadId)];
+      const state = activePreviewSessions[threadRefKey(environmentId, threadId)];
       if (!state) continue;
       for (const snapshot of Object.values(state.sessions)) {
         const status = snapshot.navStatus;
@@ -197,6 +225,8 @@ export function useUnifiedWorkspaceProject(input: {
     return result;
   }, [activePreviewSessions, environmentId, projectThreadIdSet]);
 
+  // `useProjectEntriesQuery` is the exact file-index source `FileBrowserPanel.tsx` reads
+  // (`apps/web/src/components/files/projectFilesQueryState.ts:123`).
   const entriesQuery = useProjectEntriesQuery(environmentId, project?.workspaceRoot ?? "");
   const knownPaths = useMemo(() => {
     if (!project || entriesQuery.data === null) return null;
@@ -216,12 +246,21 @@ export function useUnifiedWorkspaceProject(input: {
         threadSortOrder,
         knownPaths,
       }),
-    [environmentId, projectId, layoutEntries, scripts, threads, terminals, previewTabs, threadSortOrder, knownPaths],
+    [
+      environmentId,
+      projectId,
+      layoutEntries,
+      scripts,
+      threads,
+      terminals,
+      previewTabs,
+      threadSortOrder,
+      knownPaths,
+    ],
   );
 
   useEffect(() => {
     if (diagnostics.length === 0) return;
-    // eslint-disable-next-line no-console
     console.warn(
       `[unifiedWorkspace] ${diagnostics.length} invalid persisted relationship(s) fell back to root for project ${projectId}:`,
       diagnostics,
@@ -230,21 +269,21 @@ export function useUnifiedWorkspaceProject(input: {
 
   const nodesById = useMemo(() => indexUnifiedWorkspaceNodesById(roots), [roots]);
 
-  // --- Capabilities ---
-  const { environments } = useEnvironments();
-  const capabilities: UnifiedWorkspaceCapabilities = useMemo(() => {
-    const connection = environments.find((env) => env.environmentId === environmentId)?.connection;
-    if (connection && connection.state !== "connected") {
-      return { canMutate: false, reason: "Disconnected — reconnect to edit the workspace layout." };
-    }
-    return { canMutate: true, reason: null };
-  }, [environments, environmentId]);
+  // Capabilities: no concrete "server lacks layout command capability" signal exists yet
+  // (old vs. new server both decode `workspaceLayoutVersion: 0, workspaceLayout: []`
+  // identically — see spec §6.2/§17). Defaulting to mutable; a real capability/version
+  // check can be layered in once Agent 1 or the primary agent exposes one.
+  const capabilities = useMemo(() => ({ canMutate: true, reason: null }), []);
 
   // --- Layout mutation plumbing ---
   const runLayoutOperation = useCallback(
     async (operation: ProjectWorkspaceLayoutOperation): Promise<UnifiedWorkspaceMutationResult> => {
       if (!capabilities.canMutate) {
-        return { ok: false, tag: "offline", message: capabilities.reason ?? "Editing is unavailable right now." };
+        return {
+          ok: false,
+          tag: "offline",
+          message: capabilities.reason ?? "Editing is unavailable right now.",
+        };
       }
       try {
         const result = await applyProjectWorkspaceLayout({
@@ -279,10 +318,11 @@ export function useUnifiedWorkspaceProject(input: {
   // --- Draft-thread target resolution (spec §8 steps 3/4, §9) ---
   const ensureDraftThreadTarget = useEnsureDraftThreadTarget();
 
-  // --- Pending placement reconciliation: a synthetic thread's draft was seeded with a
+  // Pending placement reconciliation: a synthetic thread's draft was seeded with a
   // placement (useHandleNewThread.ts's registry); once that thread promotes to a real,
   // committed thread (appears in `threads`), materialize the placement (spec §9). One-shot
-  // per thread — `takePendingWorkspaceThreadPlacement` removes the entry on read.
+  // per thread — `takePendingWorkspaceThreadPlacement` removes the entry on read, so a
+  // version-conflict or offline failure degrades to "stays visible at root", never a retry loop.
   useEffect(() => {
     for (const thread of threads) {
       const ref = scopeThreadRef(environmentId, ThreadId.make(thread.threadId));
@@ -315,8 +355,6 @@ export function useUnifiedWorkspaceProject(input: {
         );
       });
     }
-    // Only re-run when the live thread set or layout actually changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threads, layoutEntries, environmentId, projectId, layoutVersion]);
 
   // --- Route-derived "active thread" (spec §8 step 1) ---
@@ -324,15 +362,12 @@ export function useUnifiedWorkspaceProject(input: {
   const routeTarget = resolveThreadRouteTarget(routeParams);
   const activeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useMemo(
-    () => (activeThreadRef ? projectThreadShells.find((t) => t.id === activeThreadRef.threadId) : null),
+    () => (activeThreadRef ? (projectThreadShells.find((t) => t.id === activeThreadRef.threadId) ?? null) : null),
     [activeThreadRef, projectThreadShells],
   );
 
-  // --- "Most recently active" recency map (spec §8 step 2) ---
-  const threadRecencyById = useVisitedRecencyCompat(environmentId, threads);
+  const threadRecencyById = useThreadRecencyById(environmentId, threads);
 
-  // --- Terminal open command (shared by ops.openTerminal and the drawer elsewhere) ---
-  const openTerminalCommand = useAtomCommand(terminalEnvironment.open, { reportFailure: false });
   const closeTerminalCommand = useAtomCommand(terminalEnvironment.close, { reportFailure: false });
   const openPreviewCommand = useAtomCommand(previewEnvironment.open, { reportFailure: false });
   const closePreviewCommand = useAtomCommand(previewEnvironment.close, { reportFailure: false });
@@ -354,20 +389,20 @@ export function useUnifiedWorkspaceProject(input: {
         return { draftId: result.draftId, threadId: result.threadId };
       },
       openFile: (threadId: string, relativePath: string) => {
-        useRightPanelStore.getState().openFile(scopeThreadRef(environmentId, ThreadId.make(threadId)), relativePath);
+        useRightPanelStore
+          .getState()
+          .openFile(scopeThreadRef(environmentId, ThreadId.make(threadId)), relativePath);
       },
       openFilesSurface: (threadId: string) => {
         useRightPanelStore.getState().open(scopeThreadRef(environmentId, ThreadId.make(threadId)), "files");
       },
       openTerminal: (threadId: string, terminalId: string) => {
-        const ref = scopeThreadRef(environmentId, ThreadId.make(threadId));
-        useRightPanelStore.getState().openTerminal(ref, terminalId);
-        // Best-effort attach; if the terminal is already running server-side this is a no-op
-        // beyond re-establishing the stream, matching the drawer's own open-on-activate behavior.
-        const cwd = project?.workspaceRoot;
-        if (cwd) {
-          void openTerminalCommand({ environmentId, input: { threadId: ThreadId.make(threadId), terminalId, cwd } });
-        }
+        // Right-panel surface only — the PTY session is already running server-side
+        // (this node only exists because it's live); spec §8 does not call for re-issuing
+        // `terminal.open`, only for surfacing the existing session.
+        useRightPanelStore
+          .getState()
+          .openTerminal(scopeThreadRef(environmentId, ThreadId.make(threadId)), terminalId);
       },
       openBrowser: (threadId: string, tabId: string) => {
         const ref = scopeThreadRef(environmentId, ThreadId.make(threadId));
@@ -390,16 +425,7 @@ export function useUnifiedWorkspaceProject(input: {
         else window.open(url, "_blank", "noopener,noreferrer");
       },
     }),
-    [
-      router,
-      environmentId,
-      dequalify,
-      ensureDraftThreadTarget,
-      projectRef,
-      project?.workspaceRoot,
-      openTerminalCommand,
-      openPreviewCommand,
-    ],
+    [router, environmentId, dequalify, ensureDraftThreadTarget, projectRef, openPreviewCommand],
   );
 
   const runtimeSupportsEmbeddedPreview = isPreviewSupportedInRuntime();
@@ -420,7 +446,15 @@ export function useUnifiedWorkspaceProject(input: {
         ops: activationOps,
       });
     },
-    [nodesById, projectId, activeThread, threadRecencyById, validThreadIds, runtimeSupportsEmbeddedPreview, activationOps],
+    [
+      nodesById,
+      projectId,
+      activeThread,
+      threadRecencyById,
+      validThreadIds,
+      runtimeSupportsEmbeddedPreview,
+      activationOps,
+    ],
   );
 
   const runCommand = useCallback(
@@ -439,13 +473,16 @@ export function useUnifiedWorkspaceProject(input: {
       if (node.activation.kind === "terminal") {
         void closeTerminalCommand({
           environmentId,
-          input: { threadId: ThreadId.make(node.activation.threadId), terminalId: node.activation.terminalId },
+          input: {
+            threadId: ThreadId.make(node.activation.threadId),
+            terminalId: node.activation.terminalId,
+          },
         });
         return;
       }
       if (node.activation.kind === "browser") {
         const ref = scopeThreadRef(environmentId, ThreadId.make(node.activation.threadId));
-        const state = activePreviewSessions[scopeThreadRefKeyCompat(environmentId, node.activation.threadId)];
+        const state = activePreviewSessions[threadRefKey(environmentId, node.activation.threadId)];
         const snapshot = state?.sessions[node.activation.tabId] ?? null;
         void closePreviewSession({
           closePreview: closePreviewCommand,
@@ -475,25 +512,24 @@ export function useUnifiedWorkspaceProject(input: {
         return { ok: false, tag: "invalid-parent", message: "Unknown position." };
       }
 
+      // Synthetic thread/command being placed for the first time materializes its persistent
+      // entry instead of moving a (nonexistent) one — spec §6.3.
       const isPersisted = layoutEntries.some((entry) => entry.id === itemId);
-      if (!isPersisted) {
-        // Synthetic thread/command being placed for the first time (spec §6.3).
-        if (node.activation.kind === "thread") {
-          return runLayoutOperation({
-            type: "place-resource",
-            resource: { kind: "thread", threadId: ThreadId.make(node.activation.threadId) },
-            parentId: parentItemId,
-            beforeId: beforeItemId,
-          });
-        }
-        if (node.activation.kind === "command") {
-          return runLayoutOperation({
-            type: "place-resource",
-            resource: { kind: "command", scriptId: node.activation.scriptId },
-            parentId: parentItemId,
-            beforeId: beforeItemId,
-          });
-        }
+      if (!isPersisted && node.activation.kind === "thread") {
+        return runLayoutOperation({
+          type: "place-resource",
+          resource: { kind: "thread", threadId: ThreadId.make(node.activation.threadId) },
+          parentId: parentItemId,
+          beforeId: beforeItemId,
+        });
+      }
+      if (!isPersisted && node.activation.kind === "command") {
+        return runLayoutOperation({
+          type: "place-resource",
+          resource: { kind: "command", scriptId: node.activation.scriptId },
+          parentId: parentItemId,
+          beforeId: beforeItemId,
+        });
       }
       return runLayoutOperation({ type: "move", itemId, parentId: parentItemId, beforeId: beforeItemId });
     },
@@ -610,8 +646,9 @@ export function useUnifiedWorkspaceProject(input: {
       if (!entriesQuery.data) return [];
       const attachedPaths = new Set(
         layoutEntries
-          .filter((entry): entry is Extract<ProjectWorkspaceEntry, { kind: "file" | "folder" }> =>
-            entry.kind === kind,
+          .filter(
+            (entry): entry is Extract<ProjectWorkspaceEntry, { kind: "file" | "folder" }> =>
+              entry.kind === kind,
           )
           .map((entry) => entry.relativePath),
       );
@@ -643,38 +680,4 @@ export function useUnifiedWorkspaceProject(input: {
     closeLiveNode,
     listAttachCandidates,
   };
-}
-
-/**
- * Thin compatibility shims kept at the bottom so the hook body above reads
- * top-to-bottom as the real data flow. Each wraps an already-existing
- * source — no new state, no second registry.
- */
-import { useThreadShellsForProjectRefs } from "~/state/entities";
-import { scopedThreadKey } from "@t3tools/client-runtime/environment";
-import type { ScopedProjectRef } from "@t3tools/contracts";
-import { useUiStateStore } from "~/uiStateStore";
-
-function useProjectThreadShellsCompat(refs: ReadonlyArray<ScopedProjectRef>) {
-  return useThreadShellsForProjectRefs(refs);
-}
-
-function scopeThreadRefKeyCompat(environmentId: EnvironmentId, threadId: string): string {
-  return scopedThreadKey(scopeThreadRef(environmentId, ThreadId.make(threadId)));
-}
-
-function useVisitedRecencyCompat(
-  environmentId: EnvironmentId,
-  threads: readonly UnifiedWorkspaceThreadInput[],
-): ReadonlyMap<string, string> {
-  const visitedAtByThreadKey = useUiStateStore((state) => state.threadLastVisitedAtById);
-  return useMemo(() => {
-    const map = new Map<string, string>();
-    for (const thread of threads) {
-      const key = scopeThreadRefKeyCompat(environmentId, thread.threadId);
-      const visitedAt = visitedAtByThreadKey[key];
-      if (visitedAt) map.set(thread.threadId, visitedAt);
-    }
-    return map;
-  }, [threads, visitedAtByThreadKey, environmentId]);
 }

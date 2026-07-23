@@ -97,6 +97,7 @@ export interface UnifiedWorkspaceRowProps {
   readonly isFocused: boolean;
   readonly isActive: boolean;
   readonly isSelected: boolean;
+  readonly isMobile: boolean;
   readonly isDropTarget: UnifiedWorkspaceRowDropIndicator | null;
   readonly threadExtras: UnifiedWorkspaceThreadRowExtras | null;
   readonly commandIcon: ProjectScriptIcon | null;
@@ -179,6 +180,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     isFocused,
     isActive,
     isSelected,
+    isMobile,
     isDropTarget,
     threadExtras,
     commandIcon,
@@ -251,13 +253,16 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
 
   const handleDoubleClick = useCallback(
     (event: MouseEvent<HTMLDivElement>) => {
-      if (!node.canRename || isRenaming) return;
+      // On mobile the first tap navigates and closes the sidebar sheet, so
+      // there's no reliable "second click" to land an inline rename — same
+      // guard the existing thread row double-click-to-rename uses.
+      if (isMobile || !node.canRename || isRenaming) return;
       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       if ((event.target as HTMLElement).closest("button, a, input")) return;
       event.preventDefault();
       onStartRename(node);
     },
-    [isRenaming, node, onStartRename],
+    [isMobile, isRenaming, node, onStartRename],
   );
 
   const handleFocus = useCallback(() => onFocusRow(node.id), [node.id, onFocusRow]);
