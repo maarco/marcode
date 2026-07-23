@@ -16,7 +16,12 @@ import type {
   RelayAgentActivityPublishProofPayload,
   RelayAgentActivityState,
 } from "@t3tools/contracts/relay";
-import { CommandId, ProviderInstanceId } from "@t3tools/contracts";
+import {
+  CommandId,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  ProviderInstanceId,
+} from "@t3tools/contracts";
 import { RelayClientTracer } from "@t3tools/shared/relayTracing";
 import { RELAY_ACTIVITY_PUBLISH_TYP, verifyRelayJwt } from "@t3tools/shared/relayJwt";
 import { describe, expect, it } from "@effect/vitest";
@@ -45,6 +50,11 @@ import {
   PUBLISH_AGENT_ACTIVITY_SECRET,
 } from "../cloud/config.ts";
 import * as AgentAwarenessRelay from "./AgentAwarenessRelay.ts";
+
+const PROJECT_WORKSPACE_LAYOUT_DEFAULTS = {
+  workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+} as const;
 
 const state: RelayAgentActivityState = {
   environmentId: "env" as RelayAgentActivityState["environmentId"],
@@ -427,6 +437,7 @@ describe.sequential("signRelayAgentActivityPublishProof", () => {
           repositoryIdentity: null,
           defaultModelSelection: null,
           scripts: [],
+          ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
           createdAt: now,
           updatedAt: now,
         } satisfies OrchestrationProjectShell;
@@ -583,6 +594,7 @@ describe.sequential("signRelayAgentActivityPublishProof", () => {
           repositoryIdentity: null,
           defaultModelSelection: null,
           scripts: [],
+          ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
           createdAt: now,
           updatedAt: now,
         } satisfies OrchestrationProjectShell;
