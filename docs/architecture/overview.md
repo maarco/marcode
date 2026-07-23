@@ -37,6 +37,8 @@ T3 Code runs as a **Node.js WebSocket server** that wraps `codex app-server` (JS
 
 - **Runtime signals**: The server emits lightweight typed receipts when important async milestones finish, such as checkpoint capture, diff finalization, or a turn becoming fully quiescent. Tests and orchestration code wait on these signals instead of polling internal state.
 
+- **Project workspace layout**: Each physical project carries a persisted sidebar layout on its project shell — placement and shortcuts only, never runtime objects or file content. Mutations go through one project-aggregate command with an expected-version check, so concurrent clients cannot overwrite each other. The sidebar tree is a projection over that layout plus the authoritative live registries for terminals, browser tabs, project scripts, and the file index; it never becomes a second registry for any of them. See `docs/reference/project-workspace-layout.md`.
+
 ## Event Lifecycle
 
 ### Startup and client connect

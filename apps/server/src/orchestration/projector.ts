@@ -1,5 +1,9 @@
 import type { OrchestrationEvent, OrchestrationReadModel, ThreadId } from "@t3tools/contracts";
 import {
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  makeCommandWorkspaceItemId,
+  makeThreadWorkspaceItemId,
   OrchestrationCheckpointSummary,
   OrchestrationMessage,
   OrchestrationSession,
@@ -8,12 +12,14 @@ import {
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
+import { applyWorkspaceLayoutOperation, removeWorkspaceLayoutEntryById } from "./commandInvariants.ts";
 import { toProjectorDecodeError, type OrchestrationProjectorDecodeError } from "./Errors.ts";
 import {
   MessageSentPayloadSchema,
   ProjectCreatedPayload,
   ProjectDeletedPayload,
   ProjectMetaUpdatedPayload,
+  ProjectWorkspaceLayoutAppliedPayload,
   ThreadActivityAppendedPayload,
   ThreadArchivedPayload,
   ThreadCreatedPayload,
@@ -208,6 +214,8 @@ export function projectEvent(
             workspaceRoot: payload.workspaceRoot,
             defaultModelSelection: payload.defaultModelSelection,
             scripts: payload.scripts,
+            workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+            workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
             createdAt: payload.createdAt,
             updatedAt: payload.updatedAt,
             deletedAt: null,
@@ -228,19 +236,60 @@ export function projectEvent(
       return decodeForEvent(ProjectMetaUpdatedPayload, event.payload, event.type, "payload").pipe(
         Effect.map((payload) => ({
           ...nextBase,
+          projects: nextBase.projects.map((project) => {
+            if (project.id !== payload.projectId) {
+              return project;
+            }
+            const nextScripts = payload.scripts ?? project.scripts;
+            // Lifecycle pruning: a script dropped from the scripts array (the
+            // only way a project script is ever "deleted") prunes its
+            // workspace-layout command entry, same as a deleted thread.
+            const removedScriptIds =
+              payload.scripts !== undefined
+                ? project.scripts
+                    .filter((script) => !nextScripts.some((next) => next.id === script.id))
+                    .map((script) => script.id)
+                : [];
+            const nextWorkspaceLayout = removedScriptIds.reduce(
+              (layout, scriptId) =>
+                removeWorkspaceLayoutEntryById(layout, makeCommandWorkspaceItemId(scriptId)),
+              project.workspaceLayout,
+            );
+            return {
+              ...project,
+              ...(payload.title !== undefined ? { title: payload.title } : {}),
+              ...(payload.workspaceRoot !== undefined
+                ? { workspaceRoot: payload.workspaceRoot }
+                : {}),
+              ...(payload.defaultModelSelection !== undefined
+                ? { defaultModelSelection: payload.defaultModelSelection }
+                : {}),
+              scripts: nextScripts,
+              workspaceLayout: nextWorkspaceLayout,
+              updatedAt: payload.updatedAt,
+            };
+          }),
+        })),
+      );
+
+    case "project.workspace-layout-applied":
+      return decodeForEvent(
+        ProjectWorkspaceLayoutAppliedPayload,
+        event.payload,
+        event.type,
+        "payload",
+      ).pipe(
+        Effect.map((payload) => ({
+          ...nextBase,
           projects: nextBase.projects.map((project) =>
             project.id === payload.projectId
               ? {
                   ...project,
-                  ...(payload.title !== undefined ? { title: payload.title } : {}),
-                  ...(payload.workspaceRoot !== undefined
-                    ? { workspaceRoot: payload.workspaceRoot }
-                    : {}),
-                  ...(payload.defaultModelSelection !== undefined
-                    ? { defaultModelSelection: payload.defaultModelSelection }
-                    : {}),
-                  ...(payload.scripts !== undefined ? { scripts: payload.scripts } : {}),
-                  updatedAt: payload.updatedAt,
+                  workspaceLayout: applyWorkspaceLayoutOperation(
+                    project.workspaceLayout,
+                    payload.operation,
+                  ),
+                  workspaceLayoutVersion: payload.layoutVersion,
                 }
               : project,
           ),
@@ -306,13 +355,32 @@ export function projectEvent(
 
     case "thread.deleted":
       return decodeForEvent(ThreadDeletedPayload, event.payload, event.type, "payload").pipe(
-        Effect.map((payload) => ({
-          ...nextBase,
-          threads: updateThread(nextBase.threads, payload.threadId, {
-            deletedAt: payload.deletedAt,
-            updatedAt: payload.deletedAt,
-          }),
-        })),
+        Effect.map((payload) => {
+          // Lifecycle pruning: deleting a thread prunes its workspace-layout
+          // entry (if it was ever placed) on the owning project.
+          const deletedThread = nextBase.threads.find((entry) => entry.id === payload.threadId);
+          const threadItemId = makeThreadWorkspaceItemId(payload.threadId);
+          return {
+            ...nextBase,
+            threads: updateThread(nextBase.threads, payload.threadId, {
+              deletedAt: payload.deletedAt,
+              updatedAt: payload.deletedAt,
+            }),
+            projects: deletedThread
+              ? nextBase.projects.map((project) =>
+                  project.id === deletedThread.projectId
+                    ? {
+                        ...project,
+                        workspaceLayout: removeWorkspaceLayoutEntryById(
+                          project.workspaceLayout,
+                          threadItemId,
+                        ),
+                      }
+                    : project,
+                )
+              : nextBase.projects,
+          };
+        }),
       );
 
     case "thread.archived":

@@ -10,6 +10,7 @@ import {
   flattenVisibleUnifiedWorkspaceNodes,
   isNodeSelfOrDescendant,
   isUnifiedWorkspaceNodeCollapsed,
+  resolveAddMenuParentId,
   resolveEdgeMoveTarget,
   resolveLeftKeyAction,
   resolveMoveTargetForDrop,
@@ -590,6 +591,27 @@ describe("ARIA live-region announcements", () => {
     expect(
       buildUnifiedWorkspaceDropResultAnnouncement({ draggedLabel: "auth.ts", result: "rejected" }),
     ).toBe("Could not move auth.ts.");
+  });
+});
+
+describe("resolveAddMenuParentId", () => {
+  it("is root when nothing is focused", () => {
+    expect(resolveAddMenuParentId(null)).toBeNull();
+  });
+
+  it("is the node's own id when it's a container", () => {
+    const folder = node({ id: "folder", kind: "folder", canHaveChildren: true });
+    expect(resolveAddMenuParentId(folder)).toBe("folder");
+  });
+
+  it("falls back to the parent when the focused node is a leaf", () => {
+    const command = node({ id: "cmd", kind: "command", parentId: "folder" });
+    expect(resolveAddMenuParentId(command)).toBe("folder");
+  });
+
+  it("is root when the focused node is a root-level leaf", () => {
+    const url = node({ id: "url", kind: "url" });
+    expect(resolveAddMenuParentId(url)).toBeNull();
   });
 });
 

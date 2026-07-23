@@ -1,15 +1,18 @@
-import type {
-  OrchestrationCommand,
-  OrchestrationProject,
-  OrchestrationReadModel,
-  OrchestrationThread,
-  ProjectId,
-  ProjectScript,
-  ProjectWorkspaceEntry,
-  ProjectWorkspaceItemId,
-  ProjectWorkspaceLayoutErrorTag,
-  ProjectWorkspaceLayoutVersion,
-  ThreadId,
+import {
+  makeCommandWorkspaceItemId,
+  makeThreadWorkspaceItemId,
+  type OrchestrationCommand,
+  type OrchestrationProject,
+  type OrchestrationReadModel,
+  type OrchestrationThread,
+  type ProjectId,
+  type ProjectScript,
+  type ProjectWorkspaceEntry,
+  type ProjectWorkspaceItemId,
+  type ProjectWorkspaceLayoutErrorTag,
+  type ProjectWorkspaceLayoutOperation,
+  type ProjectWorkspaceLayoutVersion,
+  type ThreadId,
 } from "@t3tools/contracts";
 import { rankBetween } from "@t3tools/shared/fractional-rank";
 import { normalizeProjectPathForComparison } from "@t3tools/shared/path";
@@ -692,4 +695,92 @@ export function removeWorkspaceLayoutEntryById(
   }
 
   return remaining.map((entry) => reparentedById.get(entry.id) ?? entry);
+}
+
+/**
+ * Applies a validated (decider-normalized) `ProjectWorkspaceLayoutOperation`
+ * to a project's current layout, producing the new layout array.
+ *
+ * Pure and deterministic — shared by the in-memory read-model projector
+ * (`projector.ts`, used within a single command-decide batch) and the
+ * SQL-backed projection pipeline (`Layers/ProjectionPipeline.ts`), so both
+ * apply the identical mutation given the identical prior state. This is what
+ * makes it safe for `move`/`place-resource` to omit their server-computed
+ * rank from the wire event: both projection paths recompute it here, from
+ * the same prior layout the decider validated against.
+ */
+export function applyWorkspaceLayoutOperation(
+  layout: ReadonlyArray<ProjectWorkspaceEntry>,
+  operation: ProjectWorkspaceLayoutOperation,
+): ReadonlyArray<ProjectWorkspaceEntry> {
+  switch (operation.type) {
+    case "attach-path":
+    case "add-url":
+      return [...layout, operation.entry];
+
+    case "place-resource": {
+      const itemId =
+        operation.resource.kind === "thread"
+          ? makeThreadWorkspaceItemId(operation.resource.threadId)
+          : makeCommandWorkspaceItemId(operation.resource.scriptId);
+      const rank = computeWorkspaceLayoutPlacementRank({
+        layout,
+        parentId: operation.parentId,
+        beforeId: operation.beforeId,
+        excludeItemId: itemId,
+      });
+      const existing = findWorkspaceLayoutEntryById(layout, itemId);
+      if (existing) {
+        return layout.map((entry) =>
+          entry.id === itemId ? { ...entry, parentId: operation.parentId, rank } : entry,
+        );
+      }
+      const newEntry: ProjectWorkspaceEntry =
+        operation.resource.kind === "thread"
+          ? {
+              kind: "thread",
+              id: itemId,
+              parentId: operation.parentId,
+              rank,
+              threadId: operation.resource.threadId,
+            }
+          : {
+              kind: "command",
+              id: itemId,
+              parentId: operation.parentId,
+              rank,
+              scriptId: operation.resource.scriptId,
+            };
+      return [...layout, newEntry];
+    }
+
+    case "move": {
+      const rank = computeWorkspaceLayoutPlacementRank({
+        layout,
+        parentId: operation.parentId,
+        beforeId: operation.beforeId,
+        excludeItemId: operation.itemId,
+      });
+      return layout.map((entry) =>
+        entry.id === operation.itemId ? { ...entry, parentId: operation.parentId, rank } : entry,
+      );
+    }
+
+    case "rename":
+      return layout.map((entry) => {
+        if (entry.id !== operation.itemId) {
+          return entry;
+        }
+        // Decider invariants (requireWorkspaceLayoutRenameableEntry) already
+        // reject rename for thread/command kinds; this guard just keeps the
+        // spread below type-safe without asserting it can't happen.
+        if (entry.kind === "thread" || entry.kind === "command") {
+          return entry;
+        }
+        return { ...entry, label: operation.label };
+      });
+
+    case "remove":
+      return removeWorkspaceLayoutEntryById(layout, operation.itemId);
+  }
 }

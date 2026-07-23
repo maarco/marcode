@@ -16,7 +16,16 @@ import {
   TerminalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { memo, useCallback, useMemo, type KeyboardEvent, type MouseEvent } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type ChangeEvent,
+  type KeyboardEvent,
+  type MouseEvent,
+} from "react";
 import type { UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
 import { cn } from "../../lib/utils";
 import {
@@ -91,6 +100,8 @@ export interface UnifiedWorkspaceRowProps {
   readonly isDropTarget: UnifiedWorkspaceRowDropIndicator | null;
   readonly threadExtras: UnifiedWorkspaceThreadRowExtras | null;
   readonly commandIcon: ProjectScriptIcon | null;
+  /** Non-null while this row is the one being renamed inline (F2 / context menu). */
+  readonly renamingValue: string | null;
   readonly onToggleCollapse: (nodeId: string) => void;
   readonly onActivate: (node: UnifiedWorkspaceNode, event: MouseEvent) => void;
   readonly onFocusRow: (nodeId: string) => void;
@@ -101,6 +112,10 @@ export interface UnifiedWorkspaceRowProps {
   ) => void;
   readonly onOpenRowMenu: (node: UnifiedWorkspaceNode, anchor: { x: number; y: number }) => void;
   readonly onOpenPrLink: (event: MouseEvent, url: string) => void;
+  readonly onStartRename: (node: UnifiedWorkspaceNode) => void;
+  readonly onRenamingValueChange: (value: string) => void;
+  readonly onCommitRename: (node: UnifiedWorkspaceNode) => void;
+  readonly onCancelRename: () => void;
   readonly registerRowElement: (nodeId: string, element: HTMLElement | null) => void;
 }
 
@@ -167,6 +182,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     isDropTarget,
     threadExtras,
     commandIcon,
+    renamingValue,
     onToggleCollapse,
     onActivate,
     onFocusRow,
@@ -174,8 +190,13 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     onRowContextMenu,
     onOpenRowMenu,
     onOpenPrLink,
+    onStartRename,
+    onRenamingValueChange,
+    onCommitRename,
+    onCancelRename,
     registerRowElement,
   } = props;
+  const isRenaming = renamingValue !== null;
 
   const sortable = useSortable({
     id: node.id,
@@ -228,6 +249,17 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     [node, onRowContextMenu],
   );
 
+  const handleDoubleClick = useCallback(
+    (event: MouseEvent<HTMLDivElement>) => {
+      if (!node.canRename || isRenaming) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      if ((event.target as HTMLElement).closest("button, a, input")) return;
+      event.preventDefault();
+      onStartRename(node);
+    },
+    [isRenaming, node, onStartRename],
+  );
+
   const handleFocus = useCallback(() => onFocusRow(node.id), [node.id, onFocusRow]);
 
   const handleMenuButtonClick = useCallback(
@@ -247,6 +279,45 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     },
     [onOpenPrLink, threadExtras],
   );
+
+  // Reset the "did the user already commit/cancel" latch each time a NEW
+  // rename session starts on this row — not every render, or a second
+  // rename attempt on the same row instance would silently no-op on blur.
+  const renameCommittedRef = useRef(false);
+  useEffect(() => {
+    if (isRenaming) renameCommittedRef.current = false;
+  }, [isRenaming]);
+  const handleRenameInputRef = useCallback((element: HTMLInputElement | null) => {
+    if (element) {
+      element.focus();
+      element.select();
+    }
+  }, []);
+  const handleRenameChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => onRenamingValueChange(event.target.value),
+    [onRenamingValueChange],
+  );
+  const handleRenameKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      event.stopPropagation();
+      if (event.key === "Enter") {
+        event.preventDefault();
+        renameCommittedRef.current = true;
+        onCommitRename(node);
+      } else if (event.key === "Escape") {
+        event.preventDefault();
+        renameCommittedRef.current = true;
+        onCancelRename();
+      }
+    },
+    [node, onCancelRename, onCommitRename],
+  );
+  const handleRenameBlur = useCallback(() => {
+    if (!renameCommittedRef.current) onCommitRename(node);
+  }, [node, onCommitRename]);
+  const handleRenameClick = useCallback((event: MouseEvent<HTMLInputElement>) => {
+    event.stopPropagation();
+  }, []);
 
   const Icon = useMemo(() => iconForNode(node, commandIcon), [node, commandIcon]);
   const indentStyle = useMemo(() => unifiedWorkspaceRowIndentStyle(node.depth), [node.depth]);
@@ -279,6 +350,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       {...attributes}
       {...listeners}
       onClick={handleClick}
+      onDoubleClick={handleDoubleClick}
       onKeyDown={handleKeyDown}
       onContextMenu={handleContextMenu}
       onFocus={handleFocus}
@@ -310,14 +382,27 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
         />
       )}
 
-      <Tooltip>
-        <TooltipTrigger render={<span className={UW_TREE_LABEL_CLASS}>{node.label}</span>} />
-        <TooltipPopup side="top" className="max-w-80 whitespace-normal leading-tight">
-          {node.isBroken
-            ? `Path not found: ${node.tooltip ?? node.label}`
-            : (node.tooltip ?? node.label)}
-        </TooltipPopup>
-      </Tooltip>
+      {isRenaming ? (
+        <input
+          ref={handleRenameInputRef}
+          className="min-w-0 flex-1 truncate rounded border border-ring bg-transparent px-0.5 text-xs outline-none"
+          value={renamingValue ?? ""}
+          onChange={handleRenameChange}
+          onKeyDown={handleRenameKeyDown}
+          onBlur={handleRenameBlur}
+          onClick={handleRenameClick}
+          onDoubleClick={handleRenameClick}
+        />
+      ) : (
+        <Tooltip>
+          <TooltipTrigger render={<span className={UW_TREE_LABEL_CLASS}>{node.label}</span>} />
+          <TooltipPopup side="top" className="max-w-80 whitespace-normal leading-tight">
+            {node.isBroken
+              ? `Path not found: ${node.tooltip ?? node.label}`
+              : (node.tooltip ?? node.label)}
+          </TooltipPopup>
+        </Tooltip>
+      )}
 
       <span className={UW_TREE_META_CLASS}>
         {node.isBroken && (

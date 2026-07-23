@@ -1,8 +1,11 @@
 import {
   EventId,
+  makeCommandWorkspaceItemId,
+  makeThreadWorkspaceItemId,
   type OrchestrationCommand,
   type OrchestrationEvent,
   type OrchestrationReadModel,
+  type ProjectWorkspaceLayoutOperation,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
@@ -11,14 +14,27 @@ import type * as PlatformError from "effect/PlatformError";
 
 import { OrchestrationCommandInvariantError } from "./Errors.ts";
 import {
+  findWorkspaceLayoutDuplicatePath,
+  findWorkspaceLayoutEntryById,
+  isLiveWorkspaceResourceItemId,
   listThreadsByProjectId,
+  normalizeWorkspaceRelativePath,
+  requireActiveProject,
   requireActiveProjectWorkspaceRootAbsent,
+  requireNoWorkspaceLayoutCycle,
   requireProject,
   requireProjectAbsent,
   requireThread,
   requireThreadArchived,
   requireThreadAbsent,
   requireThreadNotArchived,
+  requireValidWorkspaceLayoutParent,
+  requireWorkspaceLayoutBeforeSharesParent,
+  requireWorkspaceLayoutRenameableEntry,
+  requireWorkspaceLayoutScriptTarget,
+  requireWorkspaceLayoutThreadTarget,
+  requireWorkspaceLayoutVersionMatch,
+  workspaceLayoutInvariantError,
 } from "./commandInvariants.ts";
 import { projectEvent } from "./projector.ts";
 
@@ -92,6 +108,190 @@ const decideCommandSequence = Effect.fn("decideCommandSequence")(function* ({
   }
 
   return plannedEvents;
+});
+
+/**
+ * Validates and normalizes one `project.workspace-layout.apply` operation
+ * against the project's current layout, returning the operation to embed in
+ * the emitted `project.workspace-layout-applied` event.
+ *
+ * For `attach-path`, the returned operation carries the *normalized*
+ * relative path (not necessarily what the client sent). For every other
+ * operation type the command's operation passes through unchanged — in
+ * particular `move`/`place-resource` do not carry a computed rank (the
+ * frozen `ProjectWorkspaceLayoutOperation` schema has no field for it); the
+ * projector deterministically re-derives the identical rank from the same
+ * prior layout via `computeWorkspaceLayoutPlacementRank` (see
+ * `commandInvariants.ts`).
+ */
+const decideWorkspaceLayoutOperation = Effect.fn("decideWorkspaceLayoutOperation")(function* ({
+  readModel,
+  command,
+  project,
+}: {
+  readonly readModel: OrchestrationReadModel;
+  readonly command: Extract<OrchestrationCommand, { type: "project.workspace-layout.apply" }>;
+  readonly project: OrchestrationReadModel["projects"][number];
+}): Effect.fn.Return<ProjectWorkspaceLayoutOperation, OrchestrationCommandInvariantError> {
+  const operation = command.operation;
+  const layout = project.workspaceLayout;
+
+  switch (operation.type) {
+    case "attach-path": {
+      const normalizedRelativePath = normalizeWorkspaceRelativePath(operation.entry.relativePath);
+      if (normalizedRelativePath === null) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "invalid-path",
+          message: `'${operation.entry.relativePath}' is not a valid workspace-relative path.`,
+        });
+      }
+      yield* requireValidWorkspaceLayoutParent({
+        readModel,
+        command,
+        project,
+        parentId: operation.entry.parentId,
+      });
+      const duplicate = findWorkspaceLayoutDuplicatePath(layout, normalizedRelativePath);
+      if (duplicate) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "duplicate-path",
+          message: `'${normalizedRelativePath}' is already attached (existing item '${duplicate.id}').`,
+        });
+      }
+      return {
+        ...operation,
+        entry: { ...operation.entry, relativePath: normalizedRelativePath },
+      };
+    }
+
+    case "add-url": {
+      yield* requireValidWorkspaceLayoutParent({
+        readModel,
+        command,
+        project,
+        parentId: operation.entry.parentId,
+      });
+      return operation;
+    }
+
+    case "place-resource": {
+      yield* requireValidWorkspaceLayoutParent({
+        readModel,
+        command,
+        project,
+        parentId: operation.parentId,
+      });
+      if (operation.resource.kind === "thread") {
+        yield* requireWorkspaceLayoutThreadTarget({
+          readModel,
+          command,
+          projectId: project.id,
+          threadId: operation.resource.threadId,
+        });
+      } else {
+        yield* requireWorkspaceLayoutScriptTarget({
+          command,
+          project,
+          scriptId: operation.resource.scriptId,
+        });
+      }
+      const resourceItemId =
+        operation.resource.kind === "thread"
+          ? makeThreadWorkspaceItemId(operation.resource.threadId)
+          : makeCommandWorkspaceItemId(operation.resource.scriptId);
+      yield* requireNoWorkspaceLayoutCycle({
+        command,
+        layout,
+        itemId: resourceItemId,
+        parentId: operation.parentId,
+      });
+      yield* requireWorkspaceLayoutBeforeSharesParent({
+        command,
+        layout,
+        beforeId: operation.beforeId,
+        resultingParentId: operation.parentId,
+      });
+      return operation;
+    }
+
+    case "move": {
+      if (isLiveWorkspaceResourceItemId(operation.itemId)) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "not-persistent",
+          message: `'${operation.itemId}' is a live terminal/browser node and cannot be moved.`,
+        });
+      }
+      if (!findWorkspaceLayoutEntryById(layout, operation.itemId)) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "missing-target",
+          message: `Item '${operation.itemId}' does not exist.`,
+        });
+      }
+      if (operation.beforeId !== null && operation.beforeId === operation.itemId) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "invalid-parent",
+          message: `Item '${operation.itemId}' cannot be placed before itself.`,
+        });
+      }
+      yield* requireValidWorkspaceLayoutParent({
+        readModel,
+        command,
+        project,
+        parentId: operation.parentId,
+      });
+      yield* requireNoWorkspaceLayoutCycle({
+        command,
+        layout,
+        itemId: operation.itemId,
+        parentId: operation.parentId,
+      });
+      yield* requireWorkspaceLayoutBeforeSharesParent({
+        command,
+        layout,
+        beforeId: operation.beforeId,
+        resultingParentId: operation.parentId,
+      });
+      return operation;
+    }
+
+    case "rename": {
+      const existing = findWorkspaceLayoutEntryById(layout, operation.itemId);
+      if (!existing) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "missing-target",
+          message: `Item '${operation.itemId}' does not exist.`,
+        });
+      }
+      yield* requireWorkspaceLayoutRenameableEntry({ command, entry: existing });
+      return operation;
+    }
+
+    case "remove": {
+      if (!findWorkspaceLayoutEntryById(layout, operation.itemId)) {
+        return yield* workspaceLayoutInvariantError({
+          commandType: command.type,
+          tag: "missing-target",
+          message: `Item '${operation.itemId}' does not exist.`,
+        });
+      }
+      return operation;
+    }
+
+    default: {
+      operation satisfies never;
+      const fallback = operation as never as { type: string };
+      return yield* new OrchestrationCommandInvariantError({
+        commandType: command.type,
+        detail: `Unknown workspace layout operation type: ${fallback.type}`,
+      });
+    }
+  }
 });
 
 export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand")(function* ({
@@ -222,6 +422,40 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         payload: {
           projectId: command.projectId,
           deletedAt: occurredAt,
+        },
+      };
+    }
+
+    case "project.workspace-layout.apply": {
+      const project = yield* requireActiveProject({
+        readModel,
+        command,
+        projectId: command.projectId,
+      });
+      yield* requireWorkspaceLayoutVersionMatch({
+        command,
+        project,
+        expectedVersion: command.expectedVersion,
+      });
+      const normalizedOperation = yield* decideWorkspaceLayoutOperation({
+        readModel,
+        command,
+        project,
+      });
+      const occurredAt = yield* nowIso;
+      return {
+        ...(yield* withEventBase({
+          aggregateKind: "project",
+          aggregateId: command.projectId,
+          occurredAt,
+          commandId: command.commandId,
+        })),
+        type: "project.workspace-layout-applied",
+        payload: {
+          projectId: command.projectId,
+          operation: normalizedOperation,
+          layoutVersion: project.workspaceLayoutVersion + 1,
+          updatedAt: occurredAt,
         },
       };
     }

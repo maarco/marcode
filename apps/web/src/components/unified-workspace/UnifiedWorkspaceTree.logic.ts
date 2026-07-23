@@ -320,6 +320,19 @@ export function buildUnifiedWorkspaceDropResultAnnouncement(input: {
     : `Could not move ${input.draggedLabel}.`;
 }
 
+// ── Add-item menu context (§9) ──────────────────────────────────────────────
+
+/**
+ * The "Add item" menu is mounted once (project header) and is context-
+ * sensitive to whichever row is currently focused: root when nothing is
+ * focused, that node when it's a container, or its parent when it's a leaf
+ * (a leaf command/URL/terminal/browser can't take children of its own).
+ */
+export function resolveAddMenuParentId(focusedNode: UnifiedWorkspaceNode | null): string | null {
+  if (!focusedNode) return null;
+  return focusedNode.canHaveChildren ? focusedNode.id : focusedNode.parentId;
+}
+
 // ── Context menus (§11) ──────────────────────────────────────────────────
 
 /**
