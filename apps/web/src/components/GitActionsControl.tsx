@@ -38,7 +38,7 @@ import {
   RecordCircleFilled,
 } from "@aliimam/icons";
 import { PillTooltip, pillIconButtonClass, pillMenuRowClass } from "~/components/FloatingPillNav";
-import { PillNavHoverCard } from "~/components/PillNavHoverCard";
+import { PillNavHoverCard, type PillNavMetaKey } from "~/components/PillNavHoverCard";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { AzureDevOpsIcon, BitbucketIcon, GitHubIcon, GitLabIcon } from "~/components/Icons";
 import { RadioGroup } from "~/components/ui/radio-group";
@@ -273,6 +273,16 @@ function resolveProgressDescription(progress: ActiveGitActionProgress): string |
   }
   return formatElapsedDescription(progress.hookStartedAtMs ?? progress.phaseStartedAtMs);
 }
+
+/**
+ * Git menu items whose label and glyph are fixed, so they can carry a static
+ * hover card. `pr` is absent on purpose — it renders the provider's icon and is
+ * named "pull request" or "merge request" depending on the remote.
+ */
+const GIT_ITEM_META_KEYS: Partial<Record<GitActionMenuItem["id"], PillNavMetaKey>> = {
+  commit: "git:commit",
+  push: "git:push",
+};
 
 function getMenuActionDisabledReason({
   item,
@@ -1876,27 +1886,42 @@ export default function GitActionsControl({
             });
             const label = flatMenuItemLabel(item);
             const blocked = item.disabled || isGitActionRunning;
+            const control = (
+              <button
+                type="button"
+                className={pillIconButtonClass()}
+                aria-disabled={blocked}
+                aria-label={label}
+                onClick={(event) => {
+                  if (blocked) {
+                    event.preventDefault();
+                    return;
+                  }
+                  openDialogForMenuItem(item);
+                }}
+              >
+                <GitActionItemIcon icon={item.icon} SourceControlIcon={SourceControlIcon} />
+              </button>
+            );
+            // Commit and Push have a fixed name and glyph, so they earn the same
+            // rich card as the rest of the pill. The PR item keeps a tooltip: its
+            // label and icon come from the repo's provider.
+            const metaKey = GIT_ITEM_META_KEYS[item.id];
+            if (metaKey) {
+              return (
+                <PillNavHoverCard
+                  key={`${item.id}-${item.label}`}
+                  metaKey={metaKey}
+                  status={(item.disabled && disabledReason) || null}
+                  render={control}
+                />
+              );
+            }
             return (
               <PillTooltip
                 key={`${item.id}-${item.label}`}
                 label={(item.disabled && disabledReason) || label}
-                render={
-                  <button
-                    type="button"
-                    className={pillIconButtonClass()}
-                    aria-disabled={blocked}
-                    aria-label={label}
-                    onClick={(event) => {
-                      if (blocked) {
-                        event.preventDefault();
-                        return;
-                      }
-                      openDialogForMenuItem(item);
-                    }}
-                  >
-                    <GitActionItemIcon icon={item.icon} SourceControlIcon={SourceControlIcon} />
-                  </button>
-                }
+                render={control}
               />
             );
           })}

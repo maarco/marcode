@@ -8,6 +8,7 @@ import {
   CodeFilled,
   DocumentTextFilled,
   Element3Filled,
+  Export3Filled,
   FolderFilled,
   GlobalFilled,
   Hierarchy2Filled,
@@ -16,6 +17,7 @@ import {
   LinkFilled,
   LockFilled,
   MessageCircleFilled,
+  RecordCircleFilled,
   Setting2Filled,
   Setting5Filled,
   SidebarLeftFilled,
@@ -201,6 +203,24 @@ export const PILL_NAV_META = {
     icon: Hierarchy2Filled,
     color: WORKSPACE_COLOR,
   },
+  // Git action pills. Only the two whose label and glyph are fixed live here —
+  // the PR and publish pills take their name and icon from the repo's provider
+  // ("pull request" on GitHub, "merge request" on GitLab), so a static card
+  // would contradict the button next to it. Blocked reasons ride `status`.
+  "git:commit": {
+    title: "Commit",
+    description:
+      "Stage and commit this thread's working-tree changes. Opens the commit dialog with a message drafted from what changed.",
+    icon: RecordCircleFilled,
+    color: WORKSPACE_COLOR,
+  },
+  "git:push": {
+    title: "Push",
+    description:
+      "Send committed work to the remote. Pushes the thread's branch to its upstream, setting one on first push.",
+    icon: Export3Filled,
+    color: WORKSPACE_COLOR,
+  },
   // The grip. Its three gestures are otherwise undiscoverable, which is exactly
   // what a card is for — a one-line tooltip could only name one of them.
   "pill:lock": {
@@ -222,9 +242,11 @@ export function hasPillNavMeta(key: string | null | undefined): key is PillNavMe
 function PillNavCard({
   meta,
   shortcut,
+  status,
 }: {
   meta: PillNavMeta;
   shortcut?: string | null | undefined;
+  status?: string | null | undefined;
 }) {
   const Icon = meta.icon;
   return (
@@ -243,6 +265,13 @@ function PillNavCard({
           {shortcut ? <Kbd className="ml-auto shrink-0">{shortcut}</Kbd> : null}
         </div>
         <p className="text-muted-foreground text-xs leading-relaxed">{meta.description}</p>
+        {/* Why the control is currently blocked. Without this a card would be a
+            downgrade from the tooltip it replaced, which carried the reason. */}
+        {status ? (
+          <p className="mt-2 border-border/60 border-t pt-2 text-[11px] text-muted-foreground/80 leading-relaxed">
+            {status}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -261,18 +290,21 @@ export function PillNavHoverCard({
   metaKey,
   shortcut,
   side = "bottom",
+  status,
   render,
 }: {
   metaKey: PillNavMetaKey;
   shortcut?: string | null | undefined;
   side?: "top" | "bottom" | "left" | "right";
+  /** Live reason the control is blocked, appended under the description. */
+  status?: string | null | undefined;
   render: ReactElement;
 }) {
   return (
     <HoverCard>
       <HoverCardTrigger closeDelay={120} delay={220} render={render} />
       <HoverCardPopup align="center" side={side}>
-        <PillNavCard meta={PILL_NAV_META[metaKey]} shortcut={shortcut} />
+        <PillNavCard meta={PILL_NAV_META[metaKey]} shortcut={shortcut} status={status} />
       </HoverCardPopup>
     </HoverCard>
   );
