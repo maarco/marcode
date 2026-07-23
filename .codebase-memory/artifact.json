@@ -1,0 +1,11 @@
+{
+    "schema_version": 1,
+    "commit": "8189cda06ee93d4167629831699d26ecea474eea",
+    "indexed_at": "2026-07-23T04:26:55Z",
+    "project": "Users-malmazan-dev-marcode",
+    "nodes": 70136,
+    "edges": 246294,
+    "original_size": 187695104,
+    "compressed_size": 32305407,
+    "compression_level": 3
+}
