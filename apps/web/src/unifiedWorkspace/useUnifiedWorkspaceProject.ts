@@ -14,9 +14,17 @@
  * `workspaceLayoutVersion`/`workspaceLayout` on `OrchestrationProjectShell`)
  * had already landed and is used directly.
  */
-import { scopedThreadKey, scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { applyProjectWorkspaceLayout } from "@t3tools/client-runtime/operations/projectWorkspace";
-import { useProjectWorkspaceLayout } from "@t3tools/client-runtime/state/projectWorkspace";
+import {
+  scopedThreadKey,
+  scopeProjectRef,
+  scopeThreadRef,
+} from "@t3tools/client-runtime/environment";
+import type { ApplyProjectWorkspaceLayoutResult } from "@t3tools/client-runtime/operations/project-workspace";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+  type AtomCommandResult,
+} from "@t3tools/client-runtime/state/runtime";
 import { rankBetween } from "@t3tools/shared/fractional-rank";
 import {
   ProjectWorkspaceItemId,
@@ -25,9 +33,10 @@ import {
   type ProjectId,
   type ProjectWorkspaceEntry,
   type ProjectWorkspaceLayoutOperation,
-  type ProjectWorkspaceLayoutRejection,
   type ProjectWorkspaceUrlEntry,
   type ScopedProjectRef,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
 } from "@t3tools/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo } from "react";
@@ -52,17 +61,20 @@ import {
 import { useRightPanelStore } from "~/rightPanelStore";
 import { useProject, useThreadShellsForProjectRefs } from "~/state/entities";
 import { previewEnvironment } from "~/state/preview";
+import { projectEnvironment } from "~/state/projects";
 import { terminalEnvironment } from "~/state/terminal";
 import { useKnownTerminalSessions } from "~/state/terminalSessions";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { buildThreadRouteParams, resolveThreadRouteTarget } from "~/threadRoutes";
 import { useUiStateStore } from "~/uiStateStore";
 
+import { activateUnifiedWorkspaceNode, requestUnifiedWorkspaceCommandRun } from "./activateNode";
 import {
-  activateUnifiedWorkspaceNode,
-  requestUnifiedWorkspaceCommandRun,
-} from "./activateNode";
-import { buildUnifiedWorkspaceTree, type UnifiedWorkspaceThreadInput } from "./buildTree";
+  buildUnifiedWorkspaceTree,
+  EMPTY_AMBIENT_ENTRIES,
+  EMPTY_EXPANDED_AMBIENT_DIRS,
+  type UnifiedWorkspaceThreadInput,
+} from "./buildTree";
 import {
   compareUnifiedWorkspaceRanks,
   indexUnifiedWorkspaceNodesById,
@@ -76,12 +88,45 @@ import type {
 } from "./types";
 
 function toMutationResult(
-  result:
-    | { readonly ok: true; readonly layoutVersion: number }
-    | { readonly ok: false; readonly rejection: ProjectWorkspaceLayoutRejection },
+  result: ApplyProjectWorkspaceLayoutResult,
 ): UnifiedWorkspaceMutationResult {
   if (result.ok) return { ok: true };
   return { ok: false, tag: result.rejection.tag, message: result.rejection.message };
+}
+
+/**
+ * Resolves the settled `AtomCommandResult` from the `applyWorkspaceLayout` atom command
+ * (`useAtomCommand` — see `~/state/use-atom-command`) into the controller's
+ * `UnifiedWorkspaceMutationResult` shape.
+ *
+ * This is the fix for a real bug: `applyProjectWorkspaceLayout` (operations/projectWorkspace.ts)
+ * is an `Effect.Effect<...>`, not a `Promise`. Calling it directly and `await`-ing or
+ * `.then`/`.catch`-ing the result never runs the Effect — it resolves to the Effect object
+ * itself, so `result.ok` is `undefined` and downstream code reading `result.rejection.tag`
+ * throws `Cannot read properties of undefined (reading 'tag')`. Every mutation (attach, add
+ * URL, move, rename, remove, place-resource) routed through the broken direct call. The fix
+ * runs it through `createEnvironmentCommand`/`useAtomCommand` (the pattern every other command
+ * in this codebase uses — see `CommandPalette.tsx`'s `createProject` usage), which actually
+ * executes the Effect and settles it into an `AtomCommandResult`.
+ *
+ * A `Failure` tag here is always a connection-level problem (offline, RPC unavailable, auth) —
+ * `applyProjectWorkspaceLayout` never fails its Effect for an expected rejection (stale
+ * version, cycle, duplicate path, ...); those travel through the `Success` value's
+ * `{ok:false, rejection}` branch instead, so both branches funnel through `toMutationResult`.
+ */
+function resolveLayoutCommandResult(
+  result: AtomCommandResult<ApplyProjectWorkspaceLayoutResult, unknown>,
+): UnifiedWorkspaceMutationResult {
+  if (result._tag === "Success") return toMutationResult(result.value);
+  if (isAtomCommandInterrupted(result)) {
+    return { ok: false, tag: "offline", message: "The request was interrupted." };
+  }
+  const error = squashAtomCommandFailure(result);
+  return {
+    ok: false,
+    tag: "offline",
+    message: error instanceof Error ? error.message : "Request failed.",
+  };
 }
 
 /** Last (highest) rank among a parent's current siblings, for append-at-end placement. */
@@ -126,12 +171,15 @@ export function useUnifiedWorkspaceProject(input: {
   readonly projectId: ProjectId;
 }): UnifiedWorkspaceController {
   const { environmentId, projectId } = input;
-  const projectRef = useMemo(() => scopeProjectRef(environmentId, projectId), [environmentId, projectId]);
-  const project = useProject(projectRef);
-  const { entries: layoutEntries, version: layoutVersion } = useProjectWorkspaceLayout(
-    environmentId,
-    projectId,
+  const projectRef = useMemo(
+    () => scopeProjectRef(environmentId, projectId),
+    [environmentId, projectId],
   );
+  const project = useProject(projectRef);
+  // The layout already rides on the physical project shell, so there is nothing
+  // to fetch and no second store to keep in sync — read it straight off `project`.
+  const layoutEntries = project?.workspaceLayout ?? EMPTY_PROJECT_WORKSPACE_LAYOUT;
+  const layoutVersion = project?.workspaceLayoutVersion ?? INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION;
 
   const threadSortOrder = useClientSettings((settings) => settings.sidebarThreadSortOrder);
   const router = useRouter();
@@ -160,7 +208,9 @@ export function useUnifiedWorkspaceProject(input: {
   );
   const validThreadIds = useMemo(
     () =>
-      new Set(threads.filter((t) => t.archivedAt === null && t.deletedAt === null).map((t) => t.threadId)),
+      new Set(
+        threads.filter((t) => t.archivedAt === null && t.deletedAt === null).map((t) => t.threadId),
+      ),
     [threads],
   );
   const projectThreadIdSet = useMemo(() => new Set(threads.map((t) => t.threadId)), [threads]);
@@ -232,6 +282,15 @@ export function useUnifiedWorkspaceProject(input: {
     if (!project || entriesQuery.data === null) return null;
     return new Set(entriesQuery.data.entries.map((entry) => entry.path));
   }, [project, entriesQuery.data]);
+  // Same query as `knownPaths` above — the ambient (unattached) file/folder
+  // nodes the tree now shows by default (spec override of §4) are projected
+  // from this one existing index, not a second one (spec §2). No UI currently
+  // grows `expandedAmbientDirs` beyond its empty default — see this feature's
+  // handoff report for the small follow-up that wires a real expand click to
+  // it; until then every directory below the workspace root renders
+  // collapsed, which is the correct/safe default, not a bug.
+  const ambientEntries = entriesQuery.data?.entries ?? EMPTY_AMBIENT_ENTRIES;
+  const ambientEntriesTruncated = entriesQuery.data?.truncated ?? false;
 
   const { roots, diagnostics } = useMemo(
     () =>
@@ -245,6 +304,9 @@ export function useUnifiedWorkspaceProject(input: {
         previewTabs,
         threadSortOrder,
         knownPaths,
+        ambientEntries,
+        ambientEntriesTruncated,
+        expandedAmbientDirs: EMPTY_EXPANDED_AMBIENT_DIRS,
       }),
     [
       environmentId,
@@ -256,6 +318,8 @@ export function useUnifiedWorkspaceProject(input: {
       previewTabs,
       threadSortOrder,
       knownPaths,
+      ambientEntries,
+      ambientEntriesTruncated,
     ],
   );
 
@@ -276,6 +340,10 @@ export function useUnifiedWorkspaceProject(input: {
   const capabilities = useMemo(() => ({ canMutate: true, reason: null }), []);
 
   // --- Layout mutation plumbing ---
+  const applyWorkspaceLayoutCommand = useAtomCommand(projectEnvironment.applyWorkspaceLayout, {
+    reportFailure: false,
+  });
+
   const runLayoutOperation = useCallback(
     async (operation: ProjectWorkspaceLayoutOperation): Promise<UnifiedWorkspaceMutationResult> => {
       if (!capabilities.canMutate) {
@@ -285,23 +353,13 @@ export function useUnifiedWorkspaceProject(input: {
           message: capabilities.reason ?? "Editing is unavailable right now.",
         };
       }
-      try {
-        const result = await applyProjectWorkspaceLayout({
-          environmentId,
-          projectId,
-          expectedVersion: layoutVersion,
-          operation,
-        });
-        return toMutationResult(result);
-      } catch (error) {
-        return {
-          ok: false,
-          tag: "offline",
-          message: error instanceof Error ? error.message : "Request failed.",
-        };
-      }
+      const result = await applyWorkspaceLayoutCommand({
+        environmentId,
+        input: { environmentId, projectId, expectedVersion: layoutVersion, operation },
+      });
+      return resolveLayoutCommandResult(result);
     },
-    [capabilities, environmentId, projectId, layoutVersion],
+    [capabilities, environmentId, projectId, layoutVersion, applyWorkspaceLayoutCommand],
   );
 
   const dequalify = useCallback(
@@ -332,37 +390,53 @@ export function useUnifiedWorkspaceProject(input: {
         (entry) => entry.kind === "thread" && entry.threadId === thread.threadId,
       );
       if (alreadyPlaced) continue;
-      void applyProjectWorkspaceLayout({
+      void applyWorkspaceLayoutCommand({
         environmentId,
-        projectId,
-        expectedVersion: layoutVersion,
-        operation: {
-          type: "place-resource",
-          resource: { kind: "thread", threadId: ThreadId.make(thread.threadId) },
-          parentId: pendingParentId ? ProjectWorkspaceItemId.make(pendingParentId) : null,
-          beforeId: null,
+        input: {
+          environmentId,
+          projectId,
+          expectedVersion: layoutVersion,
+          operation: {
+            type: "place-resource",
+            resource: { kind: "thread", threadId: ThreadId.make(thread.threadId) },
+            parentId: pendingParentId ? ProjectWorkspaceItemId.make(pendingParentId) : null,
+            beforeId: null,
+          },
         },
-      }).catch((error: unknown) => {
-        console.error("[unifiedWorkspace] failed to materialize a new thread's placement", error);
+      }).then((result) => {
+        const mutationResult = resolveLayoutCommandResult(result);
+        if (mutationResult.ok) return;
+        console.error(
+          "[unifiedWorkspace] failed to materialize a new thread's placement",
+          mutationResult,
+        );
         toastManager.add(
           stackedThreadToast({
             type: "error",
             title: "Couldn't place the new thread",
-            description:
-              "It's visible at the project root instead. " +
-              (error instanceof Error ? error.message : "Please move it manually."),
+            description: "It's visible at the project root instead. " + mutationResult.message,
           }),
         );
       });
     }
-  }, [threads, layoutEntries, environmentId, projectId, layoutVersion]);
+  }, [
+    threads,
+    layoutEntries,
+    environmentId,
+    projectId,
+    layoutVersion,
+    applyWorkspaceLayoutCommand,
+  ]);
 
   // --- Route-derived "active thread" (spec §8 step 1) ---
   const routeParams = useParams({ strict: false });
   const routeTarget = resolveThreadRouteTarget(routeParams);
   const activeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
   const activeThread = useMemo(
-    () => (activeThreadRef ? (projectThreadShells.find((t) => t.id === activeThreadRef.threadId) ?? null) : null),
+    () =>
+      activeThreadRef
+        ? (projectThreadShells.find((t) => t.id === activeThreadRef.threadId) ?? null)
+        : null,
     [activeThreadRef, projectThreadShells],
   );
 
@@ -394,7 +468,9 @@ export function useUnifiedWorkspaceProject(input: {
           .openFile(scopeThreadRef(environmentId, ThreadId.make(threadId)), relativePath);
       },
       openFilesSurface: (threadId: string) => {
-        useRightPanelStore.getState().open(scopeThreadRef(environmentId, ThreadId.make(threadId)), "files");
+        useRightPanelStore
+          .getState()
+          .open(scopeThreadRef(environmentId, ThreadId.make(threadId)), "files");
       },
       openTerminal: (threadId: string, terminalId: string) => {
         // Right-panel surface only — the PTY session is already running server-side
@@ -531,7 +607,12 @@ export function useUnifiedWorkspaceProject(input: {
           beforeId: beforeItemId,
         });
       }
-      return runLayoutOperation({ type: "move", itemId, parentId: parentItemId, beforeId: beforeItemId });
+      return runLayoutOperation({
+        type: "move",
+        itemId,
+        parentId: parentItemId,
+        beforeId: beforeItemId,
+      });
     },
     [nodesById, dequalify, layoutEntries, runLayoutOperation],
   );
@@ -552,8 +633,20 @@ export function useUnifiedWorkspaceProject(input: {
         type: "attach-path",
         entry:
           attachInput.kind === "file"
-            ? { kind: "file", id, parentId: parentItemId, rank, relativePath: attachInput.relativePath }
-            : { kind: "folder", id, parentId: parentItemId, rank, relativePath: attachInput.relativePath },
+            ? {
+                kind: "file",
+                id,
+                parentId: parentItemId,
+                rank,
+                relativePath: attachInput.relativePath,
+              }
+            : {
+                kind: "folder",
+                id,
+                parentId: parentItemId,
+                rank,
+                relativePath: attachInput.relativePath,
+              },
       });
     },
     [dequalify, layoutEntries, runLayoutOperation],
@@ -600,7 +693,11 @@ export function useUnifiedWorkspaceProject(input: {
     async (nodeId: string): Promise<UnifiedWorkspaceMutationResult> => {
       const node = nodesById.get(nodeId);
       if (!node || !node.canRemove) {
-        return { ok: false, tag: "unsupported", message: "This item can't be removed from the sidebar." };
+        return {
+          ok: false,
+          tag: "unsupported",
+          message: "This item can't be removed from the sidebar.",
+        };
       }
       const itemId = dequalify(nodeId);
       if (!itemId) return { ok: false, tag: "invalid-parent", message: "Unknown item." };
