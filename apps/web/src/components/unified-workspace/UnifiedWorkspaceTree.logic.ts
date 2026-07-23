@@ -277,9 +277,24 @@ export function resolveMoveTargetForRootGutterDrop(
 
 // ── Geometry ─────────────────────────────────────────────────────────────
 
-/** `paddingInlineStart = calc(0.375rem + depth * var(--uw-tree-indent))` per §12.4. */
-export function unifiedWorkspaceRowIndentStyle(depth: number): { paddingInlineStart: string } {
-  return { paddingInlineStart: `calc(0.375rem + ${depth} * var(--uw-tree-indent))` };
+/**
+ * `paddingInlineStart = calc(0.375rem + depth * var(--uw-tree-indent))` per
+ * §12.4, plus `--uw-row-depth` — a per-row custom property so the §12.5
+ * branch-guide pseudo-element (`UW_TREE_GUIDE_CLASS`, CSS-only, can't read a
+ * React prop) can position itself one indent step up from this row without a
+ * second geometry formula to keep in sync. This module stays React-free
+ * (no `CSSProperties` import) — callers cast the result at the JSX boundary.
+ */
+export interface UnifiedWorkspaceRowIndentStyle {
+  readonly paddingInlineStart: string;
+  readonly "--uw-row-depth": number;
+}
+
+export function unifiedWorkspaceRowIndentStyle(depth: number): UnifiedWorkspaceRowIndentStyle {
+  return {
+    paddingInlineStart: `calc(0.375rem + ${depth} * var(--uw-tree-indent))`,
+    "--uw-row-depth": depth,
+  };
 }
 
 // ── ARIA live-region announcements (§10: source, target, result) ───────────
@@ -333,6 +348,48 @@ export function resolveAddMenuParentId(focusedNode: UnifiedWorkspaceNode | null)
   return focusedNode.canHaveChildren ? focusedNode.id : focusedNode.parentId;
 }
 
+/**
+ * Ancestor chain (nearest parent first) for `nodeId`. Used to expand every
+ * collapsed ancestor before revealing a row — `flattenVisibleUnifiedWorkspaceNodes`
+ * hides a node's subtree while any ancestor is collapsed, so scrolling/focusing
+ * a hidden row is a no-op unless its ancestors are expanded first.
+ */
+export function collectUnifiedWorkspaceAncestorIds(
+  index: UnifiedWorkspaceNodeIndex,
+  nodeId: string,
+): string[] {
+  const ids: string[] = [];
+  let current = index.byId.get(nodeId);
+  while (current?.parentId) {
+    ids.push(current.parentId);
+    current = index.byId.get(current.parentId);
+  }
+  return ids;
+}
+
+/**
+ * Finds the existing file/folder node for a project-relative path (§9: "On
+ * duplicate, focus and reveal the existing node" instead of re-attaching).
+ * Null when nothing attached matches — the caller falls back to a toast.
+ */
+export function findUnifiedWorkspaceAttachedNodeId(
+  index: UnifiedWorkspaceNodeIndex,
+  kind: "file" | "folder",
+  relativePath: string,
+): string | null {
+  for (const candidate of index.byId.values()) {
+    const activation = candidate.activation;
+    if (
+      (activation.kind === "file" || activation.kind === "folder") &&
+      activation.kind === kind &&
+      activation.relativePath === relativePath
+    ) {
+      return candidate.id;
+    }
+  }
+  return null;
+}
+
 // ── Context menus (§11) ──────────────────────────────────────────────────
 
 /**
@@ -373,11 +430,20 @@ export type UnifiedWorkspaceContextMenuActionId =
  *    editor or delete the underlying `ProjectScript`.
  *  - "Edit shortcut" (URL) covers only the label via the generic `rename`
  *    item — there is no controller call to change a shortcut's URL value.
+ *
+ * `canMutate` (default `true`) gates only the items that write project
+ * layout — move, attach-derived rename/remove, and pin-shortcut (adds a URL
+ * entry) — per spec §17's read-only degradation. It deliberately does NOT
+ * gate mark-unread/archive/delete/copy-thread-id: those are thread lifecycle
+ * operations with their own RPCs, not `ProjectWorkspaceLayoutApplyCommand`s,
+ * so tying them to the layout capability flag would disable working
+ * functionality for the wrong reason.
  */
 export function buildUnifiedWorkspaceContextMenuItems(input: {
   readonly node: UnifiedWorkspaceNode;
+  readonly canMutate?: boolean;
 }): ContextMenuItem<UnifiedWorkspaceContextMenuActionId>[] {
-  const { node } = input;
+  const { node, canMutate = true } = input;
   const items: ContextMenuItem<UnifiedWorkspaceContextMenuActionId>[] = [];
 
   switch (node.kind) {
@@ -400,7 +466,7 @@ export function buildUnifiedWorkspaceContextMenuItems(input: {
       break;
     case "browser":
       items.push({ id: "open", label: "Open" });
-      items.push({ id: "pin-shortcut", label: "Pin shortcut" });
+      if (canMutate) items.push({ id: "pin-shortcut", label: "Pin shortcut" });
       items.push({ id: "copy-url", label: "Copy URL" });
       items.push({ id: "open-externally", label: "Open externally" });
       break;
@@ -414,13 +480,13 @@ export function buildUnifiedWorkspaceContextMenuItems(input: {
       break;
   }
 
-  if (node.canMove) {
+  if (node.canMove && canMutate) {
     items.push({ id: "move-to", label: "Move to…" });
   }
-  if (node.canHaveChildren) {
+  if (node.canHaveChildren && canMutate) {
     items.push({ id: "new-child-thread", label: "New child thread" });
   }
-  if (node.canRename) {
+  if (node.canRename && canMutate) {
     items.push({ id: "rename", label: "Rename" });
   }
 
@@ -435,7 +501,7 @@ export function buildUnifiedWorkspaceContextMenuItems(input: {
     });
   }
 
-  if (node.canRemove) {
+  if (node.canRemove && canMutate) {
     items.push({ id: "remove", label: "Remove from sidebar" });
   }
 
