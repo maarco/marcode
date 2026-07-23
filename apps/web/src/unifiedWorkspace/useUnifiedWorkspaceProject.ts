@@ -39,7 +39,7 @@ import {
   INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
 } from "@t3tools/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { openUrlInPreview as openUrlInPreviewSession } from "~/browser/openFileInPreview";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
@@ -73,12 +73,14 @@ import {
   buildUnifiedWorkspaceTree,
   EMPTY_AMBIENT_ENTRIES,
   EMPTY_EXPANDED_AMBIENT_DIRS,
+  toggleExpandedAmbientDir,
   type UnifiedWorkspaceThreadInput,
 } from "./buildTree";
 import {
   compareUnifiedWorkspaceRanks,
   indexUnifiedWorkspaceNodesById,
   parseUnifiedWorkspaceNodeId,
+  resolveUnifiedWorkspaceAmbientMaterializationChain,
 } from "./treeOperations";
 import type {
   UnifiedWorkspaceAttachCandidate,
@@ -284,13 +286,18 @@ export function useUnifiedWorkspaceProject(input: {
   }, [project, entriesQuery.data]);
   // Same query as `knownPaths` above — the ambient (unattached) file/folder
   // nodes the tree now shows by default (spec override of §4) are projected
-  // from this one existing index, not a second one (spec §2). No UI currently
-  // grows `expandedAmbientDirs` beyond its empty default — see this feature's
-  // handoff report for the small follow-up that wires a real expand click to
-  // it; until then every directory below the workspace root renders
-  // collapsed, which is the correct/safe default, not a bug.
+  // from this one existing index, not a second one (spec §2).
   const ambientEntries = entriesQuery.data?.entries ?? EMPTY_AMBIENT_ENTRIES;
   const ambientEntriesTruncated = entriesQuery.data?.truncated ?? false;
+
+  // Which ambient folders the sidebar's disclosure arrow has asked to reveal
+  // (`toggleAmbientFolder` below) — one level deep per entry, per
+  // `expandedAmbientDirs` on `BuildUnifiedWorkspaceTreeInput`. Ephemeral UI
+  // state only: never a `ProjectWorkspaceEntry`, never written to the layout,
+  // reset on remount exactly like `collapsedIds` in `UnifiedWorkspaceTree.tsx`.
+  const [expandedAmbientDirs, setExpandedAmbientDirs] = useState<ReadonlySet<string>>(
+    EMPTY_EXPANDED_AMBIENT_DIRS,
+  );
 
   const { roots, diagnostics } = useMemo(
     () =>
@@ -306,7 +313,7 @@ export function useUnifiedWorkspaceProject(input: {
         knownPaths,
         ambientEntries,
         ambientEntriesTruncated,
-        expandedAmbientDirs: EMPTY_EXPANDED_AMBIENT_DIRS,
+        expandedAmbientDirs,
       }),
     [
       environmentId,
@@ -320,6 +327,7 @@ export function useUnifiedWorkspaceProject(input: {
       knownPaths,
       ambientEntries,
       ambientEntriesTruncated,
+      expandedAmbientDirs,
     ],
   );
 
@@ -345,7 +353,16 @@ export function useUnifiedWorkspaceProject(input: {
   });
 
   const runLayoutOperation = useCallback(
-    async (operation: ProjectWorkspaceLayoutOperation): Promise<UnifiedWorkspaceMutationResult> => {
+    async (
+      operation: ProjectWorkspaceLayoutOperation,
+      // Defaults to the hook's current (render-time) layout version. A
+      // caller that issues more than one operation per gesture — `moveNode`
+      // materializing an ambient ancestor chain before the move itself —
+      // passes the version explicitly, advanced by one per prior success in
+      // the same gesture, since React state won't reflect an
+      // in-flight-within-this-callback mutation until the next render.
+      expectedVersionOverride?: number,
+    ): Promise<UnifiedWorkspaceMutationResult> => {
       if (!capabilities.canMutate) {
         return {
           ok: false,
@@ -355,7 +372,12 @@ export function useUnifiedWorkspaceProject(input: {
       }
       const result = await applyWorkspaceLayoutCommand({
         environmentId,
-        input: { environmentId, projectId, expectedVersion: layoutVersion, operation },
+        input: {
+          environmentId,
+          projectId,
+          expectedVersion: expectedVersionOverride ?? layoutVersion,
+          operation,
+        },
       });
       return resolveLayoutCommandResult(result);
     },
@@ -571,6 +593,16 @@ export function useUnifiedWorkspaceProject(input: {
     [nodesById, environmentId, closeTerminalCommand, activePreviewSessions, closePreviewCommand],
   );
 
+  const toggleAmbientFolder = useCallback(
+    (nodeId: string) => {
+      const node = nodesById.get(nodeId);
+      if (!node || !node.isAmbient || node.activation.kind !== "folder") return;
+      const relativePath = node.activation.relativePath;
+      setExpandedAmbientDirs((prev) => toggleExpandedAmbientDir(prev, relativePath));
+    },
+    [nodesById],
+  );
+
   const moveNode = useCallback(
     async (target: UnifiedWorkspaceMoveTarget): Promise<UnifiedWorkspaceMutationResult> => {
       const node = nodesById.get(target.nodeId);
@@ -579,42 +611,132 @@ export function useUnifiedWorkspaceProject(input: {
       }
       const itemId = dequalify(target.nodeId);
       if (!itemId) return { ok: false, tag: "invalid-parent", message: "Unknown item." };
-      const parentItemId = target.parentId ? dequalify(target.parentId) : null;
-      if (target.parentId && !parentItemId) {
-        return { ok: false, tag: "invalid-parent", message: "Unknown destination." };
+
+      // An ambient (disk-projected) destination folder has no persisted
+      // `ProjectWorkspaceEntry` behind it — the server's "parent exists"
+      // invariant correctly rejects it as a raw move target. Materialize the
+      // whole ambient ancestor chain (root-most first — moving into
+      // `apps/desktop` when neither is attached yet materializes `apps`
+      // first, then `desktop` under it) via `attach-path` before resolving
+      // the real parentId, the same "materialize on first move" contract
+      // spec §6.3 already applies to a synthetic thread/command being placed
+      // for the first time (below). `expectedVersion` is tracked locally and
+      // advanced by one per successful attach — the decider always accepts
+      // at the exact expected version and advances it by exactly one, so
+      // this is computable without waiting for a re-render to see the bumped
+      // `layoutVersion` state.
+      let parentItemId: ProjectWorkspaceItemId | null;
+      let expectedVersion = layoutVersion;
+      const ambientChain = resolveUnifiedWorkspaceAmbientMaterializationChain(
+        target.parentId,
+        nodesById,
+      );
+
+      if (ambientChain.length === 0) {
+        parentItemId = target.parentId ? dequalify(target.parentId) : null;
+        if (target.parentId && !parentItemId) {
+          return { ok: false, tag: "invalid-parent", message: "Unknown destination." };
+        }
+      } else {
+        const anchorNodeId = ambientChain[0]!.parentId;
+        parentItemId = anchorNodeId ? dequalify(anchorNodeId) : null;
+        if (anchorNodeId && !parentItemId) {
+          return { ok: false, tag: "invalid-parent", message: "Unknown destination." };
+        }
+        // Running copy of layout entries so rank computation for a deeper
+        // ambient folder sees one materialized earlier in this same chain.
+        let runningEntries = layoutEntries;
+        for (const ambientNode of ambientChain) {
+          if (ambientNode.activation.kind !== "folder") {
+            return { ok: false, tag: "invalid-parent", message: "Unknown destination." };
+          }
+          const relativePath = ambientNode.activation.relativePath;
+          // Idempotence: an ambient node is guaranteed to have no persisted
+          // counterpart at tree-build time (`buildTree.ts` always prefers a
+          // persisted entry over its ambient projection for the same path),
+          // so a match here only happens if another client attached the
+          // same path concurrently between this render and this call —
+          // reuse it instead of double-attaching (the server rejects a true
+          // duplicate path anyway).
+          const existing = runningEntries.find(
+            (entry): entry is Extract<ProjectWorkspaceEntry, { kind: "folder" }> =>
+              entry.kind === "folder" && entry.relativePath === relativePath,
+          );
+          if (existing) {
+            parentItemId = existing.id;
+            continue;
+          }
+          const newId = ProjectWorkspaceItemId.make(randomUUID());
+          const rank = rankBetween(lastRankAmong(runningEntries, parentItemId), null);
+          const newEntry: ProjectWorkspaceEntry = {
+            kind: "folder",
+            id: newId,
+            parentId: parentItemId,
+            rank,
+            relativePath,
+          };
+          // Partial-failure contract: if an earlier ancestor's attach
+          // succeeded and a later one (or the move itself, below) fails,
+          // the materialized folder(s) stay in place — harmless and
+          // visible — rather than being silently rolled back. Matches how
+          // spec §9 handles "Add command" placement failure.
+          const result = await runLayoutOperation(
+            { type: "attach-path", entry: newEntry },
+            expectedVersion,
+          );
+          if (!result.ok) return result;
+          parentItemId = newId;
+          expectedVersion += 1;
+          runningEntries = [...runningEntries, newEntry];
+        }
       }
-      const beforeItemId = target.beforeId ? dequalify(target.beforeId) : null;
-      if (target.beforeId && !beforeItemId) {
-        return { ok: false, tag: "invalid-parent", message: "Unknown position." };
+
+      let beforeItemId = target.beforeId ? dequalify(target.beforeId) : null;
+      if (target.beforeId) {
+        const beforeNode = nodesById.get(target.beforeId);
+        if (beforeNode?.isAmbient) {
+          // No persisted sibling to order against — this move materializes
+          // ancestors, not siblings, so an ambient beforeId degrades to
+          // "append at the end" instead of sending an id the server would
+          // reject outright (same "does not exist" failure mode as the
+          // ambient-parent bug this fix addresses).
+          beforeItemId = null;
+        } else if (!beforeItemId) {
+          return { ok: false, tag: "invalid-parent", message: "Unknown position." };
+        }
       }
 
       // Synthetic thread/command being placed for the first time materializes its persistent
       // entry instead of moving a (nonexistent) one — spec §6.3.
       const isPersisted = layoutEntries.some((entry) => entry.id === itemId);
       if (!isPersisted && node.activation.kind === "thread") {
-        return runLayoutOperation({
-          type: "place-resource",
-          resource: { kind: "thread", threadId: ThreadId.make(node.activation.threadId) },
-          parentId: parentItemId,
-          beforeId: beforeItemId,
-        });
+        return runLayoutOperation(
+          {
+            type: "place-resource",
+            resource: { kind: "thread", threadId: ThreadId.make(node.activation.threadId) },
+            parentId: parentItemId,
+            beforeId: beforeItemId,
+          },
+          expectedVersion,
+        );
       }
       if (!isPersisted && node.activation.kind === "command") {
-        return runLayoutOperation({
-          type: "place-resource",
-          resource: { kind: "command", scriptId: node.activation.scriptId },
-          parentId: parentItemId,
-          beforeId: beforeItemId,
-        });
+        return runLayoutOperation(
+          {
+            type: "place-resource",
+            resource: { kind: "command", scriptId: node.activation.scriptId },
+            parentId: parentItemId,
+            beforeId: beforeItemId,
+          },
+          expectedVersion,
+        );
       }
-      return runLayoutOperation({
-        type: "move",
-        itemId,
-        parentId: parentItemId,
-        beforeId: beforeItemId,
-      });
+      return runLayoutOperation(
+        { type: "move", itemId, parentId: parentItemId, beforeId: beforeItemId },
+        expectedVersion,
+      );
     },
-    [nodesById, dequalify, layoutEntries, runLayoutOperation],
+    [nodesById, dequalify, layoutEntries, layoutVersion, runLayoutOperation],
   );
 
   const attachPath = useCallback(
@@ -775,6 +897,7 @@ export function useUnifiedWorkspaceProject(input: {
     runCommand,
     pinBrowserShortcut,
     closeLiveNode,
+    toggleAmbientFolder,
     listAttachCandidates,
   };
 }

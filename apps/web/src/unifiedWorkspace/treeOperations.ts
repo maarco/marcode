@@ -100,6 +100,42 @@ export function getUnifiedWorkspaceAncestorIds(
   return ancestors;
 }
 
+/**
+ * Root-most-first chain of ambient (disk-projected, unattached) ancestor
+ * folders — starting at `parentId` itself — that have no persisted
+ * `ProjectWorkspaceEntry` behind them yet. Walks up through `byId` while
+ * every node encountered is ambient, stopping at the first persisted node or
+ * root. Empty when `parentId` is null or already resolves to a persisted
+ * (non-ambient) node — the common case, nothing to materialize.
+ *
+ * Used by `useUnifiedWorkspaceProject.ts`'s `moveNode` to materialize a move
+ * destination before using it as a real parentId: an ambient folder has no
+ * `ProjectWorkspaceEntry` behind it, so the server's "parent exists"
+ * invariant correctly rejects it as a raw move target. Spec §6.3 already
+ * materializes a synthetic thread/command's persistent entry the first time
+ * it is *moved*; this extends the same "materialize on first move" contract
+ * to an ambient folder used as a move *destination* — attach it (and every
+ * ambient ancestor above it, root-most first) via `attach-path` immediately
+ * before the move, rather than refusing the move outright. Cycle-safe
+ * defensively, though an ambient chain mirrors the on-disk directory tree
+ * and cannot itself contain a cycle.
+ */
+export function resolveUnifiedWorkspaceAmbientMaterializationChain(
+  parentId: string | null,
+  byId: ReadonlyMap<string, UnifiedWorkspaceNode>,
+): UnifiedWorkspaceNode[] {
+  if (parentId === null) return [];
+  const chain: UnifiedWorkspaceNode[] = [];
+  const seen = new Set<string>();
+  let current = byId.get(parentId);
+  while (current && current.isAmbient && !seen.has(current.id)) {
+    seen.add(current.id);
+    chain.push(current);
+    current = current.parentId !== null ? byId.get(current.parentId) : undefined;
+  }
+  return chain.reverse();
+}
+
 /** Every descendant id, depth-first. Excludes `nodeId` itself. */
 export function getUnifiedWorkspaceDescendantIds(
   nodeId: string,
@@ -221,11 +257,13 @@ export function validateUnifiedWorkspaceMove(
     const parent = byId.get(target.parentId);
     if (!parent) return { ok: false, reason: "missing-target" };
     if (!parent.canHaveChildren) return { ok: false, reason: "invalid-target" };
-    // An ambient (disk-projected) node has no persisted entry to nest under —
-    // attach it first (spec override: attachment is now for pinning/nesting,
-    // not for gating visibility). The server would reject this as "parent
-    // does not exist" anyway; catching it here avoids the round trip.
-    if (parent.isAmbient) return { ok: false, reason: "invalid-target" };
+    // An ambient (disk-projected) node has no persisted entry behind it yet,
+    // but it is still a structurally legal move target: the controller
+    // (`useUnifiedWorkspaceProject.ts`'s `moveNode`) materializes the ambient
+    // ancestor chain via `attach-path` immediately before performing the
+    // move — see `resolveUnifiedWorkspaceAmbientMaterializationChain`. This
+    // validator only checks tree shape (cycles, cross-project, container-
+    // ness), so an ambient parent is not rejected here.
 
     const draggedScope = unifiedWorkspaceNodeProjectScopeKey(target.nodeId);
     const parentScope = unifiedWorkspaceNodeProjectScopeKey(target.parentId);
