@@ -214,7 +214,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
   // row's own ARIA-treeitem role and roving-tabindex if spread wholesale —
   // keep the rest (e.g. `aria-roledescription`, `aria-disabled`) but let this
   // row's own JSX attributes win for those two.
-  const { role: _dndRole, tabIndex: _dndTabIndex, ...dndAttributesWithoutRoleOrTabIndex } = attributes;
+  const {
+    role: _dndRole,
+    tabIndex: _dndTabIndex,
+    ...dndAttributesWithoutRoleOrTabIndex
+  } = attributes;
 
   const combinedNodeRef = useCallback(
     (element: HTMLElement | null) => {
@@ -416,6 +420,18 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
               : (node.tooltip ?? node.label)}
           </TooltipPopup>
         </Tooltip>
+      )}
+
+      {/* Disambiguates two rows sharing a basename (e.g. two "README.md" —
+          one an ambient root file, one an attached ".plans/README.md") when
+          this row isn't rendered where its own disk path would put it.
+          Short by design (immediate parent dir only) — the full path is
+          already in the label's tooltip above, so this never needs to carry
+          the whole thing itself. */}
+      {!isRenaming && node.disambiguator && (
+        <span className="max-w-24 shrink-0 truncate text-[10px] text-muted-foreground">
+          · {node.disambiguator}
+        </span>
       )}
 
       <span className={UW_TREE_META_CLASS}>

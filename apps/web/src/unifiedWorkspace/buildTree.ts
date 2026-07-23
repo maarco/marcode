@@ -96,9 +96,10 @@ export interface BuildUnifiedWorkspaceTreeInput {
    * its own relativePath is added here. This is the lazy, one-level-per-
    * expansion contract the spec override requires: nothing below the root is
    * ever recursively materialized by default, no matter how deep the repo
-   * nests. (No UI currently populates this beyond the empty default — see
-   * this feature's handoff report for the small follow-up that wires a real
-   * expand click to it.)
+   * nests. Owned as React state in `useUnifiedWorkspaceProject.ts` and grown
+   * one relativePath at a time by the sidebar's disclosure-arrow click,
+   * routed through `UnifiedWorkspaceController.toggleAmbientFolder` — see
+   * `toggleExpandedAmbientDir` below for the actual set mutation.
    */
   readonly expandedAmbientDirs: ReadonlySet<string>;
 }
@@ -112,6 +113,24 @@ export interface BuildUnifiedWorkspaceTreeResult {
 export const EMPTY_AMBIENT_ENTRIES: readonly ProjectEntry[] = [];
 /** Stable empty fallback — see `expandedAmbientDirs` doc above. */
 export const EMPTY_EXPANDED_AMBIENT_DIRS: ReadonlySet<string> = new Set();
+
+/**
+ * Immutable add/remove toggle for `expandedAmbientDirs` membership — the
+ * sidebar's disclosure-arrow click (`UnifiedWorkspaceTree.tsx`'s
+ * `toggleCollapse`, via `useUnifiedWorkspaceProject.ts`'s
+ * `toggleAmbientFolder` controller method) uses this to materialize or hide
+ * one ambient folder's on-disk children, one level deep. Never mutates
+ * `current`.
+ */
+export function toggleExpandedAmbientDir(
+  current: ReadonlySet<string>,
+  relativePath: string,
+): ReadonlySet<string> {
+  const next = new Set(current);
+  if (next.has(relativePath)) next.delete(relativePath);
+  else next.add(relativePath);
+  return next;
+}
 
 function entryCanHaveChildren(kind: ProjectWorkspaceEntry["kind"]): boolean {
   return kind === "file" || kind === "folder" || kind === "thread";
@@ -544,16 +563,46 @@ function buildEntryActivation(entry: ProjectWorkspaceEntry): UnifiedWorkspaceAct
   }
 }
 
+/**
+ * True disk parent this file/folder should have to look "at home" where it's
+ * rendered — the empty string for a top-level entry, `null` when `entry`
+ * isn't itself a folder (a file can't be a disk parent, so its own children,
+ * if any, are threads with no disk-context to compare against either).
+ */
+function ownDiskContext(entry: ProjectWorkspaceEntry): string | null {
+  return entry.kind === "folder" ? entry.relativePath : null;
+}
+
+/**
+ * Set when a file/folder's real on-disk parent (`ambientDirname` of its own
+ * relativePath) differs from `parentDiskContext` — the disk-context its
+ * *rendered* parent implies (`""` at root, a folder's own relativePath one
+ * level down, or `null` when the parent has no disk-path meaning at all, e.g.
+ * nested under a thread). `null` parentDiskContext means "no basis for
+ * comparison," not "assume mismatched" — never disambiguate in that case.
+ */
+function computeDisambiguator(
+  relativePath: string,
+  parentDiskContext: string | null,
+): string | undefined {
+  if (parentDiskContext === null) return undefined;
+  const trueParent = ambientDirname(relativePath);
+  if (trueParent === parentDiskContext) return undefined;
+  return basename(trueParent);
+}
+
 function buildNode(
   entry: ProjectWorkspaceEntry,
   parentId: string | null,
   depth: number,
+  parentDiskContext: string | null,
   ctx: BuildContext,
 ): UnifiedWorkspaceNode {
   const qualifiedId = ctx.qualify(entry.id);
+  const childDiskContext = ownDiskContext(entry);
   const childEntries = ctx.childrenByParent.get(entry.id) ?? [];
   const persistedChildren = childEntries.map((child) =>
-    buildNode(child, qualifiedId, depth + 1, ctx),
+    buildNode(child, qualifiedId, depth + 1, childDiskContext, ctx),
   );
 
   let label: string;
@@ -561,6 +610,7 @@ function buildNode(
   let isBroken = false;
   let iconUrl: string | undefined;
   let tooltip: string | undefined;
+  let disambiguator: string | undefined;
   let liveChildren: UnifiedWorkspaceNode[] = [];
   let ambientChildren: UnifiedWorkspaceNode[] = [];
 
@@ -570,6 +620,7 @@ function buildNode(
       isBroken = ctx.knownPaths !== null && !ctx.knownPaths.has(entry.relativePath);
       tooltip = isBroken ? `Path not found: ${entry.relativePath}` : entry.relativePath;
       if (isBroken) status = { kind: "broken", relativePath: entry.relativePath };
+      disambiguator = computeDisambiguator(entry.relativePath, parentDiskContext);
       break;
     }
     case "folder": {
@@ -577,6 +628,7 @@ function buildNode(
       isBroken = ctx.knownPaths !== null && !ctx.knownPaths.has(entry.relativePath);
       tooltip = isBroken ? `Path not found: ${entry.relativePath}` : entry.relativePath;
       if (isBroken) status = { kind: "broken", relativePath: entry.relativePath };
+      disambiguator = computeDisambiguator(entry.relativePath, parentDiskContext);
       // Spec override: attachment is for pinning/nesting now, not for gating
       // visibility, so an attached folder still ambiently projects its own
       // on-disk children exactly like any other folder (root-unconditional,
@@ -634,6 +686,7 @@ function buildNode(
     status,
     ...(iconUrl ? { iconUrl } : {}),
     ...(tooltip ? { tooltip } : {}),
+    ...(disambiguator ? { disambiguator } : {}),
   };
 }
 
@@ -764,7 +817,7 @@ export function buildUnifiedWorkspaceTree(
   };
 
   const rankedRoots = (childrenByParent.get(null) ?? []).map((entry) =>
-    buildNode(entry, null, 0, ctx),
+    buildNode(entry, null, 0, "", ctx),
   );
 
   // Project root's immediate children, always — the one unconditional level
