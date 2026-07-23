@@ -21,9 +21,9 @@ import type { ProjectScriptIcon } from "@t3tools/contracts";
 import {
   FileIcon,
   FolderIcon,
+  Globe2Icon,
   MessageSquareIcon,
   PlayIcon,
-  SquarePenIcon,
   TerminalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
@@ -33,27 +33,14 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
-import { cn } from "../../lib/utils";
 import { readLocalApi } from "../../localApi";
 import type { UnifiedWorkspaceController, UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
 import { Alert, AlertDescription, AlertTitle } from "../ui/alert";
-import { Input } from "../ui/input";
-import {
-  Dialog,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogPanel,
-  DialogPopup,
-  DialogTitle,
-} from "../ui/dialog";
-import { Button } from "../ui/button";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { UnifiedWorkspaceAddMenu } from "./UnifiedWorkspaceAddMenu";
-import { UnifiedWorkspaceAttachDialog } from "./UnifiedWorkspaceAttachDialog";
 import { UnifiedWorkspaceMoveDialog } from "./UnifiedWorkspaceMoveDialog";
 import { UnifiedWorkspaceRow, type UnifiedWorkspaceThreadRowExtras } from "./UnifiedWorkspaceRow";
 import {
@@ -65,7 +52,6 @@ import {
   canDropUnifiedWorkspaceNodeAtRoot,
   flattenVisibleUnifiedWorkspaceNodes,
   isUnifiedWorkspaceNodeCollapsed,
-  resolveAddMenuParentId,
   resolveEdgeMoveTarget,
   resolveLeftKeyAction,
   resolveMoveTargetForDrop,
@@ -113,10 +99,6 @@ export interface UnifiedWorkspaceTreeProps {
   readonly onOpenInFiles?: (node: UnifiedWorkspaceNode) => void;
 }
 
-function activationLabelForNode(node: UnifiedWorkspaceNode): string {
-  return node.label;
-}
-
 function iconForOverlay(node: UnifiedWorkspaceNode) {
   if (node.isBroken) return TriangleAlertIcon;
   switch (node.kind) {
@@ -130,7 +112,7 @@ function iconForOverlay(node: UnifiedWorkspaceNode) {
       return TerminalIcon;
     case "browser":
     case "url":
-      return TerminalIcon;
+      return Globe2Icon;
     case "command":
       return PlayIcon;
   }
@@ -511,7 +493,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
       setLiveMessage(
         buildUnifiedWorkspaceDragAnnouncement({
           phase: "start",
-          draggedLabel: node ? activationLabelForNode(node) : String(event.active.id),
+          draggedLabel: node ? node.label : String(event.active.id),
         }),
       );
     },
@@ -531,8 +513,8 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
           setLiveMessage(
             buildUnifiedWorkspaceDragAnnouncement({
               phase: "over",
-              draggedLabel: activationLabelForNode(draggedNode),
-              targetLabel: overRootGutter ? null : undefined,
+              draggedLabel: draggedNode.label,
+              targetLabel: null,
             }),
           );
         }
@@ -579,8 +561,8 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
       setLiveMessage(
         buildUnifiedWorkspaceDragAnnouncement({
           phase: "over",
-          draggedLabel: activationLabelForNode(draggedNode),
-          targetLabel: isValid ? activationLabelForNode(overNode) : activationLabelForNode(overNode),
+          draggedLabel: draggedNode.label,
+          targetLabel: overNode.label,
           zone: isValid ? rawZone : null,
         }),
       );
@@ -597,7 +579,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
       setDragState(null);
       if (!draggedNode) return;
 
-      const label = activationLabelForNode(draggedNode);
+      const label = draggedNode.label;
 
       if (currentDragState?.overRootGutter) {
         if (!canDropUnifiedWorkspaceNodeAtRoot({ index: nodeIndex, draggedNodeId: draggedId })) {
@@ -653,7 +635,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
       setLiveMessage(
         buildUnifiedWorkspaceDragAnnouncement({
           phase: "cancel",
-          draggedLabel: node ? activationLabelForNode(node) : String(event.active.id),
+          draggedLabel: node ? node.label : String(event.active.id),
         }),
       );
     },
@@ -661,18 +643,6 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
   );
 
   useEffect(() => clearAutoExpandTimer, [clearAutoExpandTimer]);
-
-  // ── Add-item menu / attach / add-url wiring ─────────────────────────────
-
-  const focusedNode = focusedNodeId ? (nodeIndex.byId.get(focusedNodeId) ?? null) : null;
-  const addMenuParentId = resolveAddMenuParentId(focusedNode);
-
-  const handleNewThread = useCallback(
-    (parentId: string | null) => {
-      controller.createThread({ parentId });
-    },
-    [controller],
-  );
 
   const handleAttachFile = useCallback((parentId: string | null) => {
     pendingParentIdRef.current = parentId;

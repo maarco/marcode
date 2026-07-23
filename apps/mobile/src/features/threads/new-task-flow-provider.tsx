@@ -263,6 +263,8 @@ export function NewTaskFlowProvider(props: React.PropsWithChildren) {
       scripts: [],
       createdAt: editingPendingTask.createdAt,
       updatedAt: editingPendingTask.createdAt,
+      workspaceLayoutVersion: 0,
+      workspaceLayout: [],
     };
   }, [editingPendingTask]);
 
