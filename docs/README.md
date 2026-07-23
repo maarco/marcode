@@ -6,6 +6,7 @@
 - [Integrations](./integrations/source-control-providers.md)
 - [Mobile](./mobile/app.md)
 - [Operations](./operations/ci.md)
+- [Upstream sync](./operations/upstream-sync.md)
 - [Providers](./providers/codex.md)
 - [Reference](./reference/encyclopedia.md)
 - [User guides](./user/keybindings.md)

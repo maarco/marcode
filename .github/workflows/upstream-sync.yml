@@ -1,0 +1,367 @@
+name: Upstream Sync
+
+# Detection is automatic. Integration is reviewable. Conflict resolution is always human.
+# Policy lives in .github/upstream-sync.yml; git decisions live in scripts/upstream-sync.ts.
+# The literals below (cron, PR title template, labels, reviewers, required checks) are kept in
+# sync with the manifest by scripts/upstream-sync-workflow.test.ts.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 14 * * *"
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: upstream-sync-main
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Prepare upstream sync
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version-file: package.json
+          cache: true
+          run-install: true
+
+      - name: Validate manifest, workflow parity, and remotes
+        run: node scripts/upstream-sync.ts status
+
+      - name: Plan upstream merge
+        run: node scripts/upstream-sync.ts plan --json-output "$RUNNER_TEMP/upstream-plan.json"
+
+      - name: Read plan report
+        id: plan
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/upstream-plan.json"
+          {
+            printf 'status=%s\n' "$(jq -r '.status' "$report")"
+            printf 'sourceSha=%s\n' "$(jq -r '.source.sha' "$report")"
+            printf 'targetSha=%s\n' "$(jq -r '.target.sha' "$report")"
+            printf 'shortSha=%s\n' "$(jq -r '.source.sha[0:12]' "$report")"
+            printf 'mergeBase=%s\n' "$(jq -r '.mergeBase // "none"' "$report")"
+            printf 'commitCount=%s\n' "$(jq -r '.upstreamCommits | length' "$report")"
+            printf 'changedPathCount=%s\n' "$(jq -r '.changedPaths | length' "$report")"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload plan report
+        if: ${{ always() && steps.plan.outputs.status != 'up-to-date' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: upstream-plan
+          path: ${{ runner.temp }}/upstream-plan.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+      - name: Report no-op
+        if: ${{ steps.plan.outputs.status == 'up-to-date' }}
+        env:
+          TARGET_SHA: ${{ steps.plan.outputs.targetSha }}
+          SOURCE_SHA: ${{ steps.plan.outputs.sourceSha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "## Upstream sync: up to date"
+            echo
+            echo "- target \`origin/main\`: \`$TARGET_SHA\`"
+            echo "- source \`upstream/main\`: \`$SOURCE_SHA\`"
+            echo "- no upstream commits, no integration branch, no pull request"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Report blocked sync
+        if: ${{ steps.plan.outputs.status == 'conflicted' || steps.plan.outputs.status == 'unrelated-history' }}
+        uses: actions/github-script@v8
+        env:
+          PLAN_REPORT: ${{ runner.temp }}/upstream-plan.json
+        with:
+          script: |
+            const fs = require("node:fs");
+            const report = JSON.parse(fs.readFileSync(process.env.PLAN_REPORT, "utf8"));
+            const shortSha = report.source.sha.slice(0, 12);
+            const slug = report.source.url.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "");
+            const title = `upstream sync blocked: ${slug}@${shortSha}`;
+            const label = "upstream-sync-blocked";
+
+            const conflictLines = report.conflicts.length
+              ? report.conflicts.map((c) => `- \`${c.path}\``).join("\n")
+              : "- (none reported — see the plan artifact)";
+            const hotspotLines = report.hotspotMatches.length
+              ? report.hotspotMatches.map((h) => `- \`${h.path}\` — owner \`${h.owner}\` (${h.reason})`).join("\n")
+              : "- (none)";
+
+            const body = [
+              `Automatic upstream detection reached \`${report.status}\` and stopped before any mutation.`,
+              "",
+              "| field | value |",
+              "| --- | --- |",
+              `| target \`${report.target.branch}\` | \`${report.target.sha}\` |`,
+              `| source \`${report.source.branch}\` | \`${report.source.sha}\` |`,
+              `| merge base | \`${report.mergeBase ?? "none"}\` |`,
+              `| upstream commits | ${report.upstreamCommits.length} |`,
+              `| changed paths | ${report.changedPaths.length} |`,
+              "",
+              "### Conflicting paths",
+              conflictLines,
+              "",
+              "### Hotspot matches",
+              hotspotLines,
+              "",
+              "### Reproduce locally (read-only, disposable worktree)",
+              "```sh",
+              "vp run upstream:plan",
+              "```",
+              "",
+              "The bot did not resolve conflicts, did not push an integration branch, and did not open a",
+              "pull request. Resolve this by hand: see [docs/operations/upstream-sync.md](../blob/main/docs/operations/upstream-sync.md).",
+              "",
+              `<!-- upstream-sync-blocked:${report.source.sha} -->`,
+            ].join("\n");
+
+            let labelAvailable = true;
+            try {
+              await github.rest.issues.getLabel({ ...context.repo, name: label });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              try {
+                await github.rest.issues.createLabel({
+                  ...context.repo,
+                  name: label,
+                  color: "d1242f",
+                  description: "Automatic upstream sync stopped and needs human integration.",
+                });
+              } catch (createError) {
+                labelAvailable = false;
+                core.warning(`Could not create the ${label} label: ${createError.message}`);
+              }
+            }
+
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              ...context.repo,
+              state: "open",
+              labels: labelAvailable ? label : undefined,
+              per_page: 100,
+            });
+            const existing = open.find((issue) => !issue.pull_request && issue.title === title);
+
+            let issue;
+            if (existing) {
+              ({ data: issue } = await github.rest.issues.update({
+                ...context.repo,
+                issue_number: existing.number,
+                body,
+              }));
+            } else {
+              ({ data: issue } = await github.rest.issues.create({ ...context.repo, title, body }));
+              if (labelAvailable) {
+                try {
+                  await github.rest.issues.addLabels({
+                    ...context.repo,
+                    issue_number: issue.number,
+                    labels: [label],
+                  });
+                } catch (error) {
+                  core.warning(`Could not apply the ${label} label: ${error.message}`);
+                }
+              }
+            }
+
+            await core.summary
+              .addHeading(`Upstream sync blocked: ${report.status}`)
+              .addRaw(`Tracking issue: ${issue.html_url}\n\n`)
+              .addRaw(`Conflicting paths: ${report.conflicts.length}. No branch was pushed.\n`)
+              .write();
+
+            core.setFailed(`Upstream sync is ${report.status}. See ${issue.html_url}`);
+
+      - name: Integrate and push
+        if: ${{ steps.plan.outputs.status == 'clean-merge' }}
+        run: |
+          node scripts/upstream-sync.ts integrate \
+            --push \
+            --json-output "$RUNNER_TEMP/upstream-integrate.json"
+
+      - name: Read integration report
+        if: ${{ steps.plan.outputs.status == 'clean-merge' }}
+        id: integrate
+        run: |
+          set -euo pipefail
+          report="$RUNNER_TEMP/upstream-integrate.json"
+          printf 'pushed=%s\n' "$(jq -r '.pushed' "$report")" >> "$GITHUB_OUTPUT"
+
+      - name: Create or update draft pull request
+        if: ${{ steps.plan.outputs.status == 'clean-merge' && steps.integrate.outputs.pushed == 'true' }}
+        uses: actions/github-script@v8
+        env:
+          INTEGRATE_REPORT: ${{ runner.temp }}/upstream-integrate.json
+        with:
+          script: |
+            const fs = require("node:fs");
+            // Read the report `integrate` actually acted on, not the earlier plan: upstream can
+            // advance between the two steps, and the pull request must describe the real merge.
+            const integration = JSON.parse(fs.readFileSync(process.env.INTEGRATE_REPORT, "utf8"));
+            const report = integration.plan;
+            const head = integration.integrationBranch;
+            const mergeSha = integration.mergeSha;
+            const base = report.target.branch;
+            const shortSha = report.source.sha.slice(0, 12);
+            const slug = report.source.url.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "");
+            // Kept equal to pullRequest.titleTemplate / labels / reviewers in .github/upstream-sync.yml
+            // by scripts/upstream-sync-workflow.test.ts.
+            const title = `chore(upstream): sync t3code through ${shortSha}`;
+            const labels = ["upstream-sync"];
+            const reviewers = [];
+            const requiredChecks = ["Check", "Test", "Mobile Native Static Analysis", "Release Smoke"];
+
+            const commitLines = report.upstreamCommits.length
+              ? report.upstreamCommits
+                  .map((c) => `- [\`${c.sha.slice(0, 12)}\`](https://github.com/${slug}/commit/${c.sha}) ${c.title} — ${c.author} (${c.authoredAt})`)
+                  .join("\n")
+              : "- (none)";
+
+            const owners = new Map();
+            for (const match of report.hotspotMatches) {
+              const list = owners.get(match.owner) ?? [];
+              list.push(match.path);
+              owners.set(match.owner, list);
+            }
+            const hotspotLines = owners.size
+              ? [...owners.entries()]
+                  .map(([owner, paths]) => `- **${owner}** (${paths.length})\n${paths.map((p) => `  - \`${p}\``).join("\n")}`)
+                  .join("\n")
+              : "- (none)";
+
+            const coupledLines = report.coupledChangeFindings.length
+              ? report.coupledChangeFindings
+                  .map((f) => `- ${f.ok ? "ok" : "**blocking**"} \`${f.check}\` — source changed: ${f.sourceChanged}, companion changed: ${f.companionChanged}`)
+                  .join("\n")
+              : "- (none)";
+
+            const body = [
+              `Automatic upstream detection produced a clean merge of \`${slug}@${shortSha}\`.`,
+              "",
+              "| field | value |",
+              "| --- | --- |",
+              `| target \`${base}\` | \`${report.target.sha}\` |`,
+              `| source \`${report.source.branch}\` | \`${report.source.sha}\` |`,
+              `| merge base | \`${report.mergeBase ?? "none"}\` |`,
+              `| merge commit | \`${mergeSha}\` |`,
+              `| changed paths | ${report.changedPaths.length} |`,
+              "",
+              "### Upstream commits",
+              commitLines,
+              "",
+              "### Hotspot matches by owner",
+              hotspotLines,
+              "",
+              "### Coupled vendored-repo findings",
+              coupledLines,
+              "",
+              "### Required checks on this pull request",
+              requiredChecks.map((check) => `- ${check}`).join("\n"),
+              "",
+              "### Safety statement",
+              "No conflicts were auto-resolved. The bot never uses `--force`, `reset`, `checkout --ours/--theirs`,",
+              "or auto-merge. This is a normal two-parent merge commit whose tree was verified against a",
+              "non-mutating merge probe before it was pushed.",
+              "",
+              "### Manual verification checklist",
+              "- [ ] Hotspot paths reviewed: upstream intent and Marcode intent are both preserved.",
+              "- [ ] Coupled vendored subtrees reviewed when flagged.",
+              "- [ ] Web/mobile/desktop UI surfaces checked at 390px and 820px when UI hotspots changed.",
+              "- [ ] Provider-focused tests run when `apps/server/src/provider/**` changed.",
+              "- [ ] Branding asset checks run when asset paths changed.",
+              "- [ ] All required checks green before this leaves draft.",
+              "",
+              `<!-- upstream-sync:${report.source.sha} -->`,
+            ].join("\n");
+
+            const existing = await github.rest.pulls.list({
+              ...context.repo,
+              state: "open",
+              head: `${context.repo.owner}:${head}`,
+              base,
+            });
+
+            let pull = existing.data[0];
+            if (pull) {
+              ({ data: pull } = await github.rest.pulls.update({
+                ...context.repo,
+                pull_number: pull.number,
+                title,
+                body,
+              }));
+              core.info(`Reused pull request #${pull.number}.`);
+            } else {
+              ({ data: pull } = await github.rest.pulls.create({
+                ...context.repo,
+                title,
+                body,
+                head,
+                base,
+                draft: true,
+              }));
+              core.info(`Opened draft pull request #${pull.number}.`);
+            }
+
+            if (labels.length) {
+              try {
+                await github.rest.issues.addLabels({
+                  ...context.repo,
+                  issue_number: pull.number,
+                  labels,
+                });
+              } catch (error) {
+                core.warning(`Could not apply labels ${labels.join(", ")}: ${error.message}`);
+              }
+            }
+
+            if (reviewers.length) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  ...context.repo,
+                  pull_number: pull.number,
+                  reviewers,
+                });
+              } catch (error) {
+                core.warning(`Could not request reviewers ${reviewers.join(", ")}: ${error.message}`);
+              }
+            }
+
+            await core.summary
+              .addHeading("Upstream sync: clean merge")
+              .addTable([
+                [
+                  { data: "field", header: true },
+                  { data: "value", header: true },
+                ],
+                ["source", `${slug}@${report.source.sha}`],
+                ["target", `${base}@${report.target.sha}`],
+                ["merge commit", mergeSha],
+                ["integration branch", head],
+                ["upstream commits", String(report.upstreamCommits.length)],
+                ["changed paths", String(report.changedPaths.length)],
+                ["hotspot matches", String(report.hotspotMatches.length)],
+                [
+                  "coupled-change findings",
+                  report.coupledChangeFindings.filter((f) => !f.ok).length
+                    ? `${report.coupledChangeFindings.filter((f) => !f.ok).length} blocking`
+                    : "none blocking",
+                ],
+              ])
+              .addRaw(`Draft pull request: ${pull.html_url}\n`)
+              .write();

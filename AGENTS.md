@@ -42,3 +42,17 @@ agents.
   examples of idiomatic usage, tests, module structure, and API design.
 - When writing relay infrastructure code with Alchemy, inspect `.repos/alchemy-effect/` for examples of
   idiomatic usage, tests, module structure, and API design.
+
+## Upstream Sync
+
+This repository is a fork of `pingdotgg/t3code`. Merging upstream goes through the checked-in policy in
+`.github/upstream-sync.yml` and the `upstream:status` / `upstream:plan` / `upstream:integrate` commands —
+never ad-hoc git.
+
+- Use `vp run upstream:plan` to inspect an upstream delta. It is read-only and does not touch the checkout.
+- Never force push, `git reset`, `git restore .`, `git checkout --ours/--theirs`, `git stash`, `git clean`,
+  or delete a branch to resolve an upstream conflict. Resolve conflicts by hand on a new integration branch
+  and open a review pull request.
+- Hotspot paths in the manifest are mandatory-review paths, not "always keep Marcode" paths. An upstream
+  security or correctness fix must not be dropped because it touched a customized file.
+- See [Upstream sync](./docs/operations/upstream-sync.md) for the runbook.

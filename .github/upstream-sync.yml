@@ -1,0 +1,81 @@
+version: 1
+
+source:
+  remote: upstream
+  url: https://github.com/pingdotgg/t3code.git
+  branch: main
+
+target:
+  remote: origin
+  url: https://github.com/maarco/marcode.git
+  branch: main
+
+integration:
+  strategy: merge
+  mergeMessage: "chore(upstream): merge pingdotgg/t3code@{upstreamShortSha}"
+  branchTemplate: "chore/upstream-{upstreamShortSha}"
+  requireCleanWorktree: true
+  allowDirectBasePush: false
+  allowForcePush: false
+  autoResolveConflicts: false
+  autoMergePullRequest: false
+
+schedule:
+  enabled: true
+  cron: "17 14 * * *"
+
+pullRequest:
+  draft: true
+  titleTemplate: "chore(upstream): sync t3code through {upstreamShortSha}"
+  labels:
+    - upstream-sync
+  reviewers: []
+
+hotspots:
+  - path: "apps/web/src/components/Sidebar.tsx"
+    owner: web-navigation
+    reason: "Marcode project and thread navigation"
+  - path: "apps/web/src/components/ChatView.tsx"
+    owner: web-runtime
+    reason: "Marcode workspace, terminal, and browser integration"
+  - path: "apps/web/src/rightPanelStore.ts"
+    owner: web-runtime
+    reason: "Marcode multi-surface state"
+  - path: "apps/web/src/index.css"
+    owner: design-system
+    reason: "Marcode visual tokens and chrome"
+  - path: "apps/server/src/provider/**"
+    owner: provider-runtime
+    reason: "Provider-specific Marcode behavior"
+  - path: "apps/server/src/editor/**"
+    owner: editor-runtime
+    reason: "Marcode editor integration"
+  - path: "apps/web/src/editor/**"
+    owner: editor-runtime
+    reason: "Marcode editor integration"
+  - path: "apps/desktop/resources/**"
+    owner: release-branding
+    reason: "Marcode desktop branding"
+  - path: "apps/mobile/**"
+    owner: mobile
+    reason: "Native client and Marcode branding"
+  - path: "apps/marketing/**"
+    owner: marketing
+    reason: "Marcode public site and assets"
+  - path: "assets/**"
+    owner: release-branding
+    reason: "Release channel and product assets"
+
+coupledChanges:
+  - source: "pnpm-workspace.yaml"
+    companion: ".repos/effect-smol/**"
+    check: effect-version-subtree
+  - source: "infra/relay/package.json"
+    companion: ".repos/alchemy-effect/**"
+    check: alchemy-version-subtree
+
+requiredPullRequestChecks:
+  - Check
+  - Test
+  - Mobile Native Static Analysis
+  - Release Smoke
