@@ -1,6 +1,7 @@
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
@@ -163,10 +164,7 @@ interface GitOptions {
   readonly remote?: string | undefined;
 }
 
-const runGit = Effect.fn("runGit")(function* (
-  args: ReadonlyArray<string>,
-  options: GitOptions,
-) {
+const runGit = Effect.fn("runGit")(function* (args: ReadonlyArray<string>, options: GitOptions) {
   assertNoForbiddenArguments(args);
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const context = {
@@ -180,9 +178,7 @@ const runGit = Effect.fn("runGit")(function* (
       ChildProcess.make("git", [...args], options.cwd === undefined ? {} : { cwd: options.cwd }),
     )
     .pipe(
-      Effect.mapError(
-        (cause) => new UpstreamSyncGitError({ ...context, phase: "spawn", cause }),
-      ),
+      Effect.mapError((cause) => new UpstreamSyncGitError({ ...context, phase: "spawn", cause })),
     );
 
   const [stdout, stderr, exitCode] = yield* Effect.all(
@@ -530,7 +526,13 @@ export const integrateUpstreamSync = Effect.fn("integrateUpstreamSync")(function
   const { report, probedTree } = yield* planUpstreamSync(options);
 
   if (report.status === "up-to-date") {
-    return { status: "up-to-date", integrationBranch: null, mergeSha: null, pushed: false, plan: report };
+    return {
+      status: "up-to-date",
+      integrationBranch: null,
+      mergeSha: null,
+      pushed: false,
+      plan: report,
+    };
   }
   if (report.status !== "clean-merge" || probedTree === null) {
     return yield* new UpstreamSyncStateError({
@@ -551,11 +553,14 @@ export const integrateUpstreamSync = Effect.fn("integrateUpstreamSync")(function
     });
   }
 
-  yield* git(["fetch", "--no-tags", "--quiet", manifest.source.url, `refs/heads/${manifest.source.branch}`], {
-    operation: "fetch source",
-    cwd: options.rootDir,
-    remote: manifest.source.url,
-  });
+  yield* git(
+    ["fetch", "--no-tags", "--quiet", manifest.source.url, `refs/heads/${manifest.source.branch}`],
+    {
+      operation: "fetch source",
+      cwd: options.rootDir,
+      remote: manifest.source.url,
+    },
+  );
 
   const shortSha = shortenSha(report.source.sha);
   const branch = renderIntegrationBranch(manifest, shortSha);
@@ -573,8 +578,11 @@ export const integrateUpstreamSync = Effect.fn("integrateUpstreamSync")(function
     });
   }
 
-  const worktreeDir =
-    options.worktree ?? (yield* fs.makeTempDirectoryScoped({ prefix: "upstream-sync-merge-" }));
+  // git worktree add requires a path that does not exist yet, and git worktree remove deletes it.
+  // Scope a parent directory instead so the finalizer always has something to clean up.
+  const path = yield* Path.Path;
+  const worktreeBase = yield* fs.makeTempDirectoryScoped({ prefix: "upstream-sync-merge-" });
+  const worktreeDir = options.worktree ?? path.join(worktreeBase, "merge");
 
   yield* git(["worktree", "add", "--quiet", "-b", branch, worktreeDir, report.target.sha], {
     operation: "worktree add",
@@ -620,10 +628,10 @@ export const integrateUpstreamSync = Effect.fn("integrateUpstreamSync")(function
 
   let pushed = false;
   if (options.push ?? false) {
-    const remoteState = yield* gitText(
-      ["ls-remote", manifest.target.url, `refs/heads/${branch}`],
-      { operation: "ls-remote integration branch", remote: manifest.target.url },
-    );
+    const remoteState = yield* gitText(["ls-remote", manifest.target.url, `refs/heads/${branch}`], {
+      operation: "ls-remote integration branch",
+      remote: manifest.target.url,
+    });
     const remoteSha = remoteState.split("\t")[0]?.trim();
 
     if (remoteSha && remoteSha !== mergeSha) {
@@ -654,29 +662,32 @@ const verifyMerge = Effect.fn("verifyMerge")(function* (input: {
   readonly probedTree: string;
   readonly mergeMessage: string;
 }) {
-  const parents = (
-    yield* gitText(["rev-list", "--parents", "-n", "1", input.mergeSha], {
-      operation: "rev-list --parents",
-      cwd: input.rootDir,
-    })
-  ).split(" ");
+  const parents = (yield* gitText(["rev-list", "--parents", "-n", "1", input.mergeSha], {
+    operation: "rev-list --parents",
+    cwd: input.rootDir,
+  })).split(" ");
 
   const failures: Array<string> = [];
-  if (parents.length !== 3) failures.push(`expected exactly two parents, got ${parents.length - 1}`);
-  if (parents[1] !== input.targetSha) failures.push(`first parent ${parents[1]} != target ${input.targetSha}`);
-  if (parents[2] !== input.sourceSha) failures.push(`second parent ${parents[2]} != source ${input.sourceSha}`);
+  if (parents.length !== 3)
+    failures.push(`expected exactly two parents, got ${parents.length - 1}`);
+  if (parents[1] !== input.targetSha)
+    failures.push(`first parent ${parents[1]} != target ${input.targetSha}`);
+  if (parents[2] !== input.sourceSha)
+    failures.push(`second parent ${parents[2]} != source ${input.sourceSha}`);
 
   const tree = yield* gitText(["rev-parse", `${input.mergeSha}^{tree}`], {
     operation: "rev-parse tree",
     cwd: input.rootDir,
   });
-  if (tree !== input.probedTree) failures.push(`merge tree ${tree} != probed tree ${input.probedTree}`);
+  if (tree !== input.probedTree)
+    failures.push(`merge tree ${tree} != probed tree ${input.probedTree}`);
 
   const subject = yield* gitText(["log", "-1", "--format=%s", input.mergeSha], {
     operation: "log subject",
     cwd: input.rootDir,
   });
-  if (subject !== input.mergeMessage) failures.push(`commit subject "${subject}" != "${input.mergeMessage}"`);
+  if (subject !== input.mergeMessage)
+    failures.push(`commit subject "${subject}" != "${input.mergeMessage}"`);
 
   if (failures.length > 0) {
     return yield* new UpstreamSyncStateError({

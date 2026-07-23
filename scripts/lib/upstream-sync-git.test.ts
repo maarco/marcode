@@ -150,6 +150,7 @@ const makeFixture = Effect.fn("makeFixture")(function* (
   }
 
   yield* fixtureGit(root, ["clone", "--quiet", targetRepo, caller]);
+  yield* fixtureGit(caller, ["remote", "set-url", "origin", `file://${targetRepo}`]);
   yield* fixtureGit(caller, ["config", "user.name", "fixture"]);
   yield* fixtureGit(caller, ["config", "user.email", "fixture@example.test"]);
   yield* write(path.join(caller, UPSTREAM_SYNC_MANIFEST_PATH), manifestFor(sourceRepo, targetRepo));
@@ -232,14 +233,17 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
 
       const coupled = yield* makeFixture("coupled");
       const coupledPlan = yield* planUpstreamSync({ rootDir: coupled.caller });
-      assert.deepStrictEqual([...coupledPlan.report.coupledChangeFindings], [
-        {
-          check: "fixture-subtree",
-          sourceChanged: true,
-          companionChanged: false,
-          ok: false,
-        },
-      ]);
+      assert.deepStrictEqual(
+        [...coupledPlan.report.coupledChangeFindings],
+        [
+          {
+            check: "fixture-subtree",
+            sourceChanged: true,
+            companionChanged: false,
+            ok: false,
+          },
+        ],
+      );
     }),
   );
 
@@ -259,7 +263,9 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
       assert.deepStrictEqual([...branches], ["main"]);
       // The uncommitted work is still exactly where the developer left it.
       assert.equal(
-        yield* (yield* FileSystem.FileSystem).readFileString(path.join(fixture.caller, "shared.txt")),
+        yield* (yield* FileSystem.FileSystem).readFileString(
+          path.join(fixture.caller, "shared.txt"),
+        ),
         "uncommitted local work\n",
       );
     }),
@@ -294,10 +300,10 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
       assert.equal(result.plan.status, "clean-merge");
 
       const branches = yield* fs.readDirectory(path.join(fixture.caller, ".git", "refs", "heads"));
-      assert.deepStrictEqual([...branches].toSorted(), ["main", "upstream"].toSorted().length === 2
-        ? [...branches].toSorted()
-        : [...branches].toSorted());
-      assert.ok([...branches].includes("main"));
+      assert.deepStrictEqual(
+        [...branches].toSorted(),
+        ["main", result.integrationBranch!.split("/").at(-1)!].toSorted(),
+      );
 
       // The temporary merge worktree was removed; only the repository itself remains.
       const worktreesDir = path.join(fixture.caller, ".git", "worktrees");
