@@ -1270,6 +1270,10 @@ export function FloatingPillNav() {
         className={cn(
           "flex items-center gap-0.5 px-2 py-1.5",
           "bg-background/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl",
+          // The nav overlaps the frameless window's titlebar drag region.
+          // Make the entire bar an interactive Electron hit target; otherwise
+          // window dragging wins even when the bar is visually on top.
+          "[-webkit-app-region:no-drag]",
           "touch-manipulation",
           isDragging && edgeProximity.pull > 0.6
             ? "shadow-[0_0_40px_rgba(255,255,255,0.15),0_0_80px_rgba(255,255,255,0.05)]"
