@@ -73,7 +73,9 @@ export function CloudEnvironmentRows(props: {
     <View collapsable={false} className={cn("gap-3", showHeader && "mt-5")}>
       {showHeader ? (
         <View className="flex-row items-center justify-between px-1">
-          <Text className="text-sm font-t3-bold uppercase text-foreground-muted">T3 Connect</Text>
+          <Text className="text-sm font-t3-bold uppercase text-foreground-muted">
+            Marcode Connect
+          </Text>
           <Pressable
             accessibilityRole="button"
             disabled={controller.relayDiscovery.isRefreshing}
@@ -140,7 +142,7 @@ export function CloudEnvironmentRows(props: {
       {controller.relayDiscovery.error && !controller.relayDiscovery.isRefreshing ? (
         <View collapsable={false} className="gap-3 rounded-[24px] bg-card p-5">
           <Text className="text-base font-t3-bold text-foreground">
-            Could not load T3 Connect environments
+            Could not load Marcode Connect environments
           </Text>
           <Text className="text-sm text-foreground-muted">{controller.relayDiscovery.error}</Text>
           {controller.relayDiscovery.errorTraceId ? (

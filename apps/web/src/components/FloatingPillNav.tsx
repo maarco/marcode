@@ -105,11 +105,9 @@ interface NavCategory {
 const CATEGORIES: NavCategory[] = [
   {
     key: "home",
-    icon: (
-      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white">
-        <MarcodeMark className="h-3.5 w-3.5 text-[#0a0a0a]" />
-      </span>
-    ),
+    // Bare mark, no wrapper box: `currentColor` picks up the button's own
+    // idle/hover/active tint exactly like every other category glyph below.
+    icon: <MarcodeMark className="h-5 w-5" />,
     href: "/",
     label: "marcode",
     color: "#f59e0b",
@@ -1286,7 +1284,18 @@ export function FloatingPillNav() {
           "[&>*]:shrink-0",
           isMobile
             ? "max-w-full justify-start overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar border-b border-border/40 bg-background dark:bg-[#0a0a0a] pl-[max(env(safe-area-inset-left,0px),0.75rem)] pr-[max(env(safe-area-inset-right,0px),0.75rem)] py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] backdrop-blur-none [-webkit-overflow-scrolling:touch] [&>*]:shrink-0"
-            : "max-w-[100vw] overflow-x-auto no-scrollbar",
+            : vert
+              ? // Docked left/right: cross-axis is width, and `max-w-[100vw]` below
+                // is a main-axis (horizontal-dock) rule that does nothing to bound
+                // it, so a wide *line* stacked into this column — the portaled
+                // thread-action cluster, whose own row never learned to wrap (see
+                // GitActionsControl/ProjectScriptsControl) — dragged the whole
+                // column out to that line's width instead of staying icon-width.
+                // Cap to one icon column (w-8 + the pill's own px-2) and let lines
+                // wrap inside it instead of stretching it; no horizontal scroll in
+                // a vertical dock.
+                "max-w-12 overflow-x-hidden no-scrollbar"
+              : "max-w-[100vw] overflow-x-auto no-scrollbar",
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -1452,7 +1461,11 @@ export function FloatingPillNav() {
           className={cn(
             "flex items-center gap-1 empty:hidden",
             vert
-              ? "flex-col before:my-0.5 before:h-px before:w-5 before:bg-foreground/10 dark:before:bg-white/10"
+              ? // Cascade the column's width cap down to the portaled clusters
+                // (scripts / open-in / git) — each is its own "line" stacked here,
+                // and without this they'd size to their own wide row instead of
+                // respecting it (see the container's `max-w-12` above).
+                "max-w-full flex-col before:my-0.5 before:h-px before:w-5 before:bg-foreground/10 dark:before:bg-white/10"
               : "before:mx-0.5 before:h-5 before:w-px before:bg-foreground/10 dark:before:bg-white/10",
             "before:shrink-0 before:content-['']",
           )}
@@ -1604,11 +1617,14 @@ function getEdgeGlowStyle(
 
 // Single source of truth for pill-nav button styling. The thread-action controls
 // portaled into the pill import `pillIconButtonClass` so they read as pill items
-// (borderless, round, tinted on hover) instead of bordered header buttons.
+// (borderless, round, brighter on hover) instead of bordered header buttons.
+// No background, border or ring on hover anywhere in the pill — only a
+// brightness change — per Marco: "I don't want any backgrounds or borders
+// around the icons. Just make the icon brighter on hover."
 const PILL_BASE = "group relative flex items-center justify-center rounded-full transition-colors";
 const PILL_ACTIVE = "bg-foreground/15 dark:bg-white/15";
 const PILL_IDLE =
-  "text-foreground/40 dark:text-white/40 hover:text-foreground/80 dark:hover:text-white/80 hover:bg-foreground/10 dark:hover:bg-white/10";
+  "text-foreground/40 dark:text-white/40 hover:text-foreground dark:hover:text-white";
 
 export function pillIconButtonClass(active = false) {
   return cn(
@@ -1620,7 +1636,7 @@ export function pillIconButtonClass(active = false) {
     // disabled is worth reading: a truly disabled button swallows pointer
     // events, so its tooltip — the only thing that explains the block — never
     // opens. Same dimming, hover kept alive for the tooltip.
-    "aria-disabled:cursor-not-allowed aria-disabled:opacity-30 aria-disabled:hover:bg-transparent",
+    "aria-disabled:cursor-not-allowed aria-disabled:opacity-30",
   );
 }
 
@@ -1696,13 +1712,16 @@ function PillItem({
   side: "top" | "bottom" | "left" | "right";
 }) {
   const tooltipLabel = shortcut ? `${label} (${shortcut})` : label;
+  // No hover background/border/ring — brighten instead. Untinted icons (the
+  // /40-opacity default) go to full opacity; tinted ones (workspace children,
+  // always rendered at their category's full accent colour via `style` below,
+  // so an opacity ramp would be invisible) get a brightness bump instead —
+  // `filter` isn't touched by the inline `color`, so it still reads on hover.
   const classes = cn(
     PILL_BASE,
     "w-8 h-8",
-    active ? PILL_ACTIVE : "hover:bg-foreground/10 dark:hover:bg-white/10",
-    !tint &&
-      !active &&
-      "text-foreground/40 dark:text-white/40 hover:text-foreground/80 dark:hover:text-white/80",
+    active && PILL_ACTIVE,
+    !active && (tint ? "hover:brightness-125" : PILL_IDLE),
     dimmed && "opacity-50",
   );
 

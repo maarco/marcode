@@ -321,7 +321,15 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
     return (
       <>
         {flat && primaryScript ? (
-          <div aria-label="Project scripts" className="flex shrink-0 items-center gap-0.5">
+          // `max-w-full flex-wrap` below: inert in the normal horizontal/mobile row
+          // (nothing constrains this div's width there), but once the pill is
+          // docked vertically it's squeezed to one icon column — this lets the
+          // row's icons stack into that column instead of forcing the whole pill
+          // wide (see FloatingPillNav's `vert` container rule).
+          <div
+            aria-label="Project scripts"
+            className="flex max-w-full flex-wrap shrink-0 items-center gap-0.5"
+          >
             {scripts.map((script) => {
               const shortcutLabel = shortcutLabelForCommand(
                 keybindings,

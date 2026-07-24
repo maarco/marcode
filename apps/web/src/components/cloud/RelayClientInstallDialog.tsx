@@ -69,8 +69,8 @@ export function RelayClientInstallDialog() {
           </DialogTitle>
           <DialogDescription>
             {isInstalling
-              ? "Marcode is preparing this environment for secure access through T3 Connect."
-              : "Marcode needs the relay client to make this environment available through T3 Connect."}
+              ? "Marcode is preparing this environment for secure access through Marcode Connect."
+              : "Marcode needs the relay client to make this environment available through Marcode Connect."}
           </DialogDescription>
         </DialogHeader>
         <DialogPanel scrollFade={false}>

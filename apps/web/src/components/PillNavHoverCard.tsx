@@ -40,7 +40,10 @@ export interface PillNavMeta {
 // Category colours, kept in step with `CATEGORIES` in FloatingPillNav.
 const HOME_COLOR = "#f59e0b";
 const SETTINGS_COLOR = "#a0927b";
-const WORKSPACE_COLOR = "#22d3ee";
+// Exported so live/dynamic cards built outside this file (e.g. the git quick
+// action's title/icon override in GitActionsControl) stay the same accent as
+// the fixed workspace entries below, instead of a second hardcoded hex.
+export const WORKSPACE_COLOR = "#22d3ee";
 const UTILITY_COLOR = "#a1a1aa";
 
 /**
@@ -277,6 +280,27 @@ function PillNavCard({
   );
 }
 
+interface PillNavHoverCardSharedProps {
+  shortcut?: string | null | undefined;
+  side?: "top" | "bottom" | "left" | "right" | undefined;
+  /** Live reason the control is blocked, appended under the description. */
+  status?: string | null | undefined;
+  render: ReactElement;
+}
+
+type PillNavHoverCardProps =
+  | (PillNavHoverCardSharedProps & { metaKey: PillNavMetaKey; meta?: undefined })
+  | (PillNavHoverCardSharedProps & {
+      metaKey?: undefined;
+      /**
+       * Direct title/description/icon/color, for a pill whose label and glyph are
+       * live rather than fixed (e.g. the git quick-action pill, which rotates
+       * through Commit / Commit & push / Push / Pull / Publish / View PR). Takes
+       * precedence over `metaKey` — pass one or the other, never both.
+       */
+      meta: PillNavMeta;
+    });
+
 /**
  * Wraps a pill control in its hover card. `render` is the control itself — the
  * card's trigger props are merged onto it rather than into an extra wrapper
@@ -286,25 +310,14 @@ function PillNavCard({
  * row (the thread action cluster) cannot see the pill's resolved overlay side,
  * and Base UI flips the popup itself when that edge has no room.
  */
-export function PillNavHoverCard({
-  metaKey,
-  shortcut,
-  side = "bottom",
-  status,
-  render,
-}: {
-  metaKey: PillNavMetaKey;
-  shortcut?: string | null | undefined;
-  side?: "top" | "bottom" | "left" | "right";
-  /** Live reason the control is blocked, appended under the description. */
-  status?: string | null | undefined;
-  render: ReactElement;
-}) {
+export function PillNavHoverCard(props: PillNavHoverCardProps) {
+  const { shortcut, side = "bottom", status, render } = props;
+  const meta = props.meta ?? PILL_NAV_META[props.metaKey];
   return (
     <HoverCard>
       <HoverCardTrigger closeDelay={120} delay={220} render={render} />
       <HoverCardPopup align="center" side={side}>
-        <PillNavCard meta={PILL_NAV_META[metaKey]} shortcut={shortcut} status={status} />
+        <PillNavCard meta={meta} shortcut={shortcut} status={status} />
       </HoverCardPopup>
     </HoverCard>
   );

@@ -38,7 +38,12 @@ import {
   RecordCircleFilled,
 } from "@aliimam/icons";
 import { PillTooltip, pillIconButtonClass, pillMenuRowClass } from "~/components/FloatingPillNav";
-import { PillNavHoverCard, type PillNavMetaKey } from "~/components/PillNavHoverCard";
+import {
+  PillNavHoverCard,
+  WORKSPACE_COLOR,
+  type PillNavMeta,
+  type PillNavMetaKey,
+} from "~/components/PillNavHoverCard";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { AzureDevOpsIcon, BitbucketIcon, GitHubIcon, GitLabIcon } from "~/components/Icons";
 import { RadioGroup } from "~/components/ui/radio-group";
@@ -374,6 +379,36 @@ function GitActionItemIcon({
   return <SourceControlIcon className={GIT_ICON_CLASS} />;
 }
 
+/**
+ * The glyph for the quick-action pill, as a component reference rather than a
+ * rendered element — shared by `GitQuickActionIcon` (renders it inline) and
+ * the quick action's hover-card `meta` override (needs the component itself
+ * for `PillNavCard`'s watermark), so the two never drift apart.
+ */
+function resolveGitQuickActionIconComponent(
+  quickAction: GitQuickAction,
+  SourceControlIcon: ReturnType<typeof getSourceControlPresentation>["Icon"],
+): PillNavMeta["icon"] {
+  // Provider icons (GitHubIcon/GitLabIcon/...) are always a concrete
+  // `{ className }` component at runtime; `SourceControlIcon`'s declared type is
+  // the broader `ElementType` (which also permits a bare intrinsic tag name), so
+  // it needs a narrowing cast to satisfy the hover card's icon shape.
+  const providerIcon = SourceControlIcon as PillNavMeta["icon"];
+  if (quickAction.kind === "open_pr") return providerIcon;
+  if (quickAction.kind === "open_publish") return CloudPlusFilled;
+  if (quickAction.kind === "run_pull") return ArrowSquareDownFilled;
+  if (quickAction.kind === "run_action") {
+    if (quickAction.action === "commit") return RecordCircleFilled;
+    // commit_push sits next to the plain Push menu item in the pill — give it its
+    // own glyph so the two aren't the same arrow twice.
+    if (quickAction.action === "commit_push") return FlashFilled;
+    if (quickAction.action === "push") return Export3Filled;
+    return providerIcon;
+  }
+  if (quickAction.label === "Commit") return RecordCircleFilled;
+  return InfoCircleFilled;
+}
+
 function GitQuickActionIcon({
   quickAction,
   SourceControlIcon,
@@ -381,20 +416,8 @@ function GitQuickActionIcon({
   quickAction: GitQuickAction;
   SourceControlIcon: ReturnType<typeof getSourceControlPresentation>["Icon"];
 }) {
-  const iconClassName = GIT_ICON_CLASS;
-  if (quickAction.kind === "open_pr") return <SourceControlIcon className={iconClassName} />;
-  if (quickAction.kind === "open_publish") return <CloudPlusFilled className={iconClassName} />;
-  if (quickAction.kind === "run_pull") return <ArrowSquareDownFilled className={iconClassName} />;
-  if (quickAction.kind === "run_action") {
-    if (quickAction.action === "commit") return <RecordCircleFilled className={iconClassName} />;
-    // commit_push sits next to the plain Push menu item in the pill — give it its
-    // own glyph so the two aren't the same arrow twice.
-    if (quickAction.action === "commit_push") return <FlashFilled className={iconClassName} />;
-    if (quickAction.action === "push") return <Export3Filled className={iconClassName} />;
-    return <SourceControlIcon className={iconClassName} />;
-  }
-  if (quickAction.label === "Commit") return <RecordCircleFilled className={iconClassName} />;
-  return <InfoCircleFilled className={iconClassName} />;
+  const Icon = resolveGitQuickActionIconComponent(quickAction, SourceControlIcon);
+  return <Icon className={GIT_ICON_CLASS} />;
 }
 
 interface PublishRepositoryDialogProps {
@@ -1851,11 +1874,30 @@ export default function GitActionsControl({
           </PopoverPopup>
         </Popover>
       ) : flat ? (
-        <div aria-label="Git actions" className="flex shrink-0 items-center gap-0.5">
+        // `max-w-full flex-wrap` below: inert in the normal horizontal/mobile row
+        // (nothing constrains this div's width there, so the cap never binds), but
+        // once the pill is docked vertically it's squeezed to one icon column —
+        // this lets the row's icons stack into that column instead of forcing the
+        // whole pill wide (see FloatingPillNav's `vert` container rule).
+        <div
+          aria-label="Git actions"
+          className="flex max-w-full flex-wrap shrink-0 items-center gap-0.5"
+        >
           {/* aria-disabled, not disabled: the reason an action is blocked lives in the
-              tooltip, and a disabled button never fires the hover that opens it. */}
-          <PillTooltip
-            label={quickActionDisabledReason ?? quickAction.label}
+              card, and a disabled button never fires the hover that opens it. A
+              `meta` override, not a fixed `metaKey`: this pill's title and glyph are
+              live — it rotates through Commit / Commit & push / Push / Pull /
+              Publish / View PR depending on repo state — so a static PILL_NAV_META
+              entry would go stale the moment the action changes. */}
+          <PillNavHoverCard
+            meta={{
+              title: quickAction.label,
+              description:
+                "The recommended git action for this thread right now. Its name and icon change with what's ready to run or blocked.",
+              icon: resolveGitQuickActionIconComponent(quickAction, SourceControlIcon),
+              color: WORKSPACE_COLOR,
+            }}
+            status={quickActionDisabledReason}
             render={
               <button
                 type="button"
