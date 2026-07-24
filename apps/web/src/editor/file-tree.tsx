@@ -19,13 +19,28 @@ import { useEditorStore, makeFileRef } from "./editor-store";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { WaveSpinner } from "./wave-spinner";
 import { FileTypeIcon } from "./quick-open";
+import { showToast } from "./toast";
 import { cn } from "~/lib/utils";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
+import { cancelProjectFile, clearProjectFileQueryData } from "~/state/projectFileState";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { projectEnvironment } from "~/state/projects";
 import { useEnvironmentQuery } from "~/state/query";
 import { vcsEnvironment } from "~/state/vcs";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+  type AtomCommandResult,
+} from "@t3tools/client-runtime/state/runtime";
 import type { ProjectEntry } from "@t3tools/contracts";
+
+/** Extract a user-facing message from a settled atom command result. */
+function resultErrorMessage(result: AtomCommandResult<unknown, unknown>): string | null {
+  if (result._tag === "Success") return null;
+  if (isAtomCommandInterrupted(result)) return null;
+  const error = squashAtomCommandFailure(result);
+  return error instanceof Error && error.message.length > 0 ? error.message : "Operation failed";
+}
 
 interface FileNode {
   name: string;
@@ -178,6 +193,7 @@ export function FileTree({
   const activePaneId = useEditorStore((s) => s.activePaneId);
   const panes = useEditorStore((s) => s.panes);
   const openFile = useEditorStore((s) => s.openFile);
+  const closeFilesUnder = useEditorStore((s) => s.closeFilesUnder);
   const pinFile = useEditorStore((s) => s.pinFile);
   const setActiveFile = useEditorStore((s) => s.setActiveFile);
   const environmentId = useEditorStore((s) => s.environmentId);
@@ -431,8 +447,11 @@ export function FileTree({
   const statusQuery = useEnvironmentQuery(
     environmentId ? vcsEnvironment.status({ environmentId, input: { cwd: workspacePath } }) : null,
   );
-  // VCS status carries working-tree files without per-file M/A/D kind, so changed
-  // files are badged uniformly. Keyed by absolute path to match tree node paths.
+  // VCS status carries working-tree files without a per-file M/A/D kind (see
+  // docs/specs/editor-file-state-unification.md), so changed files get a
+  // neutral "changed" badge rather than a specific (and potentially
+  // misleading — e.g. "M" on a deleted or newly-added file) letter. Keyed by
+  // absolute path to match tree node paths.
   const gitStatus = useMemo(() => {
     const files = statusQuery.data?.workingTree.files ?? [];
     const out: Record<string, string> = {};
@@ -440,7 +459,7 @@ export function FileTree({
       const abs = workspacePath.endsWith("/")
         ? `${workspacePath}${file.path}`
         : `${workspacePath}/${file.path}`;
-      out[abs] = "M";
+      out[abs] = GIT_STATUS_CHANGED;
     }
     return out;
   }, [statusQuery.data, workspacePath]);
@@ -456,18 +475,25 @@ export function FileTree({
       }
       const parentRel = toRelative(inlineCreate.parentDir);
       const relativePath = parentRel ? `${parentRel}/${name.trim()}` : name.trim();
-      try {
-        await createFileCmd({
-          environmentId,
-          input: {
-            cwd: workspacePath,
-            relativePath,
-            kind: inlineCreate.type === "dir" ? "directory" : "file",
-          },
+      const result = await createFileCmd({
+        environmentId,
+        input: {
+          cwd: workspacePath,
+          relativePath,
+          kind: inlineCreate.type === "dir" ? "directory" : "file",
+        },
+      });
+      const failure = resultErrorMessage(result);
+      if (failure) {
+        showToast({
+          type: "error",
+          title: `Failed to create ${inlineCreate.type === "dir" ? "folder" : "file"}`,
+          message: failure,
         });
+      } else {
         fetchTree();
         refreshGitStatus();
-      } catch {}
+      }
       setInlineCreate(null);
     },
     [
@@ -529,20 +555,46 @@ export function FileTree({
         setInlineRename(null);
         return;
       }
+      const trimmedNewName = newName.trim();
       const dir = inlineRename.path.slice(0, inlineRename.path.length - inlineRename.name.length);
-      const newAbs = `${dir}${newName.trim()}`;
-      try {
-        await renameFileCmd({
-          environmentId,
-          input: {
-            cwd: workspacePath,
-            fromRelativePath: toRelative(inlineRename.path),
-            toRelativePath: toRelative(newAbs),
-          },
-        });
+      const newAbs = `${dir}${trimmedNewName}`;
+      const oldPath = inlineRename.path;
+      const result = await renameFileCmd({
+        environmentId,
+        input: {
+          cwd: workspacePath,
+          fromRelativePath: toRelative(oldPath),
+          toRelativePath: toRelative(newAbs),
+        },
+      });
+      const failure = resultErrorMessage(result);
+      if (failure) {
+        showToast({ type: "error", title: "Failed to rename", message: failure });
+      } else {
+        // Stop the pending autosave for every open tab at the old location —
+        // the renamed node itself, or anything nested under it if it was a
+        // directory — before closing. Otherwise a still-armed debounce, or
+        // dispose() on unmount, can silently recreate content at the old
+        // path. Reopen at the new path only if the renamed node itself
+        // (not a nested sibling) was the active tab somewhere.
+        const affected = closeFilesUnder(oldPath);
+        for (const entry of affected) {
+          const relativePath = toRelative(entry.path);
+          cancelProjectFile(environmentId, workspacePath, relativePath);
+          clearProjectFileQueryData(environmentId, workspacePath, relativePath);
+        }
+        const renamedEntry = affected.find((entry) => entry.path === oldPath);
+        if (renamedEntry?.activeInPaneId) {
+          const dot = trimmedNewName.lastIndexOf(".");
+          const ext = dot > 0 ? trimmedNewName.slice(dot) : "";
+          openFile(
+            renamedEntry.activeInPaneId,
+            makeFileRef(environmentId, workspacePath, newAbs, trimmedNewName, ext),
+          );
+        }
         fetchTree();
         refreshGitStatus();
-      } catch {}
+      }
       setInlineRename(null);
     },
     [
@@ -553,6 +605,8 @@ export function FileTree({
       renameFileCmd,
       fetchTree,
       refreshGitStatus,
+      closeFilesUnder,
+      openFile,
     ],
   );
 
@@ -571,14 +625,28 @@ export function FileTree({
 
   const confirmDelete = useCallback(async () => {
     if (!deleteConfirm || !environmentId) return;
-    try {
-      await deleteFileCmd({
-        environmentId,
-        input: { cwd: workspacePath, relativePath: toRelative(deleteConfirm.path) },
-      });
+    const result = await deleteFileCmd({
+      environmentId,
+      input: { cwd: workspacePath, relativePath: toRelative(deleteConfirm.path) },
+    });
+    const failure = resultErrorMessage(result);
+    if (failure) {
+      showToast({ type: "error", title: "Failed to delete", message: failure });
+    } else {
+      // Stop the pending autosave for every open tab at (or nested under)
+      // the deleted path before closing — otherwise a still-armed debounce,
+      // or dispose() on unmount, can silently recreate the file. `writeFile`
+      // has no existence check, so an unstopped coordinator resurrects
+      // whatever was last in its buffer at the old path.
+      const affected = closeFilesUnder(deleteConfirm.path);
+      for (const entry of affected) {
+        const relativePath = toRelative(entry.path);
+        cancelProjectFile(environmentId, workspacePath, relativePath);
+        clearProjectFileQueryData(environmentId, workspacePath, relativePath);
+      }
       fetchTree();
       refreshGitStatus();
-    } catch {}
+    }
     setDeleteConfirm(null);
   }, [
     deleteConfirm,
@@ -588,6 +656,7 @@ export function FileTree({
     deleteFileCmd,
     fetchTree,
     refreshGitStatus,
+    closeFilesUnder,
   ]);
 
   // focus filter input when opened
@@ -1092,12 +1161,19 @@ function AccordionFolder({
 
 // ── file item ──
 
+// VcsStatusResult carries no per-file kind (see the comment on `gitStatus`
+// below) — "•" is a neutral "changed" badge, distinct from "M"/"A"/"D"/"R"
+// (which claim a specific kind this data doesn't have) and from "?" (which
+// specifically means untracked).
+const GIT_STATUS_CHANGED = "•";
+
 const GIT_STATUS_COLORS: Record<string, string> = {
   M: "#e5a50a", // modified - amber
   A: "#22c55e", // added - green
   D: "#ef4444", // deleted - red
   "?": "#6b7280", // untracked - gray
   R: "#3b82f6", // renamed - blue
+  [GIT_STATUS_CHANGED]: "#6b7280", // changed, kind unknown - neutral gray
 };
 
 interface FileItemProps {

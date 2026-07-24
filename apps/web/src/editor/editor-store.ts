@@ -140,6 +140,16 @@ interface EditorStore {
   // pane-scoped actions
   openFile: (paneId: string, ref: FileRef) => void;
   closeFile: (paneId: string, path: string) => void;
+  /**
+   * Close every open path equal to, or nested under, `path` — across every
+   * pane, not just one. Used when a file-tree mutation (delete/rename)
+   * removes a file or directory out from under the editor: a stale tab left
+   * open in ANY pane can still trigger FileSaveCoordinator's dispose()-flush
+   * and resurrect the old location. Returns each closed path paired with the
+   * pane it was the ACTIVE tab in (if any), so a rename can reopen the
+   * corresponding new path there.
+   */
+  closeFilesUnder: (path: string) => Array<{ path: string; activeInPaneId: string | null }>;
   setActiveFile: (paneId: string, path: string) => void;
   pinFile: (path: string) => void;
 
@@ -425,6 +435,29 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       } else {
         set({ panes: newPanes, fileCache: newCache, dirtyKeys: newDirtyKeys });
       }
+    },
+
+    closeFilesUnder: (path) => {
+      const store = get();
+      const prefix = `${path}/`;
+      const affected: Array<{ path: string; activeInPaneId: string | null }> = [];
+      const seen = new Set<string>();
+      for (const pane of store.panes) {
+        for (const openPath of pane.openPaths) {
+          if (openPath !== path && !openPath.startsWith(prefix)) continue;
+          if (seen.has(openPath)) continue;
+          seen.add(openPath);
+          affected.push({ path: openPath, activeInPaneId: null });
+        }
+      }
+      for (const entry of affected) {
+        for (const pane of store.panes) {
+          if (!pane.openPaths.includes(entry.path)) continue;
+          if (pane.activePath === entry.path) entry.activeInPaneId = pane.id;
+          get().closeFile(pane.id, entry.path);
+        }
+      }
+      return affected;
     },
 
     setActiveFile: (paneId, path) => {
