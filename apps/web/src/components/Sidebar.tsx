@@ -1433,10 +1433,8 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   const appSettingsConfirmThreadArchive = useClientSettings<boolean>(
     (settings) => settings.confirmThreadArchive,
   );
-  // Spec §17 rollout flag. Not yet in `ClientSettingsSchema` (packages/contracts
-  // is a different lane) — read through the same structural-typing extension
-  // `Sidebar.logic.ts` already defines, over the same client-settings plumbing
-  // every other flag here uses. Default off.
+  // Spec §17 rollout flag. The schema defaults this on for new and legacy
+  // settings records; an explicit false remains the flat-sidebar opt-out.
   const unifiedWorkspaceSidebarEnabled = useClientSettings((settings) =>
     isUnifiedWorkspaceSidebarEnabled(settings as ClientSettingsWithUnifiedWorkspaceFlag),
   );

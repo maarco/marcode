@@ -92,10 +92,11 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
   /**
-   * Rollout flag for the unified workspace tree sidebar. Default off: when
-   * false the sidebar renders the existing flat project → thread list.
+   * Rollout flag for the unified workspace tree sidebar. Default on: an
+   * explicit false keeps the existing flat project → thread list available as
+   * an opt-out.
    */
-  unifiedWorkspaceSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  unifiedWorkspaceSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 });
 export type ClientSettings = typeof ClientSettingsSchema.Type;

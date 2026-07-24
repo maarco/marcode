@@ -1120,7 +1120,7 @@ Required live flow:
 ## 17. Rollout
 
 - Ship behind a client setting/feature flag: `unifiedWorkspaceSidebar`.
-- Default off for one integration cycle.
+- Default on after the integration cycle; an explicit `false` remains the flat-sidebar opt-out.
 - When off, render the current flat thread list.
 - When on and server lacks layout command capability, render a read-only derived tree with root
   threads/commands/live resources and disable attachment/movement with an explicit upgrade message.

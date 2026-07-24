@@ -24,8 +24,8 @@ accurate, and do not assume it is still incomplete either.
 
 ## Enable the flag
 
-`unifiedWorkspaceSidebar` is a client setting, default `false`. Off renders the existing flat
-project → thread list unchanged.
+`unifiedWorkspaceSidebar` is a client setting, default `true`. An explicit `false` renders the
+existing flat project → thread list unchanged.
 
 First check the schema actually declares it — this field was added and removed at least once during
 development:
