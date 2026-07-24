@@ -157,6 +157,36 @@ function iconForOverlay(node: UnifiedWorkspaceNode) {
   }
 }
 
+/**
+ * True for a file/folder node projected live from the on-disk index with no
+ * persisted `ProjectWorkspaceEntry` behind it (`buildTree.ts`'s ambient
+ * projection), as opposed to a real attached/placed workspace item.
+ */
+function isAmbientFolderNode(node: UnifiedWorkspaceNode): boolean {
+  return node.isAmbient && node.kind === "folder";
+}
+
+/**
+ * An ambient folder's `children` are only materialized once its relativePath
+ * is in `expandedAmbientDirs` (`buildTree.ts`'s lazy one-level-deep gate), so
+ * `children.length === 0` means "not expanded yet," never "genuinely empty" —
+ * an ambient folder with nothing to show never gets `canHaveChildren: true`
+ * in the first place (see `buildAmbientNode`). Falling back to `collapsedIds`
+ * for these nodes like every other kind would show an expanded (▼) arrow over
+ * an empty list on first paint, because unknown ids default to "expanded"
+ * there — exactly backwards for a folder that hasn't materialized children
+ * yet. Basing the ambient branch on "has anything actually been materialized"
+ * keeps the arrow honest and self-corrects the moment the controller's
+ * `toggleAmbientFolder` fills `children` in on the next render.
+ */
+function resolveRowCollapsed(
+  node: UnifiedWorkspaceNode,
+  collapsedIds: ReadonlySet<string>,
+): boolean {
+  if (isAmbientFolderNode(node)) return node.canHaveChildren && node.children.length === 0;
+  return isUnifiedWorkspaceNodeCollapsed(node, collapsedIds);
+}
+
 function reportMutationFailure(action: string, result: UnifiedWorkspaceMutationResult) {
   if (result.ok) return;
   toastManager.add(
@@ -305,14 +335,28 @@ export const UnifiedWorkspaceTree = forwardRef<
 
   useImperativeHandle(ref, () => ({ focusAndRevealNode }), [focusAndRevealNode]);
 
-  const toggleCollapse = useCallback((nodeId: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
-      return next;
-    });
-  }, []);
+  const toggleCollapse = useCallback(
+    (nodeId: string) => {
+      const node = nodeIndex.byId.get(nodeId);
+      if (node && isAmbientFolderNode(node)) {
+        // Ambient folders have no persisted entry to locally hide/show —
+        // their disclosure arrow instead asks the controller to
+        // materialize/hide real on-disk children one level deep
+        // (buildTree.ts's `expandedAmbientDirs`). Keeping this out of
+        // `collapsedIds` (used below for every other node kind) is what
+        // keeps `resolveRowCollapsed` consistent — see its docstring.
+        controller.toggleAmbientFolder(nodeId);
+        return;
+      }
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(nodeId)) next.delete(nodeId);
+        else next.add(nodeId);
+        return next;
+      });
+    },
+    [nodeIndex, controller],
+  );
 
   const startRename = useCallback((node: UnifiedWorkspaceNode) => {
     setRenamingNodeId(node.id);
@@ -462,7 +506,7 @@ export const UnifiedWorkspaceTree = forwardRef<
 
   const handleRowKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>, node: UnifiedWorkspaceNode) => {
-      const isCollapsed = isUnifiedWorkspaceNodeCollapsed(node, collapsedIds);
+      const isCollapsed = resolveRowCollapsed(node, collapsedIds);
       switch (event.key) {
         case "ArrowDown": {
           event.preventDefault();
@@ -485,6 +529,17 @@ export const UnifiedWorkspaceTree = forwardRef<
           return;
         }
         case "ArrowRight": {
+          if (isAmbientFolderNode(node) && node.canHaveChildren && node.children.length === 0) {
+            // `resolveRightKeyAction` (UnifiedWorkspaceTree.logic.ts) gates its
+            // "expand" action on `children.length > 0`, which never holds for
+            // an ambient folder before its first expansion — children
+            // materialize lazily (see `resolveRowCollapsed`). Handle that one
+            // case here instead of asking it to reason about a tree shape it
+            // can't see yet.
+            event.preventDefault();
+            toggleCollapse(node.id);
+            return;
+          }
           const action = resolveRightKeyAction(node, isCollapsed);
           if (action.type === "expand") {
             event.preventDefault();
@@ -656,7 +711,7 @@ export const UnifiedWorkspaceTree = forwardRef<
         if (
           rawZone === "inside" &&
           overNode.canHaveChildren &&
-          isUnifiedWorkspaceNodeCollapsed(overNode, collapsedIds)
+          resolveRowCollapsed(overNode, collapsedIds)
         ) {
           autoExpandNodeIdRef.current = overNodeId;
           autoExpandTimeoutRef.current = window.setTimeout(() => {
@@ -823,7 +878,7 @@ export const UnifiedWorkspaceTree = forwardRef<
               <UnifiedWorkspaceRow
                 key={node.id}
                 node={node}
-                isCollapsed={isUnifiedWorkspaceNodeCollapsed(node, collapsedIds)}
+                isCollapsed={resolveRowCollapsed(node, collapsedIds)}
                 isFocused={
                   focusedNodeId === node.id ||
                   (focusedNodeId === null && flatRows[0]?.node.id === node.id)

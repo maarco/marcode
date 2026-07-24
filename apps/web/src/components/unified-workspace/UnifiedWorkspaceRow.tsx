@@ -24,6 +24,7 @@ import {
   useMemo,
   useRef,
   type ChangeEvent,
+  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
@@ -40,6 +41,7 @@ import {
   UW_TREE_DISCLOSURE_SPACER_CLASS,
   UW_TREE_DROP_INSIDE_CLASS,
   UW_TREE_DROP_LINE_CLASS,
+  UW_TREE_GUIDE_CLASS,
   UW_TREE_HOVER_ACTIONS_CLASS,
   UW_TREE_ICON_CLASS,
   UW_TREE_LABEL_CLASS,
@@ -93,6 +95,10 @@ export interface UnifiedWorkspaceRowProps {
   readonly isSelected: boolean;
   readonly isMobile: boolean;
   readonly isDropTarget: UnifiedWorkspaceRowDropIndicator | null;
+  /** Layout-mutation capability (spec §17). `false` disables drag pickup here
+   * regardless of `node.canMove` — the read-only degraded tree still shows
+   * placement, just not draggable. */
+  readonly canMutate: boolean;
   readonly threadExtras: UnifiedWorkspaceThreadRowExtras | null;
   readonly commandIcon: ProjectScriptIcon | null;
   /** Non-null while this row is the one being renamed inline (F2 / context menu). */
@@ -106,7 +112,9 @@ export interface UnifiedWorkspaceRowProps {
     node: UnifiedWorkspaceNode,
   ) => void;
   readonly onOpenRowMenu: (node: UnifiedWorkspaceNode, anchor: { x: number; y: number }) => void;
-  readonly onOpenPrLink: (event: MouseEvent, url: string) => void;
+  // Matches `useOpenPrLink()`'s actual return signature — see the matching
+  // note on `UnifiedWorkspaceTreeProps.onOpenPrLink`.
+  readonly onOpenPrLink: (event: MouseEvent<HTMLElement>, url: string) => void;
   readonly onStartRename: (node: UnifiedWorkspaceNode) => void;
   readonly onRenamingValueChange: (value: string) => void;
   readonly onCommitRename: (node: UnifiedWorkspaceNode) => void;
@@ -185,6 +193,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     isSelected,
     isMobile,
     isDropTarget,
+    canMutate,
     threadExtras,
     commandIcon,
     renamingValue,
@@ -206,7 +215,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
   const sortable = useSortable({
     id: node.id,
     data: { node },
-    disabled: !node.canMove,
+    disabled: !node.canMove || !canMutate,
   });
   const { attributes, listeners, setNodeRef, isDragging } = sortable;
   // dnd-kit's default `attributes` include their own `role`/`tabIndex`
@@ -338,7 +347,13 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
   }, []);
 
   const Icon = useMemo(() => iconForNode(node, commandIcon), [node, commandIcon]);
-  const indentStyle = useMemo(() => unifiedWorkspaceRowIndentStyle(node.depth), [node.depth]);
+  // `unifiedWorkspaceRowIndentStyle` stays React-free (see its docstring), so
+  // the `--uw-row-depth` custom property it returns is cast to `CSSProperties`
+  // here at the JSX boundary rather than in the pure logic module.
+  const indentStyle = useMemo(
+    () => unifiedWorkspaceRowIndentStyle(node.depth) as CSSProperties,
+    [node.depth],
+  );
   const statusPill = threadExtras?.statusPill ?? fallbackThreadStatusPill(node);
 
   const dropZoneClassName =
@@ -363,7 +378,12 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       data-broken={node.isBroken}
       data-unified-workspace-row
       data-node-id={node.id}
-      className={cn(UW_TREE_ROW_CLASS, isDragging && "opacity-40", dropZoneClassName)}
+      className={cn(
+        UW_TREE_ROW_CLASS,
+        node.depth > 0 && UW_TREE_GUIDE_CLASS,
+        isDragging && "opacity-40",
+        dropZoneClassName,
+      )}
       style={indentStyle}
       {...dndAttributesWithoutRoleOrTabIndex}
       {...listeners}
@@ -389,7 +409,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
 
       {(node.kind === "browser" || node.kind === "url") && node.iconUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- tiny favicon, not a Next.js app
-        <img src={node.iconUrl} alt="" className="size-3.5 shrink-0 rounded-sm" />
+        <img
+          src={node.iconUrl}
+          alt=""
+          className="size-[var(--uw-tree-icon-size)] shrink-0 rounded-sm"
+        />
       ) : (
         <Icon
           className={cn(

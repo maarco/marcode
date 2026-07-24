@@ -39,11 +39,12 @@ import {
   INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
 } from "@t3tools/contracts";
 import { useParams, useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { openUrlInPreview as openUrlInPreviewSession } from "~/browser/openFileInPreview";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
 import { closePreviewSession } from "~/components/preview/closePreviewSession";
+import { openFileInFloatingEditor } from "~/editor/open-floating-file";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import {
   takePendingWorkspaceThreadPlacement,
@@ -73,6 +74,7 @@ import {
   buildUnifiedWorkspaceTree,
   EMPTY_AMBIENT_ENTRIES,
   EMPTY_EXPANDED_AMBIENT_DIRS,
+  toggleExpandedAmbientDir,
   type UnifiedWorkspaceThreadInput,
 } from "./buildTree";
 import {
@@ -285,13 +287,18 @@ export function useUnifiedWorkspaceProject(input: {
   }, [project, entriesQuery.data]);
   // Same query as `knownPaths` above — the ambient (unattached) file/folder
   // nodes the tree now shows by default (spec override of §4) are projected
-  // from this one existing index, not a second one (spec §2). No UI currently
-  // grows `expandedAmbientDirs` beyond its empty default — see this feature's
-  // handoff report for the small follow-up that wires a real expand click to
-  // it; until then every directory below the workspace root renders
-  // collapsed, which is the correct/safe default, not a bug.
+  // from this one existing index, not a second one (spec §2).
   const ambientEntries = entriesQuery.data?.entries ?? EMPTY_AMBIENT_ENTRIES;
   const ambientEntriesTruncated = entriesQuery.data?.truncated ?? false;
+
+  // Which ambient folders the sidebar's disclosure arrow has asked to reveal
+  // (`toggleAmbientFolder` below) — one level deep per entry, per
+  // `expandedAmbientDirs` on `BuildUnifiedWorkspaceTreeInput`. Ephemeral UI
+  // state only: never a `ProjectWorkspaceEntry`, never written to the layout,
+  // reset on remount exactly like `collapsedIds` in `UnifiedWorkspaceTree.tsx`.
+  const [expandedAmbientDirs, setExpandedAmbientDirs] = useState<ReadonlySet<string>>(
+    EMPTY_EXPANDED_AMBIENT_DIRS,
+  );
 
   const { roots, diagnostics } = useMemo(
     () =>
@@ -307,7 +314,7 @@ export function useUnifiedWorkspaceProject(input: {
         knownPaths,
         ambientEntries,
         ambientEntriesTruncated,
-        expandedAmbientDirs: EMPTY_EXPANDED_AMBIENT_DIRS,
+        expandedAmbientDirs,
       }),
     [
       environmentId,
@@ -321,6 +328,7 @@ export function useUnifiedWorkspaceProject(input: {
       knownPaths,
       ambientEntries,
       ambientEntriesTruncated,
+      expandedAmbientDirs,
     ],
   );
 
@@ -478,6 +486,12 @@ export function useUnifiedWorkspaceProject(input: {
         return { draftId: result.draftId, threadId: result.threadId };
       },
       openFile: (threadId: string, relativePath: string) => {
+        const targetThread = projectThreadShells.find((thread) => thread.id === threadId);
+        const workspacePath = targetThread?.worktreePath ?? project?.workspaceRoot;
+        if (workspacePath) {
+          void openFileInFloatingEditor({ workspacePath, relativePath });
+          return;
+        }
         useRightPanelStore
           .getState()
           .openFile(scopeThreadRef(environmentId, ThreadId.make(threadId)), relativePath);
@@ -516,7 +530,16 @@ export function useUnifiedWorkspaceProject(input: {
         else window.open(url, "_blank", "noopener,noreferrer");
       },
     }),
-    [router, environmentId, dequalify, ensureDraftThreadTarget, projectRef, openPreviewCommand],
+    [
+      router,
+      environmentId,
+      dequalify,
+      ensureDraftThreadTarget,
+      projectRef,
+      openPreviewCommand,
+      projectThreadShells,
+      project,
+    ],
   );
 
   const runtimeSupportsEmbeddedPreview = isPreviewSupportedInRuntime();
@@ -584,6 +607,16 @@ export function useUnifiedWorkspaceProject(input: {
       }
     },
     [nodesById, environmentId, closeTerminalCommand, activePreviewSessions, closePreviewCommand],
+  );
+
+  const toggleAmbientFolder = useCallback(
+    (nodeId: string) => {
+      const node = nodesById.get(nodeId);
+      if (!node || !node.isAmbient || node.activation.kind !== "folder") return;
+      const relativePath = node.activation.relativePath;
+      setExpandedAmbientDirs((prev) => toggleExpandedAmbientDir(prev, relativePath));
+    },
+    [nodesById],
   );
 
   const moveNode = useCallback(
@@ -880,6 +913,7 @@ export function useUnifiedWorkspaceProject(input: {
     runCommand,
     pinBrowserShortcut,
     closeLiveNode,
+    toggleAmbientFolder,
     listAttachCandidates,
   };
 }
