@@ -660,6 +660,123 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
     );
   });
 
+  describe("showFile (file-at-ref)", () => {
+    it.effect("returns HEAD contents for a tracked file", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const result = yield* driver.showFile({ cwd, relativePath: "README.md" });
+
+        assert.equal(result.ref, "HEAD");
+        assert.equal(result.contents, "# test\n");
+      }),
+    );
+
+    it.effect("returns null contents for a file not present at the ref", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const result = yield* driver.showFile({ cwd, relativePath: "does-not-exist.ts" });
+
+        assert.isNull(result.contents);
+      }),
+    );
+
+    it.effect("rejects a parent-directory escape in the relative path", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const error = yield* driver
+          .showFile({ cwd, relativePath: "../escape.md" })
+          .pipe(Effect.flip);
+
+        assert.instanceOf(error, GitCommandError);
+      }),
+    );
+  });
+
+  describe("deleteRef", () => {
+    it.effect("deletes a local branch", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        yield* git(cwd, ["checkout", "-b", "feature/doomed"]);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        yield* driver.deleteRef({ cwd, refName: initialBranch, force: true });
+
+        const remaining = yield* driver.listLocalBranchNames(cwd);
+        assert.equal(remaining.includes(initialBranch), false);
+      }),
+    );
+  });
+
+  describe("log", () => {
+    it.effect("returns commit history newest-first", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        yield* writeTextFile(cwd, "second.txt", "2\n");
+        yield* git(cwd, ["add", "."]);
+        yield* git(cwd, ["commit", "-m", "second commit"]);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const result = yield* driver.log({ cwd, limit: 10 });
+
+        assert.isAtLeast(result.commits.length, 2);
+        assert.equal(result.commits[0]!.message, "second commit");
+        assert.isNotEmpty(result.commits[0]!.sha);
+        assert.isNotEmpty(result.commits[0]!.shortSha);
+      }),
+    );
+  });
+
+  describe("stash", () => {
+    it.effect("creates, lists, shows, applies, and drops a stash", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        yield* writeTextFile(cwd, "README.md", "# changed\n");
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const created = yield* driver.createStash({ cwd, message: "my stash" });
+        assert.isNotNull(created.id);
+
+        const listed = yield* driver.listStashes({ cwd });
+        assert.isAtLeast(listed.stashes.length, 1);
+        assert.isNotEmpty(listed.stashes[0]!.id);
+
+        const shown = yield* driver.showStash({ cwd, id: created.id! });
+        assert.isNotEmpty(shown.diff);
+
+        const applied = yield* driver.applyStash({ cwd, id: created.id! });
+        assert.equal(applied.id, created.id);
+
+        // drop the stash we created (now at index 0 after apply without pop)
+        yield* driver.dropStash({ cwd, id: created.id! });
+        const afterDrop = yield* driver.listStashes({ cwd });
+        assert.equal(afterDrop.stashes.length, 0);
+      }),
+    );
+
+    it.effect("createStash returns null id when the tree is clean", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        const created = yield* driver.createStash({ cwd });
+        assert.isNull(created.id);
+      }),
+    );
+  });
+
   describe("worktree operations", () => {
     it.effect("creates and removes a worktree for a new refName", () =>
       Effect.gen(function* () {

@@ -40,8 +40,11 @@ import {
   type ProjectEntriesFailure,
   type ProjectFileFailure,
   type ProjectFileOperation,
+  ProjectCreateFileError,
+  ProjectDeleteFileError,
   ProjectListEntriesError,
   ProjectReadFileError,
+  ProjectRenameFileError,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
   RelayClientInstallFailedError,
@@ -235,6 +238,10 @@ function projectFileFailureContext(
       return { failure: "path_not_file", resolvedPath: error.resolvedPath };
     case "WorkspaceBinaryFileError":
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
+    case "WorkspacePathAlreadyExistsError":
+      return { failure: "path_already_exists", resolvedPath: error.resolvedPath };
+    case "WorkspacePathNotFoundError":
+      return { failure: "path_not_found", resolvedPath: error.resolvedPath };
     default:
       return unexpectedCompatibilityError(error);
   }
@@ -314,6 +321,10 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.projectsReadFile, AuthOrchestrationReadScope],
   [WS_METHODS.projectsSearchEntries, AuthOrchestrationReadScope],
   [WS_METHODS.projectsWriteFile, AuthOrchestrationOperateScope],
+  [WS_METHODS.projectsCreateFile, AuthOrchestrationOperateScope],
+  [WS_METHODS.projectsRenameFile, AuthOrchestrationOperateScope],
+  [WS_METHODS.projectsDeleteFile, AuthOrchestrationOperateScope],
+  [WS_METHODS.projectsSearchContent, AuthOrchestrationReadScope],
   [WS_METHODS.shellOpenInEditor, AuthOrchestrationOperateScope],
   [WS_METHODS.filesystemBrowse, AuthOrchestrationReadScope],
   [WS_METHODS.assetsCreateUrl, AuthOrchestrationReadScope],
@@ -329,6 +340,14 @@ const RPC_REQUIRED_SCOPE = new Map<string, AuthEnvironmentScope>([
   [WS_METHODS.vcsCreateRef, AuthOrchestrationOperateScope],
   [WS_METHODS.vcsSwitchRef, AuthOrchestrationOperateScope],
   [WS_METHODS.vcsInit, AuthOrchestrationOperateScope],
+  [WS_METHODS.vcsShowFile, AuthOrchestrationReadScope],
+  [WS_METHODS.vcsDeleteRef, AuthOrchestrationOperateScope],
+  [WS_METHODS.vcsLog, AuthOrchestrationReadScope],
+  [WS_METHODS.vcsListStashes, AuthOrchestrationReadScope],
+  [WS_METHODS.vcsCreateStash, AuthOrchestrationOperateScope],
+  [WS_METHODS.vcsApplyStash, AuthOrchestrationOperateScope],
+  [WS_METHODS.vcsDropStash, AuthOrchestrationOperateScope],
+  [WS_METHODS.vcsShowStash, AuthOrchestrationReadScope],
   [WS_METHODS.reviewGetDiffPreview, AuthReviewWriteScope],
   [WS_METHODS.terminalOpen, AuthTerminalOperateScope],
   [WS_METHODS.terminalAttach, AuthTerminalOperateScope],
@@ -1671,6 +1690,73 @@ const makeWsRpcLayer = (
             ),
             { "rpc.aggregate": "workspace" },
           ),
+        [WS_METHODS.projectsCreateFile]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsCreateFile,
+            workspaceFileSystem.createFile(input).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProjectCreateFileError({
+                    cwd: input.cwd,
+                    relativePath: input.relativePath,
+                    kind: input.kind,
+                    ...projectFileFailureContext(cause),
+                    cause,
+                  }),
+              ),
+            ),
+            { "rpc.aggregate": "workspace" },
+          ),
+        [WS_METHODS.projectsRenameFile]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsRenameFile,
+            workspaceFileSystem.renameFile(input).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProjectRenameFileError({
+                    cwd: input.cwd,
+                    fromRelativePath: input.fromRelativePath,
+                    toRelativePath: input.toRelativePath,
+                    ...projectFileFailureContext(cause),
+                    cause,
+                  }),
+              ),
+            ),
+            { "rpc.aggregate": "workspace" },
+          ),
+        [WS_METHODS.projectsDeleteFile]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsDeleteFile,
+            workspaceFileSystem.deleteFile(input).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProjectDeleteFileError({
+                    cwd: input.cwd,
+                    relativePath: input.relativePath,
+                    ...projectFileFailureContext(cause),
+                    cause,
+                  }),
+              ),
+            ),
+            { "rpc.aggregate": "workspace" },
+          ),
+        [WS_METHODS.projectsSearchContent]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.projectsSearchContent,
+            workspaceFileSystem.searchContent(input).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProjectCreateFileError({
+                    cwd: input.cwd,
+                    relativePath: "",
+                    kind: "file",
+                    ...projectFileFailureContext(cause),
+                    cause,
+                  }),
+              ),
+            ),
+            { "rpc.aggregate": "workspace" },
+          ),
         [WS_METHODS.shellOpenInEditor]: (input) =>
           observeRpcEffect(WS_METHODS.shellOpenInEditor, externalLauncher.launchEditor(input), {
             "rpc.aggregate": "workspace",
@@ -1833,6 +1919,46 @@ const makeWsRpcLayer = (
             gitWorkflow.switchRef(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
             { "rpc.aggregate": "vcs" },
           ),
+        [WS_METHODS.vcsShowFile]: (input) =>
+          observeRpcEffect(WS_METHODS.vcsShowFile, gitWorkflow.showFile(input), {
+            "rpc.aggregate": "vcs",
+          }),
+        [WS_METHODS.vcsDeleteRef]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.vcsDeleteRef,
+            gitWorkflow.deleteRef(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+            { "rpc.aggregate": "vcs" },
+          ),
+        [WS_METHODS.vcsLog]: (input) =>
+          observeRpcEffect(WS_METHODS.vcsLog, gitWorkflow.log(input), {
+            "rpc.aggregate": "vcs",
+          }),
+        [WS_METHODS.vcsListStashes]: (input) =>
+          observeRpcEffect(WS_METHODS.vcsListStashes, gitWorkflow.listStashes(input), {
+            "rpc.aggregate": "vcs",
+          }),
+        [WS_METHODS.vcsCreateStash]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.vcsCreateStash,
+            gitWorkflow.createStash(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+            { "rpc.aggregate": "vcs" },
+          ),
+        [WS_METHODS.vcsApplyStash]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.vcsApplyStash,
+            gitWorkflow.applyStash(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+            { "rpc.aggregate": "vcs" },
+          ),
+        [WS_METHODS.vcsDropStash]: (input) =>
+          observeRpcEffect(
+            WS_METHODS.vcsDropStash,
+            gitWorkflow.dropStash(input).pipe(Effect.tap(() => refreshGitStatus(input.cwd))),
+            { "rpc.aggregate": "vcs" },
+          ),
+        [WS_METHODS.vcsShowStash]: (input) =>
+          observeRpcEffect(WS_METHODS.vcsShowStash, gitWorkflow.showStash(input), {
+            "rpc.aggregate": "vcs",
+          }),
         [WS_METHODS.vcsInit]: (input) =>
           observeRpcEffect(
             WS_METHODS.vcsInit,

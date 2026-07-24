@@ -22,10 +22,18 @@ import type { ReviewDiffPreviewInput, ReviewDiffPreviewResult } from "./review.t
 import type { FilesystemBrowseInput, FilesystemBrowseResult } from "./filesystem.ts";
 import type { AssetCreateUrlInput, AssetCreateUrlResult } from "./assets.ts";
 import type {
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteFileInput,
+  ProjectDeleteFileResult,
+  ProjectSearchContentInput,
+  ProjectSearchContentResult,
   ProjectListEntriesInput,
   ProjectListEntriesResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenameFileInput,
+  ProjectRenameFileResult,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
   ProjectWriteFileInput,
@@ -1173,6 +1181,10 @@ export interface EnvironmentApi {
     readFile: (input: ProjectReadFileInput) => Promise<ProjectReadFileResult>;
     searchEntries: (input: ProjectSearchEntriesInput) => Promise<ProjectSearchEntriesResult>;
     writeFile: (input: ProjectWriteFileInput) => Promise<ProjectWriteFileResult>;
+    createFile: (input: ProjectCreateFileInput) => Promise<ProjectCreateFileResult>;
+    renameFile: (input: ProjectRenameFileInput) => Promise<ProjectRenameFileResult>;
+    deleteFile: (input: ProjectDeleteFileInput) => Promise<ProjectDeleteFileResult>;
+    searchContent: (input: ProjectSearchContentInput) => Promise<ProjectSearchContentResult>;
   };
   filesystem: {
     browse: (input: FilesystemBrowseInput) => Promise<FilesystemBrowseResult>;

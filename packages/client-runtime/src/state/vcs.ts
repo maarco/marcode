@@ -13,7 +13,11 @@ import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { Atom } from "effect/unstable/reactivity";
 
-import { createEnvironmentRpcCommand, createEnvironmentSubscriptionAtomFamily } from "./runtime.ts";
+import {
+  createEnvironmentRpcCommand,
+  createEnvironmentRpcQueryAtomFamily,
+  createEnvironmentSubscriptionAtomFamily,
+} from "./runtime.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import { EnvironmentSupervisor } from "../connection/supervisor.ts";
 import { safeErrorLogAttributes } from "../errors/safeLog.ts";
@@ -217,6 +221,50 @@ export function createVcsEnvironmentAtoms<R, E>(
       tag: WS_METHODS.vcsInit,
       scheduler: vcsCommandScheduler,
       concurrency: vcsCommandConcurrency,
+    }),
+    showFile: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:vcs:show-file",
+      tag: WS_METHODS.vcsShowFile,
+      staleTimeMs: 5_000,
+    }),
+    deleteRef: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:vcs:delete-ref",
+      tag: WS_METHODS.vcsDeleteRef,
+      scheduler: vcsCommandScheduler,
+      concurrency: vcsCommandConcurrency,
+    }),
+    log: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:vcs:log",
+      tag: WS_METHODS.vcsLog,
+      staleTimeMs: 15_000,
+    }),
+    listStashes: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:vcs:list-stashes",
+      tag: WS_METHODS.vcsListStashes,
+      staleTimeMs: 5_000,
+    }),
+    createStash: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:vcs:create-stash",
+      tag: WS_METHODS.vcsCreateStash,
+      scheduler: vcsCommandScheduler,
+      concurrency: vcsCommandConcurrency,
+    }),
+    applyStash: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:vcs:apply-stash",
+      tag: WS_METHODS.vcsApplyStash,
+      scheduler: vcsCommandScheduler,
+      concurrency: vcsCommandConcurrency,
+    }),
+    dropStash: createEnvironmentRpcCommand(runtime, {
+      label: "environment-data:vcs:drop-stash",
+      tag: WS_METHODS.vcsDropStash,
+      scheduler: vcsCommandScheduler,
+      concurrency: vcsCommandConcurrency,
+    }),
+    showStash: createEnvironmentRpcQueryAtomFamily(runtime, {
+      label: "environment-data:vcs:show-stash",
+      tag: WS_METHODS.vcsShowStash,
+      staleTimeMs: 15_000,
     }),
   };
 }

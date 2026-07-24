@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback } from "react";
 import { CloseCircleFilled, ArrowRight1Filled, PeopleFilled } from "@aliimam/icons";
-import { useEditorStore, usePane, isDirty } from "./editor-store";
+import { useEditorStore, usePane } from "./editor-store";
 import { getFileAccentColor } from "./file-tree";
+import { flushProjectFile, clearProjectFileQueryData } from "~/state/projectFileState";
 
 interface TabBarProps {
   paneId: string;
@@ -13,22 +14,8 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
   const setActiveFile = useEditorStore((s) => s.setActiveFile);
   const pinFile = useEditorStore((s) => s.pinFile);
   const closeFile = useEditorStore((s) => s.closeFile);
-  const markSaved = useEditorStore((s) => s.markSaved);
   const reorderFiles = useEditorStore((s) => s.reorderFiles);
-
-  const handleSave = useCallback(
-    async (filePath: string, content: string) => {
-      try {
-        const res = await fetch(`/api/editor/fs/file?path=${encodeURIComponent(filePath)}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content }),
-        });
-        if (res.ok) markSaved(filePath, content);
-      } catch {}
-    },
-    [markSaved],
-  );
+  const dirtyKeys = useEditorStore((s) => s.dirtyKeys);
 
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<number | null>(null);
@@ -94,7 +81,7 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
       {openFiles.map((file, index) => {
         const isActive = activeFile?.path === file.path;
         const isView = !!file.view;
-        const dirty = isDirty(file);
+        const dirty = dirtyKeys.has(file.path);
         const accent = isView ? "#22d3ee" : getFileAccentColor(file.path, rootPath);
         const isDragging = dragIndex === index;
         const showDropBefore = dropTarget === index;
@@ -164,7 +151,9 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleSave(file.path, file.content);
+                  if (file.environmentId && file.cwd && file.relativePath) {
+                    void flushProjectFile(file.environmentId, file.cwd, file.relativePath);
+                  }
                 }}
                 className="shrink-0 opacity-0 group-hover:opacity-80 hover:opacity-100 transition-all text-amber-400/70 hover:text-amber-400"
                 title="Save (Cmd+S)"
@@ -185,7 +174,12 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (dirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
+                const fileDirty = dirtyKeys.has(file.path);
+                if (fileDirty && !window.confirm(`Discard unsaved changes to ${file.name}?`))
+                  return;
+                if (fileDirty && file.environmentId && file.cwd && file.relativePath) {
+                  clearProjectFileQueryData(file.environmentId, file.cwd, file.relativePath);
+                }
                 closeFile(paneId, file.path);
               }}
               className="shrink-0 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-all"

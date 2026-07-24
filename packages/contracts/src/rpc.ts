@@ -38,6 +38,22 @@ import {
   VcsStatusInput,
   VcsStatusResult,
   VcsStatusStreamEvent,
+  VcsShowFileInput,
+  VcsShowFileResult,
+  VcsDeleteRefInput,
+  VcsDeleteRefResult,
+  VcsLogInput,
+  VcsLogResult,
+  VcsListStashesInput,
+  VcsListStashesResult,
+  VcsCreateStashInput,
+  VcsCreateStashResult,
+  VcsApplyStashInput,
+  VcsApplyStashResult,
+  VcsDropStashInput,
+  VcsDropStashResult,
+  VcsShowStashInput,
+  VcsShowStashResult,
 } from "./git.ts";
 import {
   ReviewDiffPreviewError,
@@ -65,12 +81,23 @@ import {
   RelayClientStatusSchema,
 } from "./relayClient.ts";
 import {
+  ProjectCreateFileError,
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteFileError,
+  ProjectDeleteFileInput,
+  ProjectDeleteFileResult,
+  ProjectSearchContentInput,
+  ProjectSearchContentResult,
   ProjectListEntriesError,
   ProjectListEntriesInput,
   ProjectListEntriesResult,
   ProjectReadFileError,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenameFileError,
+  ProjectRenameFileInput,
+  ProjectRenameFileResult,
   ProjectSearchEntriesError,
   ProjectSearchEntriesInput,
   ProjectSearchEntriesResult,
@@ -153,6 +180,10 @@ export const WS_METHODS = {
   projectsReadFile: "projects.readFile",
   projectsSearchEntries: "projects.searchEntries",
   projectsWriteFile: "projects.writeFile",
+  projectsCreateFile: "projects.createFile",
+  projectsRenameFile: "projects.renameFile",
+  projectsDeleteFile: "projects.deleteFile",
+  projectsSearchContent: "projects.searchContent",
 
   // Shell methods
   shellOpenInEditor: "shell.openInEditor",
@@ -170,6 +201,14 @@ export const WS_METHODS = {
   vcsCreateRef: "vcs.createRef",
   vcsSwitchRef: "vcs.switchRef",
   vcsInit: "vcs.init",
+  vcsShowFile: "vcs.showFile",
+  vcsDeleteRef: "vcs.deleteRef",
+  vcsLog: "vcs.log",
+  vcsListStashes: "vcs.listStashes",
+  vcsCreateStash: "vcs.createStash",
+  vcsApplyStash: "vcs.applyStash",
+  vcsDropStash: "vcs.dropStash",
+  vcsShowStash: "vcs.showStash",
 
   // Git workflow methods
   gitRunStackedAction: "git.runStackedAction",
@@ -385,6 +424,30 @@ export const WsProjectsWriteFileRpc = Rpc.make(WS_METHODS.projectsWriteFile, {
   error: Schema.Union([ProjectWriteFileError, EnvironmentAuthorizationError]),
 });
 
+export const WsProjectsCreateFileRpc = Rpc.make(WS_METHODS.projectsCreateFile, {
+  payload: ProjectCreateFileInput,
+  success: ProjectCreateFileResult,
+  error: Schema.Union([ProjectCreateFileError, EnvironmentAuthorizationError]),
+});
+
+export const WsProjectsRenameFileRpc = Rpc.make(WS_METHODS.projectsRenameFile, {
+  payload: ProjectRenameFileInput,
+  success: ProjectRenameFileResult,
+  error: Schema.Union([ProjectRenameFileError, EnvironmentAuthorizationError]),
+});
+
+export const WsProjectsDeleteFileRpc = Rpc.make(WS_METHODS.projectsDeleteFile, {
+  payload: ProjectDeleteFileInput,
+  success: ProjectDeleteFileResult,
+  error: Schema.Union([ProjectDeleteFileError, EnvironmentAuthorizationError]),
+});
+
+export const WsProjectsSearchContentRpc = Rpc.make(WS_METHODS.projectsSearchContent, {
+  payload: ProjectSearchContentInput,
+  success: ProjectSearchContentResult,
+  error: Schema.Union([ProjectCreateFileError, EnvironmentAuthorizationError]),
+});
+
 export const WsShellOpenInEditorRpc = Rpc.make(WS_METHODS.shellOpenInEditor, {
   payload: LaunchEditorInput,
   error: Schema.Union([ExternalLauncherError, EnvironmentAuthorizationError]),
@@ -472,6 +535,54 @@ export const WsVcsSwitchRefRpc = Rpc.make(WS_METHODS.vcsSwitchRef, {
 export const WsVcsInitRpc = Rpc.make(WS_METHODS.vcsInit, {
   payload: VcsInitInput,
   error: Schema.Union([VcsError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsShowFileRpc = Rpc.make(WS_METHODS.vcsShowFile, {
+  payload: VcsShowFileInput,
+  success: VcsShowFileResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsDeleteRefRpc = Rpc.make(WS_METHODS.vcsDeleteRef, {
+  payload: VcsDeleteRefInput,
+  success: VcsDeleteRefResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsLogRpc = Rpc.make(WS_METHODS.vcsLog, {
+  payload: VcsLogInput,
+  success: VcsLogResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsListStashesRpc = Rpc.make(WS_METHODS.vcsListStashes, {
+  payload: VcsListStashesInput,
+  success: VcsListStashesResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsCreateStashRpc = Rpc.make(WS_METHODS.vcsCreateStash, {
+  payload: VcsCreateStashInput,
+  success: VcsCreateStashResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsApplyStashRpc = Rpc.make(WS_METHODS.vcsApplyStash, {
+  payload: VcsApplyStashInput,
+  success: VcsApplyStashResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsDropStashRpc = Rpc.make(WS_METHODS.vcsDropStash, {
+  payload: VcsDropStashInput,
+  success: VcsDropStashResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
+});
+
+export const WsVcsShowStashRpc = Rpc.make(WS_METHODS.vcsShowStash, {
+  payload: VcsShowStashInput,
+  success: VcsShowStashResult,
+  error: Schema.Union([GitCommandError, EnvironmentAuthorizationError]),
 });
 
 /**
@@ -711,6 +822,10 @@ export const WsRpcGroup = RpcGroup.make(
   WsProjectsReadFileRpc,
   WsProjectsSearchEntriesRpc,
   WsProjectsWriteFileRpc,
+  WsProjectsCreateFileRpc,
+  WsProjectsRenameFileRpc,
+  WsProjectsDeleteFileRpc,
+  WsProjectsSearchContentRpc,
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
   WsAssetsCreateUrlRpc,
@@ -726,6 +841,14 @@ export const WsRpcGroup = RpcGroup.make(
   WsVcsCreateRefRpc,
   WsVcsSwitchRefRpc,
   WsVcsInitRpc,
+  WsVcsShowFileRpc,
+  WsVcsDeleteRefRpc,
+  WsVcsLogRpc,
+  WsVcsListStashesRpc,
+  WsVcsCreateStashRpc,
+  WsVcsApplyStashRpc,
+  WsVcsDropStashRpc,
+  WsVcsShowStashRpc,
   WsReviewGetDiffPreviewRpc,
   WsTerminalOpenRpc,
   WsTerminalAttachRpc,

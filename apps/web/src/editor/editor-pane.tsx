@@ -1,6 +1,14 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { useEditorStore, usePane, isDirty } from "./editor-store";
-import { getApiErrorMessage } from "./api";
+import { useEditorStore, usePane, type FileData } from "./editor-store";
+import {
+  flushProjectFile,
+  cancelProjectFile,
+  useProjectFile,
+  useProjectFileEditor,
+  clearProjectFileQueryData,
+} from "~/state/projectFileState";
+import { useEnvironmentQuery } from "~/state/query";
+import { vcsEnvironment } from "~/state/vcs";
 import { WaveSpinner } from "./wave-spinner";
 import { StatusBar } from "./status-bar";
 import { getFileAccentColor } from "./file-tree";
@@ -123,98 +131,41 @@ interface EditorPaneProps {
 }
 
 export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
-  const { activeFile, pane } = usePane(paneId);
-  const updateContent = useEditorStore((s) => s.updateContent);
-  const markSaved = useEditorStore((s) => s.markSaved);
+  const { activeFile: file, pane } = usePane(paneId);
   const closeFileAction = useEditorStore((s) => s.closeFile);
   const setActiveFileAction = useEditorStore((s) => s.setActiveFile);
-  const pendingReveal = useEditorStore((s) => s.pendingReveal);
-  const setPendingReveal = useEditorStore((s) => s.setPendingReveal);
-  const editorConfig = useEditorStore((s) => s.editorConfig);
-
-  const file = activeFile;
-
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState("");
-  const [cursorLine, setCursorLine] = useState(1);
-  const [cursorColumn, setCursorColumn] = useState(1);
-  const [selectionLength, setSelectionLength] = useState(0);
-  const [mdPreview, setMdPreview] = useState(true);
-  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
-  const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
+  const dirtyKeys = useEditorStore((s) => s.dirtyKeys);
 
   const isMarkdown = file ? file.ext === ".md" || file.ext === ".mdx" : false;
 
-  // reset to preview mode when switching to a markdown file
-  const prevPathRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (file && file.path !== prevPathRef.current) {
-      prevPathRef.current = file.path;
-      const isMd = file.ext === ".md" || file.ext === ".mdx";
-      setMdPreview(isMd);
-    }
-  }, [file]);
-
-  const accent = file ? getFileAccentColor(file.path, rootPath) : "#64748b";
-
-  const handleBeforeMount = useCallback(
-    (monaco: typeof import("monaco-editor")) => {
-      monacoRef.current = monaco;
-      defineVoidTheme(monaco, accent);
-    },
-    [accent],
-  );
-
-  // re-define theme when accent changes
-  useEffect(() => {
-    if (monacoRef.current) {
-      defineVoidTheme(monacoRef.current, accent);
-    }
-  }, [accent]);
-
-  const handleSave = useCallback(async () => {
-    if (!file || !isDirty(file)) return;
-    setSaving(true);
-    setSaveError("");
-    try {
-      const res = await fetch(`/api/editor/fs/file?path=${encodeURIComponent(file.path)}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: file.content }),
-      });
-      const raw = await res.json();
-      if (res.ok) {
-        markSaved(file.path, file.content);
-        setSaveError("");
-      } else {
-        setSaveError(getApiErrorMessage(raw, "save failed"));
-      }
-    } catch {
-      setSaveError("save failed");
-    } finally {
-      setSaving(false);
-    }
-  }, [file, markSaved]);
-
-  // keyboard shortcuts
+  // keyboard shortcuts (operate on the active file regardless of editor kind)
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
+      if (!file?.path) return;
 
-      // cmd+s save
+      // cmd+s save (force-flush via the shared coordinator registry)
       if (mod && e.key === "s") {
         e.preventDefault();
-        handleSave();
+        if (file.relativePath && file.environmentId && file.cwd) {
+          void flushProjectFile(file.environmentId, file.cwd, file.relativePath);
+        }
         return;
       }
 
       // cmd+w close active tab
       if (mod && e.key === "w") {
         e.preventDefault();
-        if (file?.path) {
-          if (isDirty(file) && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
-          closeFileAction(paneId, file.path);
+        const dirty = dirtyKeys.has(file.path);
+        if (dirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
+        // stop the pending autosave, then drop the optimistic overlay so the
+        // discard reverts to server content. Order matters: stop writes →
+        // drop overlay → unmount.
+        if (dirty && file.environmentId && file.cwd && file.relativePath) {
+          cancelProjectFile(file.environmentId, file.cwd, file.relativePath);
+          clearProjectFileQueryData(file.environmentId, file.cwd, file.relativePath);
         }
+        closeFileAction(paneId, file.path);
         return;
       }
 
@@ -222,7 +173,7 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
       if (mod && e.shiftKey && e.key === "[") {
         e.preventDefault();
         if (!pane) return;
-        const idx = pane.openPaths.indexOf(file?.path ?? "");
+        const idx = pane.openPaths.indexOf(file.path ?? "");
         if (idx > 0) setActiveFileAction(paneId, pane.openPaths[idx - 1]!);
         return;
       }
@@ -231,61 +182,19 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
       if (mod && e.shiftKey && e.key === "]") {
         e.preventDefault();
         if (!pane) return;
-        const idx = pane.openPaths.indexOf(file?.path ?? "");
+        const idx = pane.openPaths.indexOf(file.path ?? "");
         if (idx < pane.openPaths.length - 1) setActiveFileAction(paneId, pane.openPaths[idx + 1]!);
         return;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleSave, file, closeFileAction, setActiveFileAction, pane, paneId]);
-
-  const handleEditorMount = useCallback(
-    (editorInstance: editor.IStandaloneCodeEditor) => {
-      editorRef.current = editorInstance;
-      editorInstance.onDidChangeCursorPosition((e) => {
-        setCursorLine(e.position.lineNumber);
-        setCursorColumn(e.position.column);
-      });
-      editorInstance.onDidChangeCursorSelection(() => {
-        const sel = editorInstance.getSelection();
-        if (sel) {
-          const text = editorInstance.getModel()?.getValueInRange(sel) ?? "";
-          setSelectionLength(text.length);
-        }
-      });
-
-      // check for pending reveal on mount
-      if (pendingReveal && file && pendingReveal.path === file.path) {
-        editorInstance.revealLineInCenter(pendingReveal.line);
-        editorInstance.setPosition({
-          lineNumber: pendingReveal.line,
-          column: pendingReveal.column,
-        });
-        setPendingReveal(null);
-      }
-    },
-    [file, pendingReveal, setPendingReveal],
-  );
-
-  // handle pending reveal when switching tabs (file path changes)
-  useEffect(() => {
-    if (!pendingReveal || !file || pendingReveal.path !== file.path) return;
-    if (!editorRef.current) return;
-
-    editorRef.current.revealLineInCenter(pendingReveal.line);
-    editorRef.current.setPosition({
-      lineNumber: pendingReveal.line,
-      column: pendingReveal.column,
-    });
-    setPendingReveal(null);
-  }, [file, file?.path, pendingReveal, setPendingReveal]);
+  }, [file, pane, paneId, closeFileAction, setActiveFileAction, dirtyKeys]);
 
   if (!file) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 flex flex-col items-center justify-center gap-4 relative">
-          {/* subtle dot grid behind */}
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
@@ -321,7 +230,123 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
     return null;
   }
 
-  if (file.loading) {
+  // virtual (non-env) read-only content, e.g. a commit patch
+  if (file.virtualContent !== undefined) {
+    return <VirtualFileEditor file={file} rootPath={rootPath} />;
+  }
+
+  return <EnvFileEditor file={file} rootPath={rootPath} isMarkdown={isMarkdown} />;
+}
+
+interface ChildProps {
+  file: FileData;
+  rootPath: string;
+}
+
+function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown: boolean }) {
+  const pendingReveal = useEditorStore((s) => s.pendingReveal);
+  const setPendingReveal = useEditorStore((s) => s.setPendingReveal);
+  const editorConfig = useEditorStore((s) => s.editorConfig);
+  const setFileDirty = useEditorStore((s) => s.setFileDirty);
+
+  const fileState = useProjectFile(file.environmentId, file.cwd, file.relativePath);
+  // stable per open file so useProjectFileEditor's coordinator useMemo (keyed
+  // in part on this callback) isn't rebuilt on every render — see
+  // FileSaveCoordinator's dispose()-forces-persist semantics.
+  const onPendingChange = useCallback(
+    (pending: boolean) => setFileDirty(file.path, pending),
+    [setFileDirty, file.path],
+  );
+  const editor = useProjectFileEditor(file.environmentId, file.cwd, file.relativePath, {
+    onPendingChange,
+  });
+
+  // HEAD contents for the diff view come from the env-scoped VCS `showFile`
+  // atom (file contents at HEAD). Working/modified content stays in the shared
+  // project-file layer below. `diffOriginal` now only flags "this is a diff tab".
+  const isDiff = file.diffOriginal !== undefined;
+  const headQuery = useEnvironmentQuery(
+    isDiff
+      ? vcsEnvironment.showFile({
+          environmentId: file.environmentId,
+          input: { cwd: file.cwd, relativePath: file.relativePath },
+        })
+      : null,
+  );
+
+  const [cursorLine, setCursorLine] = useState(1);
+  const [cursorColumn, setCursorColumn] = useState(1);
+  const [selectionLength, setSelectionLength] = useState(0);
+  const [mdPreview, setMdPreview] = useState(true);
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
+
+  // reset to preview mode when switching to a markdown file
+  const prevPathRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (file.path !== prevPathRef.current) {
+      prevPathRef.current = file.path;
+      setMdPreview(isMarkdown);
+    }
+  }, [file.path, isMarkdown]);
+
+  const accent = getFileAccentColor(file.path, rootPath);
+
+  const handleBeforeMount = useCallback(
+    (monaco: typeof import("monaco-editor")) => {
+      monacoRef.current = monaco;
+      defineVoidTheme(monaco, accent);
+    },
+    [accent],
+  );
+
+  // re-define theme when accent changes
+  useEffect(() => {
+    if (monacoRef.current) {
+      defineVoidTheme(monacoRef.current, accent);
+    }
+  }, [accent]);
+
+  const handleEditorMount = useCallback(
+    (editorInstance: editor.IStandaloneCodeEditor) => {
+      editorRef.current = editorInstance;
+      editorInstance.onDidChangeCursorPosition((e) => {
+        setCursorLine(e.position.lineNumber);
+        setCursorColumn(e.position.column);
+      });
+      editorInstance.onDidChangeCursorSelection(() => {
+        const sel = editorInstance.getSelection();
+        if (sel) {
+          const text = editorInstance.getModel()?.getValueInRange(sel) ?? "";
+          setSelectionLength(text.length);
+        }
+      });
+
+      if (pendingReveal && pendingReveal.path === file.path) {
+        editorInstance.revealLineInCenter(pendingReveal.line);
+        editorInstance.setPosition({
+          lineNumber: pendingReveal.line,
+          column: pendingReveal.column,
+        });
+        setPendingReveal(null);
+      }
+    },
+    [file.path, pendingReveal, setPendingReveal],
+  );
+
+  // handle pending reveal when switching tabs
+  useEffect(() => {
+    if (!pendingReveal || pendingReveal.path !== file.path) return;
+    if (!editorRef.current) return;
+    editorRef.current.revealLineInCenter(pendingReveal.line);
+    editorRef.current.setPosition({
+      lineNumber: pendingReveal.line,
+      column: pendingReveal.column,
+    });
+    setPendingReveal(null);
+  }, [file.path, pendingReveal, setPendingReveal]);
+
+  if (fileState.isPending && fileState.contents === null) {
     return (
       <div className="flex flex-col h-full">
         <div className="flex-1 flex items-center justify-center">
@@ -332,8 +357,9 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
   }
 
   const language = EXT_TO_LANG[file.ext] ?? "plaintext";
-
+  const contents = fileState.contents ?? "";
   const showMarkdownPreview = isMarkdown && mdPreview;
+  const diffOriginal = isDiff ? (headQuery.data?.contents ?? "") : undefined;
 
   return (
     <div className="flex flex-col h-full">
@@ -341,16 +367,16 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
         {showMarkdownPreview ? (
           <div className="overflow-y-auto h-full">
             <div className="max-w-3xl mx-auto px-8 py-8">
-              <Markdown content={file.content} />
+              <Markdown content={contents} />
             </div>
           </div>
-        ) : file.originalContent !== undefined ? (
+        ) : isDiff ? (
           <Suspense fallback={<MonacoLoading />}>
             <MonacoDiffEditor
               height="100%"
               language={language}
-              original={file.originalContent}
-              modified={file.content}
+              original={diffOriginal ?? ""}
+              modified={contents}
               beforeMount={handleBeforeMount}
               theme="mentiko-void"
               options={{
@@ -376,8 +402,8 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
               height="100%"
               path={file.path}
               language={language}
-              value={file.content}
-              onChange={(val) => updateContent(file.path, val ?? "")}
+              value={contents}
+              onChange={(val) => editor.update(val ?? "")}
               onMount={handleEditorMount}
               beforeMount={handleBeforeMount}
               theme="mentiko-void"
@@ -420,7 +446,7 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
         )}
 
         {/* floating save indicator - offset right when md toggle is present */}
-        {file && isDirty(file) && (
+        {fileState.isDirty && (
           <div
             className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.15)] text-[9px] font-mono text-amber-400/60 animate-in fade-in duration-300 ${isMarkdown ? "right-[72px]" : "right-4"}`}
           >
@@ -428,26 +454,89 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
             unsaved
           </div>
         )}
-        {saving && (
+        {editor.isSaving && (
           <div
             className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] text-[9px] font-mono text-white/40 ${isMarkdown ? "right-[72px]" : "right-4"}`}
           >
             saving...
           </div>
         )}
-        {!saving && saveError && (
-          <div
-            className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-red-500/10 shadow-[0_0_0_1px_rgba(239,68,68,0.2)] text-[9px] font-mono text-red-400/80 cursor-pointer ${isMarkdown ? "right-[72px]" : "right-4"}`}
-            title={saveError}
-            onClick={() => setSaveError("")}
-          >
-            ✕ {saveError.length > 40 ? saveError.slice(0, 40) + "…" : saveError}
-          </div>
-        )}
       </div>
 
       <StatusBar
-        paneId={paneId}
+        contents={contents}
+        ext={file.ext}
+        dirty={fileState.isDirty}
+        cursorLine={cursorLine}
+        cursorColumn={cursorColumn}
+        selectionLength={selectionLength}
+      />
+    </div>
+  );
+}
+
+function VirtualFileEditor({ file, rootPath }: ChildProps) {
+  const editorConfig = useEditorStore((s) => s.editorConfig);
+  const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
+  const [cursorLine, setCursorLine] = useState(1);
+  const [cursorColumn, setCursorColumn] = useState(1);
+  const [selectionLength, setSelectionLength] = useState(0);
+
+  const accent = getFileAccentColor(file.path, rootPath);
+
+  const handleBeforeMount = useCallback(
+    (monaco: typeof import("monaco-editor")) => {
+      monacoRef.current = monaco;
+      defineVoidTheme(monaco, accent);
+    },
+    [accent],
+  );
+
+  const handleEditorMount = useCallback((editorInstance: editor.IStandaloneCodeEditor) => {
+    editorInstance.onDidChangeCursorPosition((e) => {
+      setCursorLine(e.position.lineNumber);
+      setCursorColumn(e.position.column);
+    });
+    editorInstance.onDidChangeCursorSelection(() => {
+      const sel = editorInstance.getSelection();
+      if (sel) {
+        const text = editorInstance.getModel()?.getValueInRange(sel) ?? "";
+        setSelectionLength(text.length);
+      }
+    });
+  }, []);
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="flex-1 relative overflow-hidden">
+        <Suspense fallback={<MonacoLoading />}>
+          <MonacoEditor
+            height="100%"
+            path={file.path}
+            language="diff"
+            value={file.virtualContent ?? ""}
+            beforeMount={handleBeforeMount}
+            onMount={handleEditorMount}
+            theme="mentiko-void"
+            options={{
+              fontSize: editorConfig.fontSize,
+              fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
+              lineHeight: 1.6,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              padding: { top: 8, bottom: 8 },
+              smoothScrolling: true,
+              readOnly: true,
+              lineNumbers: editorConfig.lineNumbers,
+              overviewRulerBorder: false,
+            }}
+          />
+        </Suspense>
+      </div>
+      <StatusBar
+        contents={file.virtualContent ?? ""}
+        ext={file.ext}
+        dirty={false}
         cursorLine={cursorLine}
         cursorColumn={cursorColumn}
         selectionLength={selectionLength}

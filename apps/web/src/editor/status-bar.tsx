@@ -1,5 +1,3 @@
-import { usePane, isDirty } from "./editor-store";
-
 const EXT_TO_LANG: Record<string, string> = {
   ".ts": "TypeScript",
   ".tsx": "TypeScript React",
@@ -22,31 +20,35 @@ const EXT_TO_LANG: Record<string, string> = {
   ".sql": "SQL",
   ".toml": "TOML",
   ".txt": "Plain Text",
+  ".diff": "Diff",
 };
 
 interface StatusBarProps {
-  paneId: string;
+  contents: string;
+  ext: string;
+  dirty: boolean;
   cursorLine: number;
   cursorColumn: number;
   selectionLength?: number;
 }
 
-export function StatusBar({ paneId, cursorLine, cursorColumn, selectionLength }: StatusBarProps) {
-  const { activeFile } = usePane(paneId);
-  const file = activeFile;
-
-  if (!file) return null;
-
-  const language = EXT_TO_LANG[file.ext] ?? "Plain Text";
-  const lines = file.content.split("\n").length;
-  const size = new Blob([file.content]).size;
+export function StatusBar({
+  contents,
+  ext,
+  dirty,
+  cursorLine,
+  cursorColumn,
+  selectionLength,
+}: StatusBarProps) {
+  const language = EXT_TO_LANG[ext] ?? "Plain Text";
+  const lines = contents.split("\n").length;
+  const size = new Blob([contents]).size;
   const sizeLabel =
     size < 1024
       ? `${size} B`
       : size < 1024 * 1024
         ? `${(size / 1024).toFixed(1)} KB`
         : `${(size / 1024 / 1024).toFixed(1)} MB`;
-  const dirty = isDirty(file);
 
   return (
     <div

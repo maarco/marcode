@@ -1,62 +1,47 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { AddFilled, MinusFilled, Refresh2Filled, ClockFilled, BoxFilled } from "@aliimam/icons";
 import { WaveSpinner } from "./wave-spinner";
-import { useEditorStore } from "./editor-store";
+import { useEditorStore, makeFileRef } from "./editor-store";
 import { BranchSelector } from "./branch-selector";
 import { StashSelector } from "./stash-selector";
-import type { GitStatusResult, GitLogEntry, GitFileStatus } from "./git-types";
+import { showToast } from "./toast";
+import { useEnvironmentQuery } from "~/state/query";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { vcsEnvironment } from "~/state/vcs";
+import { useGitStackedAction } from "~/state/sourceControlActions";
+import { randomUUID } from "~/lib/utils";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+  type AtomCommandResult,
+} from "@t3tools/client-runtime/state/runtime";
+import type { VcsStatusResult, VcsLogCommit } from "@t3tools/contracts";
 
-// ── status badge ────────────────────────────────────────────────────────────
-
-function StatusBadge({ code }: { code: string }) {
-  const x = code[0];
-  const y = code[1];
-  const isUntracked = x === "?" && y === "?";
-  const isAdded = x === "A";
-  const isRenamed = x === "R";
-  const isDeleted = x === "D" || y === "D";
-  const isModified = x === "M" || y === "M";
-
-  let label = "?";
-  let color = "text-foreground/30 dark:text-white/30";
-
-  if (isUntracked) {
-    label = "U";
-    color = "text-cyan-400/70";
-  } else if (isAdded) {
-    label = "A";
-    color = "text-emerald-400/70";
-  } else if (isRenamed) {
-    label = "R";
-    color = "text-yellow-400/70";
-  } else if (isDeleted) {
-    label = "D";
-    color = "text-red-400/70";
-  } else if (isModified) {
-    label = "M";
-    color = "text-yellow-400/70";
-  }
-
-  return <span className={`text-[9px] font-mono font-bold w-3 shrink-0 ${color}`}>{label}</span>;
+/** Extract a user-facing message from a settled atom command result. */
+function resultErrorMessage(result: AtomCommandResult<unknown, unknown>): string | null {
+  if (result._tag === "Success") return null;
+  if (isAtomCommandInterrupted(result)) return null;
+  const error = squashAtomCommandFailure(result);
+  return error instanceof Error && error.message.length > 0 ? error.message : "Operation failed";
 }
 
 // ── file row ────────────────────────────────────────────────────────────────
 
+type WorkingTreeFile = VcsStatusResult["workingTree"]["files"][number];
+
 function FileRow({
   file,
-  onStage,
-  onUnstage,
+  included,
+  onToggleInclude,
   onFileClick,
 }: {
-  file: GitFileStatus;
-  onStage: (path: string) => void;
-  onUnstage: (path: string) => void;
+  file: WorkingTreeFile;
+  included: boolean;
+  onToggleInclude: (path: string, included: boolean) => void;
   onFileClick: (path: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const canStage = file.unstaged || file.untracked;
-  const canUnstage = file.staged;
-  const dir = file.path.includes("/") ? file.path.replace(`/${file.name}`, "") : null;
+  const dir = file.path.includes("/") ? file.path.replace(/\/[^/]*$/, "") : null;
 
   return (
     <div
@@ -65,40 +50,44 @@ function FileRow({
       onMouseLeave={() => setHovered(false)}
       onClick={() => onFileClick(file.path)}
     >
-      <StatusBadge code={file.statusCode} />
+      <span className="text-[9px] font-mono font-bold w-3 shrink-0 text-yellow-400/70">M</span>
       <span
         className="flex-1 text-[11px] font-mono text-foreground/60 dark:text-white/60 truncate"
         title={file.path}
       >
-        {file.name}
+        {file.path.split("/").pop() ?? file.path}
         {dir && (
           <span className="ml-1 text-[9px] text-foreground/25 dark:text-white/25">{dir}</span>
         )}
       </span>
+      {/* insertion / deletion stats — flat working-tree model has no staged split */}
+      <span className="text-[9px] font-mono shrink-0">
+        {file.insertions > 0 && <span className="text-emerald-400/70">+{file.insertions}</span>}
+        {file.deletions > 0 && <span className="text-red-400/70"> -{file.deletions}</span>}
+      </span>
       {hovered && (
         <div className="flex items-center gap-0.5 shrink-0">
-          {canStage && (
+          {included ? (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onStage(file.path);
+                onToggleInclude(file.path, false);
               }}
-              title="Stage file"
-              className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-emerald-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
-            >
-              <AddFilled className="h-3 w-3" />
-            </button>
-          )}
-          {canUnstage && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onUnstage(file.path);
-              }}
-              title="Unstage file"
+              title="Exclude from commit"
               className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-yellow-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
             >
               <MinusFilled className="h-3 w-3" />
+            </button>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleInclude(file.path, true);
+              }}
+              title="Include in commit"
+              className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-emerald-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+            >
+              <AddFilled className="h-3 w-3" />
             </button>
           )}
         </div>
@@ -112,15 +101,11 @@ function FileRow({
 function SectionHeader({
   label,
   count,
-  onStageAll,
-  onUnstageAll,
-  type,
+  onIncludeAll,
 }: {
   label: string;
   count: number;
-  onStageAll?: () => void;
-  onUnstageAll?: () => void;
-  type: "staged" | "changes" | "untracked";
+  onIncludeAll?: () => void;
 }) {
   return (
     <div className="flex items-center justify-between px-3 py-1 shrink-0">
@@ -129,22 +114,13 @@ function SectionHeader({
       </span>
       <div className="flex items-center gap-1">
         <span className="text-[10px] text-foreground/25 dark:text-white/25 font-mono">{count}</span>
-        {type !== "staged" && onStageAll && (
+        {onIncludeAll && (
           <button
-            onClick={onStageAll}
-            title="Stage all"
+            onClick={onIncludeAll}
+            title="Include all"
             className="text-[9px] text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors"
           >
-            stage all
-          </button>
-        )}
-        {type === "staged" && onUnstageAll && (
-          <button
-            onClick={onUnstageAll}
-            title="Unstage all"
-            className="text-[9px] text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors"
-          >
-            unstage all
+            include all
           </button>
         )}
       </div>
@@ -154,13 +130,7 @@ function SectionHeader({
 
 // ── log view ────────────────────────────────────────────────────────────────
 
-function LogView({
-  entries,
-  onCommitClick,
-}: {
-  entries: GitLogEntry[];
-  onCommitClick?: (entry: GitLogEntry) => void;
-}) {
+function LogView({ entries }: { entries: readonly VcsLogCommit[] }) {
   if (!entries.length) {
     return (
       <div className="px-3 py-4 text-xs text-foreground/25 dark:text-white/25 text-center">
@@ -173,38 +143,30 @@ function LogView({
     <div className="flex-1 overflow-y-auto">
       {entries.map((entry) => (
         <div
-          key={entry.hash}
-          onClick={() => onCommitClick?.(entry)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onCommitClick?.(entry);
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          title="Open commit diff"
-          className="px-3 py-1.5 border-b border-foreground/5 dark:border-white/5 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors cursor-pointer focus:outline-none focus:bg-foreground/5 dark:focus:bg-white/5"
+          key={entry.sha}
+          className="px-3 py-1.5 border-b border-foreground/5 dark:border-white/5 transition-colors"
         >
           <div className="flex items-center gap-2">
             <span className="text-[9px] font-mono text-foreground/25 dark:text-white/25 shrink-0 w-12">
-              {entry.shortHash}
+              {entry.shortSha}
             </span>
-            {entry.refs && (
-              <span className="text-[9px] font-mono text-cyan-400/60 shrink-0 truncate max-w-[60px]">
-                {entry.refs.split(",")[0]?.trim()}
-              </span>
-            )}
           </div>
           <div className="mt-0.5 text-[11px] text-foreground/70 dark:text-white/70 truncate">
             {entry.message}
           </div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="text-[9px] text-foreground/25 dark:text-white/25">{entry.author}</span>
-            <span className="text-[9px] text-foreground/20 dark:text-white/20">{entry.date}</span>
+            <span className="text-[9px] text-foreground/20 dark:text-white/20">
+              {new Date(entry.date as unknown as number).toLocaleDateString()}
+            </span>
           </div>
         </div>
       ))}
+      {entries.length > 0 && (
+        <div className="px-3 py-1 text-[9px] text-foreground/20 dark:text-white/20 text-center">
+          showing latest {entries.length}
+        </div>
+      )}
     </div>
   );
 }
@@ -214,245 +176,146 @@ function LogView({
 type ActiveView = "status" | "stash" | "log";
 
 interface GitPanelProps {
+  /** Absolute workspace path (the environment cwd). */
   workspacePath: string;
 }
 
 export function GitPanel({ workspacePath }: GitPanelProps) {
-  const openFile = useEditorStore((s) => s.openFile);
-  const setFileLoading = useEditorStore((s) => s.setFileLoading);
+  const openDiffFile = useEditorStore((s) => s.openDiffFile);
   const activePaneId = useEditorStore((s) => s.activePaneId);
+  const environmentId = useEditorStore((s) => s.environmentId);
 
-  const [status, setStatus] = useState<GitStatusResult | null>(null);
-  const [logEntries, setLogEntries] = useState<GitLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
   const [commitMsg, setCommitMsg] = useState("");
   const [activeView, setActiveView] = useState<ActiveView>("status");
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // files excluded from the next commit (default: everything included). The VCS
+  // model has no staged/unstaged split — runStackedAction commits the given
+  // filePaths directly, so selection is "exclude from commit".
+  const [excludedPaths, setExcludedPaths] = useState<Set<string>>(new Set());
 
-  const gitPost = useCallback(
-    async (body: Record<string, unknown>) => {
-      const res = await fetch("/api/editor/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspacePath, ...body }),
-      });
-      const raw = (await res.json()) as {
-        success: boolean;
-        data: unknown;
-        error?: { message: string };
-      };
-      if (!raw.success) throw new Error(raw.error?.message ?? "git error");
-      return raw.data;
-    },
-    [workspacePath],
+  const ready = environmentId !== null;
+
+  // ── status subscription (flat working-tree file list) ──────────────────────
+  const statusQuery = useEnvironmentQuery(
+    ready
+      ? vcsEnvironment.status({ environmentId: environmentId!, input: { cwd: workspacePath } })
+      : null,
+  );
+  const logQuery = useEnvironmentQuery(
+    ready
+      ? vcsEnvironment.log({
+          environmentId: environmentId!,
+          input: { cwd: workspacePath, limit: 50 },
+        })
+      : null,
   );
 
-  const refresh = useCallback(async () => {
-    try {
-      const data = await gitPost({ action: "status" });
-      setStatus(data as GitStatusResult);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "failed to read git status");
-    } finally {
-      setLoading(false);
-    }
-  }, [gitPost]);
+  const refreshStatus = useAtomCommand(vcsEnvironment.refreshStatus, { reportFailure: false });
 
-  const refreshLog = useCallback(async () => {
-    try {
-      const data = await gitPost({ action: "log" });
-      setLogEntries((data as { entries: GitLogEntry[] }).entries ?? []);
-    } catch {}
-  }, [gitPost]);
+  // commit/push flow (T3 stacked action — commits selected filePaths directly)
+  const stackedAction = useGitStackedAction({ environmentId, cwd: workspacePath });
+  const actionPending = stackedAction.isPending;
 
-  // initial load
+  const status = statusQuery.data ?? null;
+  const workingFiles = status?.workingTree.files ?? [];
+  const excludedCount = workingFiles.filter((f) => excludedPaths.has(f.path)).length;
+  const selectedFiles = workingFiles.filter((f) => !excludedPaths.has(f.path));
+  const totalChanges = workingFiles.length;
+
+  const branchName = status?.refName ?? "…";
+  const aheadCount = status?.aheadCount ?? 0;
+  const hasUpstream = status?.hasUpstream ?? false;
+  const hasPrimaryRemote = status?.hasPrimaryRemote ?? false;
+  const canPush = (hasUpstream || hasPrimaryRemote) && aheadCount > 0;
+
+  // surface status subscription errors
   useEffect(() => {
-    refresh();
-    refreshLog();
-  }, [refresh, refreshLog]);
+    if (statusQuery.error) setError(statusQuery.error);
+  }, [statusQuery.error]);
 
-  // poll every 5s while visible
-  useEffect(() => {
-    pollRef.current = setInterval(() => {
-      refresh();
-    }, 5000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [refresh]);
+  const handleManualRefresh = useCallback(() => {
+    setError(null);
+    if (environmentId === null) return;
+    void refreshStatus({ environmentId, input: { cwd: workspacePath } });
+    statusQuery.refresh();
+  }, [environmentId, refreshStatus, statusQuery, workspacePath]);
 
-  // switching to log view loads log
-  useEffect(() => {
-    if (activeView === "log") refreshLog();
-  }, [activeView, refreshLog]);
+  const handleToggleInclude = useCallback((path: string, include: boolean) => {
+    setExcludedPaths((prev) => {
+      const next = new Set(prev);
+      if (include) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
 
-  const handleStage = useCallback(
-    async (path: string) => {
-      setBusy(true);
-      try {
-        const data = await gitPost({ action: "stage", paths: [path] });
-        setStatus((data as { ok: boolean; status: GitStatusResult }).status);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "stage failed");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [gitPost],
-  );
-
-  const handleUnstage = useCallback(
-    async (path: string) => {
-      setBusy(true);
-      try {
-        const data = await gitPost({ action: "unstage", paths: [path] });
-        setStatus((data as { ok: boolean; status: GitStatusResult }).status);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "unstage failed");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [gitPost],
-  );
-
-  const handleStageAll = useCallback(async () => {
-    setBusy(true);
-    try {
-      const data = await gitPost({ action: "stage_all" });
-      setStatus((data as { ok: boolean; status: GitStatusResult }).status);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "stage all failed");
-    } finally {
-      setBusy(false);
-    }
-  }, [gitPost]);
-
-  const handleUnstageAll = useCallback(async () => {
-    setBusy(true);
-    try {
-      const data = await gitPost({ action: "unstage_all" });
-      setStatus((data as { ok: boolean; status: GitStatusResult }).status);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "unstage all failed");
-    } finally {
-      setBusy(false);
-    }
-  }, [gitPost]);
+  const handleIncludeAll = useCallback(() => {
+    setExcludedPaths(new Set());
+  }, []);
 
   const handleCommit = useCallback(async () => {
-    if (!commitMsg.trim()) return;
-    setBusy(true);
-    try {
-      const data = await gitPost({ action: "commit", message: commitMsg });
-      const result = data as { ok: boolean; status: GitStatusResult };
-      if (result.ok) {
-        setCommitMsg("");
-        setStatus(result.status);
-        refreshLog();
-      } else {
-        setError("commit failed — make sure files are staged");
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "commit failed");
-    } finally {
-      setBusy(false);
+    if (!commitMsg.trim() || environmentId === null) return;
+    const filePaths = selectedFiles.map((f) => f.path);
+    if (filePaths.length === 0) {
+      setError("Select at least one file to commit.");
+      return;
     }
-  }, [gitPost, commitMsg, refreshLog]);
+    setError(null);
+    const result = await stackedAction.run({
+      actionId: randomUUID(),
+      action: "commit",
+      commitMessage: commitMsg.trim(),
+      filePaths,
+    });
+    if (result._tag === "Success") {
+      setCommitMsg("");
+      logQuery.refresh();
+      showToast({ type: "success", title: "Committed", message: filePaths.length.toString() });
+    } else {
+      const message = resultErrorMessage(result);
+      if (message) {
+        setError(message);
+        showToast({ type: "error", title: "Commit failed", message });
+      }
+    }
+  }, [commitMsg, environmentId, logQuery, selectedFiles, stackedAction]);
 
   const handlePush = useCallback(async () => {
-    setBusy(true);
-    try {
-      const data = await gitPost({ action: "push" });
-      const result = data as { ok: boolean; status: GitStatusResult };
-      if (result.status) setStatus(result.status);
-      if (!result.ok) setError("push failed — check remote and auth");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "push failed");
-    } finally {
-      setBusy(false);
+    if (environmentId === null) return;
+    setError(null);
+    const result = await stackedAction.run({
+      actionId: randomUUID(),
+      action: "push",
+    });
+    if (result._tag === "Success") {
+      showToast({ type: "success", title: "Pushed", message: "" });
+    } else {
+      const message = resultErrorMessage(result);
+      if (message) {
+        setError(message);
+        showToast({ type: "error", title: "Push failed", message });
+      }
     }
-  }, [gitPost]);
+  }, [environmentId, stackedAction]);
 
-  // open file in diff view when clicking a row
-  const openDiffFile = useEditorStore((s) => s.openDiffFile);
-
+  // open a working-tree file in the diff view. Working/modified content comes
+  // from the shared project-file layer; the HEAD original is fetched
+  // reactively by the editor pane via vcsEnvironment.showFile (see editor-pane).
   const handleFileClick = useCallback(
-    async (relativePath: string) => {
-      if (!activePaneId) return;
+    (relativePath: string) => {
+      if (!activePaneId || !environmentId) return;
       const absPath = workspacePath.endsWith("/")
         ? `${workspacePath}${relativePath}`
         : `${workspacePath}/${relativePath}`;
       const name = relativePath.split("/").pop() ?? relativePath;
-      const ext = name.includes(".") ? (name.split(".").pop() ?? "") : "";
-
-      // show loading state
-      openFile(activePaneId, absPath, name, ext, "");
-      setFileLoading(absPath, true);
-
-      try {
-        // fetch current file content and HEAD version in parallel
-        const [fileRes, headRes] = await Promise.all([
-          fetch(`/api/editor/fs/file?path=${encodeURIComponent(absPath)}`),
-          gitPost({ action: "show", path: relativePath }),
-        ]);
-
-        const fileRaw = await fileRes.json();
-        const modified = (fileRaw?.data ?? fileRaw)?.content ?? "";
-        const original = (headRes as { content: string })?.content ?? "";
-
-        openDiffFile(activePaneId, absPath, name, ext, modified, original);
-      } catch {
-        // fallback: open as regular file
-        try {
-          const res = await fetch(`/api/editor/fs/file?path=${encodeURIComponent(absPath)}`);
-          const raw = await res.json();
-          const data = raw?.data ?? raw;
-          openFile(activePaneId, absPath, name, ext, data.content ?? "");
-        } catch {}
-      } finally {
-        setFileLoading(absPath, false);
-      }
+      const ext = name.includes(".") ? `.${name.split(".").pop() ?? ""}` : "";
+      const ref = makeFileRef(environmentId, workspacePath, absPath, name, ext);
+      openDiffFile(activePaneId, ref, "");
     },
-    [activePaneId, openFile, openDiffFile, setFileLoading, workspacePath, gitPost],
+    [activePaneId, environmentId, openDiffFile, workspacePath],
   );
 
-  // open a commit's full patch as a read-only diff tab in the editor
-  const handleCommitClick = useCallback(
-    async (entry: GitLogEntry) => {
-      if (!activePaneId) return;
-      const base = workspacePath.endsWith("/") ? workspacePath.slice(0, -1) : workspacePath;
-      // synthetic path: gives the patch its own tab, never collides with a real file
-      const virtualPath = `${base}/.diffs/${entry.shortHash}.diff`;
-      const name = `${entry.shortHash} ${entry.message}`.slice(0, 60);
-
-      openFile(activePaneId, virtualPath, name, "diff", "");
-      setFileLoading(virtualPath, true);
-      try {
-        const data = (await gitPost({
-          action: "show_commit",
-          commitHash: entry.hash,
-        })) as { content?: string };
-        openFile(activePaneId, virtualPath, name, "diff", data?.content ?? "");
-      } catch (e) {
-        openFile(
-          activePaneId,
-          virtualPath,
-          name,
-          "diff",
-          `Failed to load commit ${entry.shortHash}: ${e instanceof Error ? e.message : String(e)}`,
-        );
-      } finally {
-        setFileLoading(virtualPath, false);
-      }
-    },
-    [activePaneId, openFile, setFileLoading, workspacePath, gitPost],
-  );
-
-  if (loading) {
+  if (statusQuery.isPending && !statusQuery.data) {
     return (
       <div className="flex items-center justify-center py-8">
         <WaveSpinner size="sm" color="muted" animation="ripple" />
@@ -460,14 +323,11 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
     );
   }
 
-  if (error && !status) {
-    return <div className="px-3 py-4 text-[11px] text-red-400/60 text-center">{error}</div>;
+  if (statusQuery.error && !statusQuery.data) {
+    return (
+      <div className="px-3 py-4 text-[11px] text-red-400/60 text-center">{statusQuery.error}</div>
+    );
   }
-
-  const stagedFiles = status?.files.filter((f) => f.staged) ?? [];
-  const changedFiles = status?.files.filter((f) => f.unstaged && !f.untracked) ?? [];
-  const untrackedFiles = status?.files.filter((f) => f.untracked) ?? [];
-  const totalChanges = status?.files.length ?? 0;
 
   return (
     <div className="flex flex-col h-full">
@@ -515,26 +375,14 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
         </div>
         <div className="flex items-center gap-1">
           {activeView === "status" && (
-            <>
-              <button
-                onClick={refresh}
-                disabled={busy}
-                title="Refresh"
-                className="flex items-center justify-center w-6 h-6 rounded text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
-              >
-                <Refresh2Filled className="h-3 w-3" />
-              </button>
-              {totalChanges > 0 && (
-                <button
-                  onClick={handleStageAll}
-                  disabled={busy}
-                  title="Stage all"
-                  className="text-[9px] text-foreground/30 dark:text-white/30 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors disabled:opacity-40"
-                >
-                  stage all
-                </button>
-              )}
-            </>
+            <button
+              onClick={handleManualRefresh}
+              disabled={actionPending}
+              title="Refresh"
+              className="flex items-center justify-center w-6 h-6 rounded text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
+            >
+              <Refresh2Filled className="h-3 w-3" />
+            </button>
           )}
         </div>
       </div>
@@ -548,14 +396,17 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
       {/* view: stash */}
       {activeView === "stash" && (
         <div className="flex-1 overflow-hidden">
-          <StashSelector workspacePath={workspacePath} onStashApplied={() => refresh()} />
+          <StashSelector
+            workspacePath={workspacePath}
+            onStashApplied={() => handleManualRefresh()}
+          />
         </div>
       )}
 
       {/* view: log */}
       {activeView === "log" && (
         <div className="flex-1 overflow-hidden">
-          <LogView entries={logEntries} onCommitClick={handleCommitClick} />
+          <LogView entries={logQuery.data?.commits ?? []} />
         </div>
       )}
 
@@ -563,65 +414,20 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
       {activeView === "status" && (
         <>
           <div className="flex-1 overflow-y-auto">
-            {stagedFiles.length > 0 && (
-              <>
-                <SectionHeader
-                  label="Staged"
-                  count={stagedFiles.length}
-                  onUnstageAll={handleUnstageAll}
-                  type="staged"
-                />
-                {stagedFiles.map((f) => (
-                  <FileRow
-                    key={f.path}
-                    file={f}
-                    onStage={handleStage}
-                    onUnstage={handleUnstage}
-                    onFileClick={handleFileClick}
-                  />
-                ))}
-              </>
-            )}
-
-            {changedFiles.length > 0 && (
-              <>
-                <SectionHeader
-                  label="Changes"
-                  count={changedFiles.length}
-                  onStageAll={handleStageAll}
-                  type="changes"
-                />
-                {changedFiles.map((f) => (
-                  <FileRow
-                    key={f.path}
-                    file={f}
-                    onStage={handleStage}
-                    onUnstage={handleUnstage}
-                    onFileClick={handleFileClick}
-                  />
-                ))}
-              </>
-            )}
-
-            {untrackedFiles.length > 0 && (
-              <>
-                <SectionHeader
-                  label="Untracked"
-                  count={untrackedFiles.length}
-                  onStageAll={handleStageAll}
-                  type="untracked"
-                />
-                {untrackedFiles.map((f) => (
-                  <FileRow
-                    key={f.path}
-                    file={f}
-                    onStage={handleStage}
-                    onUnstage={handleUnstage}
-                    onFileClick={handleFileClick}
-                  />
-                ))}
-              </>
-            )}
+            <SectionHeader
+              label="Changes"
+              count={totalChanges}
+              {...(excludedCount > 0 ? { onIncludeAll: handleIncludeAll } : {})}
+            />
+            {workingFiles.map((f) => (
+              <FileRow
+                key={f.path}
+                file={f}
+                included={!excludedPaths.has(f.path)}
+                onToggleInclude={handleToggleInclude}
+                onFileClick={handleFileClick}
+              />
+            ))}
 
             {totalChanges === 0 && (
               <div className="px-3 py-6 text-xs text-foreground/25 dark:text-white/25 text-center">
@@ -654,16 +460,16 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
                   />
                 </svg>
                 <span className="text-[10px] font-mono text-foreground/40 dark:text-white/40">
-                  {status?.branch ?? "…"}
+                  {branchName}
                 </span>
               </div>
-              {status?.upstream && (
+              {canPush && (
                 <button
                   onClick={handlePush}
-                  disabled={busy}
+                  disabled={actionPending}
                   className="flex items-center gap-1 text-[10px] text-foreground/40 dark:text-white/40 hover:text-foreground/70 dark:hover:text-white/70 hover:bg-foreground/5 dark:hover:bg-white/5 px-2 py-0.5 rounded transition-colors disabled:opacity-40"
                 >
-                  {status.ahead > 0 && <span className="text-cyan-400/60">{status.ahead}</span>}
+                  {aheadCount > 0 && <span className="text-cyan-400/60">{aheadCount}</span>}
                   Push
                 </button>
               )}
@@ -683,10 +489,12 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
             </div>
             <button
               onClick={handleCommit}
-              disabled={busy || !commitMsg.trim() || stagedFiles.length === 0}
+              disabled={actionPending || !commitMsg.trim() || selectedFiles.length === 0}
               className="text-[10px] text-foreground/50 dark:text-white/50 hover:text-foreground/80 dark:hover:text-white/80 bg-foreground/5 dark:bg-white/5 hover:bg-foreground/10 dark:hover:bg-white/10 px-3 py-1 rounded-sm transition-colors focus:outline-none focus:ring-1 focus:ring-accent disabled:opacity-30 disabled:cursor-not-allowed"
             >
-              {busy ? "Committing..." : "Commit Changes"}
+              {actionPending
+                ? "Committing..."
+                : `Commit${selectedFiles.length < totalChanges ? ` (${selectedFiles.length}/${totalChanges})` : ""}`}
             </button>
           </div>
         </>

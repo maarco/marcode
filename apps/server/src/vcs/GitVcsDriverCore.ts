@@ -24,6 +24,8 @@ import {
   type ReviewDiffPreviewInput,
   type ReviewDiffPreviewSource,
   type VcsRef,
+  type VcsLogCommit,
+  type VcsStash,
 } from "@t3tools/contracts";
 import { dedupeRemoteBranchesWithLocalMatches } from "@t3tools/shared/git";
 import { compactTraceAttributes } from "@t3tools/shared/observability";
@@ -2556,6 +2558,249 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       }),
     );
 
+  // Reject relative paths that could escape the workspace or abuse git's ref:path
+  // syntax. Mirrors the intent of WorkspacePaths sandboxing for the git surface.
+  const sanitizeGitRelativePath = Effect.fn("GitVcsDriver.sanitizeGitRelativePath")(function* (
+    relativePath: string,
+  ) {
+    if (relativePath.length === 0 || relativePath.includes("\0")) {
+      return yield* new GitCommandError({
+        operation: "GitVcsDriver.sanitizeGitRelativePath",
+        command: "git",
+        cwd: "",
+        detail: "Empty or NUL-containing relative path.",
+      });
+    }
+    const normalized = relativePath.replace(/\\+/g, "/");
+    if (normalized.startsWith("/") || /^[A-Za-z]:[\\/]/.test(normalized)) {
+      return yield* new GitCommandError({
+        operation: "GitVcsDriver.sanitizeGitRelativePath",
+        command: "git",
+        cwd: "",
+        detail: "Absolute paths are not permitted.",
+      });
+    }
+    for (const segment of normalized.split("/")) {
+      if (segment === "..") {
+        return yield* new GitCommandError({
+          operation: "GitVcsDriver.sanitizeGitRelativePath",
+          command: "git",
+          cwd: "",
+          detail: "Parent-directory segments are not permitted.",
+        });
+      }
+    }
+    return normalized;
+  });
+
+  // Reject values that would be parsed as a git CLI option instead of the
+  // literal ref/id argument they're meant to be (a leading '-'). Some git
+  // options are dangerous even when the "ref" itself can never resolve
+  // (e.g. arbitrary-file-write flags), so this must run before the value
+  // ever reaches an argv array.
+  const rejectGitOptionLikeValue = Effect.fn("GitVcsDriver.rejectGitOptionLikeValue")(function* (
+    operation: string,
+    cwd: string,
+    label: string,
+    value: string,
+  ) {
+    if (value.startsWith("-")) {
+      return yield* new GitCommandError({
+        operation,
+        command: "git",
+        cwd,
+        detail: `${label} must not start with '-'.`,
+      });
+    }
+    return value;
+  });
+
+  const showFile: GitVcsDriver.GitVcsDriver["Service"]["showFile"] = Effect.fn(
+    "GitVcsDriver.showFile",
+  )(function* (input) {
+    const relativePath = yield* sanitizeGitRelativePath(input.relativePath);
+    const ref = yield* rejectGitOptionLikeValue(
+      "GitVcsDriver.showFile",
+      input.cwd,
+      "ref",
+      input.ref ?? "HEAD",
+    );
+    const result = yield* executeGit(
+      "GitVcsDriver.showFile",
+      input.cwd,
+      ["show", `${ref}:${relativePath}`],
+      { allowNonZeroExit: true, timeoutMs: 10_000 },
+    );
+    if (result.exitCode === 0) {
+      return { relativePath: input.relativePath, contents: result.stdout, ref };
+    }
+    // Non-zero → file not present at the ref (e.g. untracked vs HEAD)
+    return { relativePath: input.relativePath, contents: null, ref };
+  });
+
+  const deleteRef: GitVcsDriver.GitVcsDriver["Service"]["deleteRef"] = Effect.fn(
+    "GitVcsDriver.deleteRef",
+  )(function* (input) {
+    const refName = yield* rejectGitOptionLikeValue(
+      "GitVcsDriver.deleteRef",
+      input.cwd,
+      "refName",
+      input.refName,
+    );
+    const args = input.remote
+      ? ["branch", "-D", "-r", "--", refName]
+      : ["branch", input.force ? "-D" : "-d", "--", refName];
+    yield* executeGit("GitVcsDriver.deleteRef", input.cwd, args, {
+      timeoutMs: 10_000,
+      fallbackErrorDetail: "git branch delete failed",
+    });
+    return { refName };
+  });
+
+  const log: GitVcsDriver.GitVcsDriver["Service"]["log"] = Effect.fn("GitVcsDriver.log")(
+    function* (input) {
+      const limit = input.limit ?? 50;
+      const args: string[] = [
+        "log",
+        `-n${limit}`,
+        `--format=%H%x00%h%x00%an%x00%ae%x00%aI%x00%P%x00%s%x1e`,
+      ];
+      if (input.cursor && input.cursor > 0) args.push(`--skip=${input.cursor}`);
+      const stdout = yield* runGitStdout("GitVcsDriver.log", input.cwd, args);
+      const commits: VcsLogCommit[] = [];
+      for (const raw of stdout.split("\x1e")) {
+        const entry = raw.trim();
+        if (entry.length === 0) continue;
+        const [sha, shortSha, author, email, date, parents, message] = entry.split("\x00");
+        if (!sha) continue;
+        commits.push({
+          sha,
+          shortSha: shortSha ?? sha.slice(0, 7),
+          author: author ?? "",
+          email: email ?? "",
+          date: date ?? "",
+          message: message ?? "",
+          parents: (parents ?? "").split(" ").filter((p) => p.length > 0),
+        });
+      }
+      const truncated = commits.length >= limit;
+      const nextCursor =
+        truncated && input.cursor !== undefined
+          ? input.cursor + commits.length
+          : truncated
+            ? commits.length
+            : null;
+      return { commits, nextCursor, truncated };
+    },
+  );
+
+  const listStashes: GitVcsDriver.GitVcsDriver["Service"]["listStashes"] = Effect.fn(
+    "GitVcsDriver.listStashes",
+  )(function* (input) {
+    const stdout = yield* runGitStdout(
+      "GitVcsDriver.listStashes",
+      input.cwd,
+      ["stash", "list", "--format=%gd%x00%ci%x00%s"],
+      true,
+    );
+    const stashes: VcsStash[] = [];
+    for (const line of stdout.split("\n")) {
+      const entry = line.trim();
+      if (entry.length === 0) continue;
+      const [id, date, message] = entry.split("\x00");
+      if (!id) continue;
+      // "WIP on <branch>:" / "On <branch>:" → extract branch
+      const branchMatch = message?.match(/^(?:WIP|On) (.+?):/) ?? null;
+      stashes.push({
+        id,
+        branch: branchMatch?.[1] ?? "",
+        message: message ?? "",
+        date: date ?? "",
+      });
+    }
+    return { stashes };
+  });
+
+  const createStash: GitVcsDriver.GitVcsDriver["Service"]["createStash"] = Effect.fn(
+    "GitVcsDriver.createStash",
+  )(function* (input) {
+    const args: string[] = ["stash", "push"];
+    if (input.includeUntracked) args.push("-u");
+    if (input.keepIndex) args.push("--keep-index");
+    if (input.message) args.push("-m", input.message);
+
+    // detect creation reliably across git versions: compare stash-list length
+    // before and after. `git stash push` exits 0 with "No local changes to save"
+    // on a clean tree, so exit code / stdout are not trustworthy signals.
+    const countStashes = Effect.gen(function* () {
+      const result = yield* executeGit(
+        "GitVcsDriver.createStash.list",
+        input.cwd,
+        ["stash", "list"],
+        { allowNonZeroExit: true, timeoutMs: 10_000 },
+      );
+      return result.stdout.split("\n").filter((line) => line.trim().length > 0).length;
+    });
+    const before = yield* countStashes;
+    yield* executeGit("GitVcsDriver.createStash", input.cwd, args, {
+      allowNonZeroExit: true,
+      timeoutMs: 30_000,
+      fallbackErrorDetail: "git stash create failed",
+    });
+    const after = yield* countStashes;
+    // a newly-created stash is always at the top of the reflog
+    return { id: after > before ? "stash@{0}" : null };
+  });
+
+  const applyStash: GitVcsDriver.GitVcsDriver["Service"]["applyStash"] = Effect.fn(
+    "GitVcsDriver.applyStash",
+  )(function* (input) {
+    const id = yield* rejectGitOptionLikeValue(
+      "GitVcsDriver.applyStash",
+      input.cwd,
+      "id",
+      input.id,
+    );
+    const args = ["stash", input.dropAfter ? "pop" : "apply", "--", id];
+    yield* executeGit("GitVcsDriver.applyStash", input.cwd, args, {
+      timeoutMs: 30_000,
+      fallbackErrorDetail: "git stash apply failed",
+    });
+    return { id };
+  });
+
+  const dropStash: GitVcsDriver.GitVcsDriver["Service"]["dropStash"] = Effect.fn(
+    "GitVcsDriver.dropStash",
+  )(function* (input) {
+    const id = yield* rejectGitOptionLikeValue("GitVcsDriver.dropStash", input.cwd, "id", input.id);
+    yield* executeGit("GitVcsDriver.dropStash", input.cwd, ["stash", "drop", "--", id], {
+      timeoutMs: 10_000,
+      fallbackErrorDetail: "git stash drop failed",
+    });
+    return { id };
+  });
+
+  const showStash: GitVcsDriver.GitVcsDriver["Service"]["showStash"] = Effect.fn(
+    "GitVcsDriver.showStash",
+  )(function* (input) {
+    const id = yield* rejectGitOptionLikeValue("GitVcsDriver.showStash", input.cwd, "id", input.id);
+    const result = yield* executeGit(
+      "GitVcsDriver.showStash",
+      input.cwd,
+      ["stash", "show", "-p", "--", id],
+      {
+        timeoutMs: 15_000,
+        maxOutputBytes: 512 * 1024,
+        fallbackErrorDetail: "git stash show failed",
+      },
+    );
+    return {
+      id,
+      diff: result.stdout,
+      truncated: result.stdoutTruncated,
+    };
+  });
+
   return GitVcsDriver.GitVcsDriver.of({
     execute,
     status,
@@ -2585,5 +2830,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     switchRef,
     initRepo,
     listLocalBranchNames,
+    showFile,
+    deleteRef,
+    log,
+    listStashes,
+    createStash,
+    applyStash,
+    dropStash,
+    showStash,
   });
 });

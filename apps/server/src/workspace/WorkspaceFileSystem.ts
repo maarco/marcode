@@ -8,10 +8,20 @@
  * @module WorkspaceFileSystem
  */
 import * as NodeFSP from "node:fs/promises";
+import * as NodeChildProcess from "node:child_process";
 
 import type {
+  ProjectCreateFileInput,
+  ProjectCreateFileResult,
+  ProjectDeleteFileInput,
+  ProjectDeleteFileResult,
   ProjectReadFileInput,
   ProjectReadFileResult,
+  ProjectRenameFileInput,
+  ProjectRenameFileResult,
+  ProjectSearchContentInput,
+  ProjectSearchContentResult,
+  ProjectSearchContentMatch,
   ProjectWriteFileInput,
   ProjectWriteFileResult,
 } from "@t3tools/contracts";
@@ -43,6 +53,10 @@ export class WorkspaceFileSystemOperationError extends Schema.TaggedErrorClass<W
       "close",
       "make-directory",
       "write-file",
+      "create-file",
+      "create-directory",
+      "rename",
+      "delete",
     ]),
     cause: Schema.Defect(),
   },
@@ -92,11 +106,39 @@ export class WorkspaceBinaryFileError extends Schema.TaggedErrorClass<WorkspaceB
   }
 }
 
+export class WorkspacePathAlreadyExistsError extends Schema.TaggedErrorClass<WorkspacePathAlreadyExistsError>()(
+  "WorkspacePathAlreadyExistsError",
+  {
+    workspaceRoot: Schema.String,
+    relativePath: Schema.String,
+    resolvedPath: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Workspace path '${this.relativePath}' already exists in '${this.workspaceRoot}': ${this.resolvedPath}`;
+  }
+}
+
+export class WorkspacePathNotFoundError extends Schema.TaggedErrorClass<WorkspacePathNotFoundError>()(
+  "WorkspacePathNotFoundError",
+  {
+    workspaceRoot: Schema.String,
+    relativePath: Schema.String,
+    resolvedPath: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Workspace path '${this.relativePath}' was not found in '${this.workspaceRoot}': ${this.resolvedPath}`;
+  }
+}
+
 export const WorkspaceFileSystemError = Schema.Union([
   WorkspaceFileSystemOperationError,
   WorkspaceFilePathEscapeError,
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
+  WorkspacePathAlreadyExistsError,
+  WorkspacePathNotFoundError,
 ]);
 export type WorkspaceFileSystemError = typeof WorkspaceFileSystemError.Type;
 
@@ -121,6 +163,34 @@ export class WorkspaceFileSystem extends Context.Service<
       input: ProjectWriteFileInput,
     ) => Effect.Effect<
       ProjectWriteFileResult,
+      WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
+    >;
+    /** Create a file or directory relative to the workspace root. */
+    readonly createFile: (
+      input: ProjectCreateFileInput,
+    ) => Effect.Effect<
+      ProjectCreateFileResult,
+      WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
+    >;
+    /** Rename/move a path within the workspace root. */
+    readonly renameFile: (
+      input: ProjectRenameFileInput,
+    ) => Effect.Effect<
+      ProjectRenameFileResult,
+      WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
+    >;
+    /** Delete a file or directory relative to the workspace root. */
+    readonly deleteFile: (
+      input: ProjectDeleteFileInput,
+    ) => Effect.Effect<
+      ProjectDeleteFileResult,
+      WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
+    >;
+    /** Content search (grep) scoped to the workspace root via ripgrep. */
+    readonly searchContent: (
+      input: ProjectSearchContentInput,
+    ) => Effect.Effect<
+      ProjectSearchContentResult,
       WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
     >;
   }
@@ -297,7 +367,246 @@ export const make = Effect.gen(function* () {
     return { relativePath: target.relativePath };
   });
 
-  return WorkspaceFileSystem.of({ readFile, writeFile });
+  // existence check that maps the underlying PlatformError into our error union
+  const statExists = (
+    workspaceRoot: string,
+    relativePath: string,
+    absolutePath: string,
+  ): Effect.Effect<boolean, WorkspaceFileSystemOperationError> =>
+    fileSystem.exists(absolutePath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WorkspaceFileSystemOperationError({
+            workspaceRoot,
+            relativePath,
+            resolvedPath: absolutePath,
+            operationPath: absolutePath,
+            operation: "stat",
+            cause,
+          }),
+      ),
+    );
+
+  const createFile: WorkspaceFileSystem["Service"]["createFile"] = Effect.fn(
+    "WorkspaceFileSystem.createFile",
+  )(function* (input) {
+    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+
+    if (yield* statExists(input.cwd, input.relativePath, target.absolutePath)) {
+      return yield* new WorkspacePathAlreadyExistsError({
+        workspaceRoot: input.cwd,
+        relativePath: input.relativePath,
+        resolvedPath: target.absolutePath,
+      });
+    }
+
+    if (input.kind === "directory") {
+      yield* fileSystem.makeDirectory(target.absolutePath, { recursive: true }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: target.absolutePath,
+              operationPath: target.absolutePath,
+              operation: "create-directory",
+              cause,
+            }),
+        ),
+      );
+    } else {
+      yield* fileSystem.makeDirectory(path.dirname(target.absolutePath), { recursive: true }).pipe(
+        Effect.mapError(
+          (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: target.absolutePath,
+              operationPath: path.dirname(target.absolutePath),
+              operation: "make-directory",
+              cause,
+            }),
+        ),
+      );
+      yield* fileSystem.writeFileString(target.absolutePath, "").pipe(
+        Effect.mapError(
+          (cause) =>
+            new WorkspaceFileSystemOperationError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: target.absolutePath,
+              operationPath: target.absolutePath,
+              operation: "create-file",
+              cause,
+            }),
+        ),
+      );
+    }
+
+    yield* workspaceEntries.refresh(input.cwd);
+    return { relativePath: target.relativePath };
+  });
+
+  const renameFile: WorkspaceFileSystem["Service"]["renameFile"] = Effect.fn(
+    "WorkspaceFileSystem.renameFile",
+  )(function* (input) {
+    const from = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.fromRelativePath,
+    });
+    const to = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.toRelativePath,
+    });
+
+    if (!(yield* statExists(input.cwd, input.fromRelativePath, from.absolutePath))) {
+      return yield* new WorkspacePathNotFoundError({
+        workspaceRoot: input.cwd,
+        relativePath: input.fromRelativePath,
+        resolvedPath: from.absolutePath,
+      });
+    }
+    if (yield* statExists(input.cwd, input.toRelativePath, to.absolutePath)) {
+      return yield* new WorkspacePathAlreadyExistsError({
+        workspaceRoot: input.cwd,
+        relativePath: input.toRelativePath,
+        resolvedPath: to.absolutePath,
+      });
+    }
+
+    yield* fileSystem.makeDirectory(path.dirname(to.absolutePath), { recursive: true }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WorkspaceFileSystemOperationError({
+            workspaceRoot: input.cwd,
+            relativePath: input.toRelativePath,
+            resolvedPath: to.absolutePath,
+            operationPath: path.dirname(to.absolutePath),
+            operation: "make-directory",
+            cause,
+          }),
+      ),
+    );
+    yield* fileSystem.rename(from.absolutePath, to.absolutePath).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WorkspaceFileSystemOperationError({
+            workspaceRoot: input.cwd,
+            relativePath: input.fromRelativePath,
+            resolvedPath: to.absolutePath,
+            operationPath: to.absolutePath,
+            operation: "rename",
+            cause,
+          }),
+      ),
+    );
+
+    yield* workspaceEntries.refresh(input.cwd);
+    return { relativePath: to.relativePath };
+  });
+
+  const deleteFile: WorkspaceFileSystem["Service"]["deleteFile"] = Effect.fn(
+    "WorkspaceFileSystem.deleteFile",
+  )(function* (input) {
+    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+      workspaceRoot: input.cwd,
+      relativePath: input.relativePath,
+    });
+
+    if (!(yield* statExists(input.cwd, input.relativePath, target.absolutePath))) {
+      return yield* new WorkspacePathNotFoundError({
+        workspaceRoot: input.cwd,
+        relativePath: input.relativePath,
+        resolvedPath: target.absolutePath,
+      });
+    }
+
+    yield* fileSystem.remove(target.absolutePath, { recursive: true }).pipe(
+      Effect.mapError(
+        (cause) =>
+          new WorkspaceFileSystemOperationError({
+            workspaceRoot: input.cwd,
+            relativePath: input.relativePath,
+            resolvedPath: target.absolutePath,
+            operationPath: target.absolutePath,
+            operation: "delete",
+            cause,
+          }),
+      ),
+    );
+
+    yield* workspaceEntries.refresh(input.cwd);
+    return { relativePath: target.relativePath };
+  });
+
+  const searchContent: WorkspaceFileSystem["Service"]["searchContent"] = Effect.fn(
+    "WorkspaceFileSystem.searchContent",
+  )(function* (input) {
+    const limit = input.limit ?? 200;
+    const args = [
+      "--line-number",
+      "--column",
+      "--no-heading",
+      "--color",
+      "never",
+      "--max-count",
+      String(Math.ceil(limit / 4) || 1),
+      input.regex ? "-e" : "-F",
+      "-e",
+      input.query,
+      ".",
+    ];
+    // rg runs with cwd = workspace root and searches ".", so it is inherently
+    // sandboxed to the workspace. The WS layer authenticates the environment.
+    const output = yield* Effect.promise(
+      () =>
+        new Promise<string>((resolve) => {
+          NodeChildProcess.execFile(
+            "rg",
+            args,
+            { cwd: input.cwd, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024, timeout: 15_000 },
+            (err, stdout) => resolve(err ? "" : stdout),
+          );
+        }),
+    );
+    const matches: ProjectSearchContentMatch[] = [];
+    let truncated = false;
+    for (const line of output.split("\n")) {
+      if (line.length === 0) continue;
+      if (matches.length >= limit) {
+        truncated = true;
+        break;
+      }
+      // path:line:column:text  (column may be absent if --column unsupported; fall back to 1)
+      const first = line.indexOf(":");
+      const second = line.indexOf(":", first + 1);
+      const third = line.indexOf(":", second + 1);
+      if (first === -1 || second === -1 || third === -1) continue;
+      const path = line.slice(0, first);
+      const lineNum = Number(line.slice(first + 1, second));
+      const colNum = Number(line.slice(second + 1, third));
+      if (!Number.isFinite(lineNum) || lineNum < 1) continue;
+      matches.push({
+        path,
+        line: Math.trunc(lineNum),
+        column: Number.isFinite(colNum) && colNum > 0 ? Math.trunc(colNum) : 1,
+        text: line.slice(third + 1),
+      });
+    }
+    return { matches, truncated };
+  });
+
+  return WorkspaceFileSystem.of({
+    readFile,
+    writeFile,
+    createFile,
+    renameFile,
+    deleteFile,
+    searchContent,
+  });
 });
 
 export const layer = Layer.effect(WorkspaceFileSystem, make);

@@ -1,39 +1,12 @@
-import { useState, useCallback, useEffect, useRef } from "react";
-import { useEditorStore } from "./editor-store";
-import { unwrapApiData } from "./api";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useEditorStore, makeFileRef } from "./editor-store";
+import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
 
 interface FlatFile {
   name: string;
   path: string;
   ext: string;
   relativePath: string;
-}
-
-function flattenTree(
-  nodes: Array<{ name: string; path: string; type: string; children?: unknown[]; ext?: string }>,
-  rootPath: string,
-): FlatFile[] {
-  const result: FlatFile[] = [];
-  function walk(items: typeof nodes) {
-    for (const node of items) {
-      if (node.type === "file") {
-        const rel = node.path.startsWith(rootPath)
-          ? node.path.slice(rootPath.length + 1)
-          : node.path;
-        result.push({
-          name: node.name,
-          path: node.path,
-          ext: (node.ext as string) || "",
-          relativePath: rel,
-        });
-      }
-      if (node.type === "dir" && Array.isArray(node.children)) {
-        walk(node.children as typeof nodes);
-      }
-    }
-  }
-  walk(nodes);
-  return result;
 }
 
 function fuzzyMatch(query: string, text: string): boolean {
@@ -54,7 +27,6 @@ interface QuickOpenProps {
 
 export function QuickOpen({ open, onClose, workspacePath }: QuickOpenProps) {
   const [query, setQuery] = useState("");
-  const [files, setFiles] = useState<FlatFile[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -62,53 +34,46 @@ export function QuickOpen({ open, onClose, workspacePath }: QuickOpenProps) {
   const activePaneId = useEditorStore((s) => s.activePaneId);
   const openFile = useEditorStore((s) => s.openFile);
   const pinFile = useEditorStore((s) => s.pinFile);
-  const setFileLoading = useEditorStore((s) => s.setFileLoading);
+  const environmentId = useEditorStore((s) => s.environmentId);
+
+  const entriesQuery = useProjectEntriesQuery(environmentId, workspacePath);
+
+  // flatten the env-scoped entries into the file list quick-open fuzzy-filters
+  const files = useMemo<FlatFile[]>(() => {
+    const entries = entriesQuery.data?.entries ?? [];
+    return entries
+      .filter((e) => e.kind === "file")
+      .map((e) => {
+        const name = e.path.split("/").pop() ?? e.path;
+        const dot = name.lastIndexOf(".");
+        const ext = dot > 0 ? name.slice(dot) : "";
+        const absPath = workspacePath.endsWith("/")
+          ? `${workspacePath}${e.path}`
+          : `${workspacePath}/${e.path}`;
+        return { name, path: absPath, ext, relativePath: e.path };
+      });
+  }, [entriesQuery.data, workspacePath]);
 
   useEffect(() => {
     if (!open || !workspacePath) return;
     setQuery("");
     setSelectedIndex(0);
-    fetch(`/api/editor/fs/tree?workspace=${encodeURIComponent(workspacePath)}`)
-      .then((r) => r.json())
-      .then((raw) => {
-        const data = unwrapApiData<{
-          tree?: Array<{
-            name: string;
-            path: string;
-            type: string;
-            children?: unknown[];
-            ext?: string;
-          }>;
-        }>(raw);
-        if (data.tree) setFiles(flattenTree(data.tree, workspacePath));
-      })
-      .catch(() => {});
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [open, workspacePath]);
 
   const filtered = query ? files.filter((f) => fuzzyMatch(query, f.relativePath)) : files;
 
   const handleSelect = useCallback(
-    async (file: FlatFile) => {
-      if (!activePaneId) return;
+    (file: FlatFile) => {
+      if (!activePaneId || !environmentId) return;
       onClose();
-      openFile(activePaneId, file.path, file.name, file.ext, "");
+      openFile(
+        activePaneId,
+        makeFileRef(environmentId, workspacePath, file.path, file.name, file.ext),
+      );
       pinFile(file.path);
-      setFileLoading(file.path, true);
-      try {
-        const res = await fetch(`/api/editor/fs/file?path=${encodeURIComponent(file.path)}`);
-        const raw = await res.json();
-        if (res.ok) {
-          const data = unwrapApiData<{ content?: string }>(raw);
-          openFile(activePaneId, file.path, file.name, file.ext, data.content ?? "");
-        }
-      } catch {
-        // silent
-      } finally {
-        setFileLoading(file.path, false);
-      }
     },
-    [onClose, activePaneId, openFile, pinFile, setFileLoading],
+    [onClose, activePaneId, openFile, pinFile, environmentId, workspacePath],
   );
 
   const handleKeyDown = useCallback(

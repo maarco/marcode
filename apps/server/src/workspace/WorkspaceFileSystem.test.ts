@@ -265,4 +265,216 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
   });
+
+  describe("createFile", () => {
+    it.effect("creates an empty file relative to the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        const result = yield* workspaceFileSystem.createFile({
+          cwd,
+          relativePath: "src/new.ts",
+          kind: "file",
+        });
+        const saved = yield* fileSystem
+          .readFileString(path.join(cwd, "src/new.ts"))
+          .pipe(Effect.orDie);
+
+        expect(result).toEqual({ relativePath: "src/new.ts" });
+        expect(saved).toBe("");
+      }),
+    );
+
+    it.effect("creates a directory when kind is directory", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+
+        yield* workspaceFileSystem.createFile({
+          cwd,
+          relativePath: "components",
+          kind: "directory",
+        });
+        const stat = yield* fileSystem.stat(path.join(cwd, "components")).pipe(Effect.orDie);
+
+        expect(stat.type).toBe("Directory");
+      }),
+    );
+
+    it.effect("rejects creating a path that already exists", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "there.ts", "export {};\n");
+
+        const error = yield* workspaceFileSystem
+          .createFile({ cwd, relativePath: "there.ts", kind: "file" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspacePathAlreadyExistsError);
+      }),
+    );
+
+    it.effect("rejects creates outside the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .createFile({ cwd, relativePath: "../escape.ts", kind: "file" })
+          .pipe(Effect.flip);
+
+        expect(error.message).toContain(
+          "Workspace file path must be relative to the project root: ../escape.ts",
+        );
+      }),
+    );
+  });
+
+  describe("renameFile", () => {
+    it.effect("renames a path within the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        yield* writeTextFile(cwd, "old.ts", "export {};\n");
+
+        const result = yield* workspaceFileSystem.renameFile({
+          cwd,
+          fromRelativePath: "old.ts",
+          toRelativePath: "new.ts",
+        });
+        const moved = yield* fileSystem.readFileString(path.join(cwd, "new.ts")).pipe(Effect.orDie);
+        const sourceGone = yield* fileSystem
+          .stat(path.join(cwd, "old.ts"))
+          .pipe(Effect.orElseSucceed(() => null));
+
+        expect(result).toEqual({ relativePath: "new.ts" });
+        expect(moved).toBe("export {};\n");
+        expect(sourceGone).toBeNull();
+      }),
+    );
+
+    it.effect("rejects renaming a missing source", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .renameFile({ cwd, fromRelativePath: "ghost.ts", toRelativePath: "moved.ts" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspacePathNotFoundError);
+      }),
+    );
+
+    it.effect("rejects renaming onto an existing target", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "a.ts", "a");
+        yield* writeTextFile(cwd, "b.ts", "b");
+
+        const error = yield* workspaceFileSystem
+          .renameFile({ cwd, fromRelativePath: "a.ts", toRelativePath: "b.ts" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspacePathAlreadyExistsError);
+      }),
+    );
+  });
+
+  describe("deleteFile", () => {
+    it.effect("deletes a file relative to the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        yield* writeTextFile(cwd, "gone.ts", "export {};\n");
+
+        const result = yield* workspaceFileSystem.deleteFile({
+          cwd,
+          relativePath: "gone.ts",
+        });
+        const stat = yield* fileSystem
+          .stat(path.join(cwd, "gone.ts"))
+          .pipe(Effect.orElseSucceed(() => null));
+
+        expect(result).toEqual({ relativePath: "gone.ts" });
+        expect(stat).toBeNull();
+      }),
+    );
+
+    it.effect("deletes a directory recursively", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        yield* writeTextFile(cwd, "tree/leaf.ts", "export {};\n");
+
+        yield* workspaceFileSystem.deleteFile({ cwd, relativePath: "tree" });
+        const stat = yield* fileSystem
+          .stat(path.join(cwd, "tree"))
+          .pipe(Effect.orElseSucceed(() => null));
+
+        expect(stat).toBeNull();
+      }),
+    );
+
+    it.effect("rejects deleting a missing path", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .deleteFile({ cwd, relativePath: "ghost.ts" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspacePathNotFoundError);
+      }),
+    );
+  });
+
+  describe("searchContent", () => {
+    it.effect("returns line matches for a content query", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "src/a.ts", "export const hello = 1;\n");
+
+        const result = yield* workspaceFileSystem.searchContent({
+          cwd,
+          query: "hello",
+        });
+
+        expect(result.matches.length).toBe(1);
+        expect(result.matches[0]?.path).toContain("a.ts");
+        expect(result.matches[0]?.line).toBe(1);
+        expect(result.matches[0]?.text).toContain("hello");
+      }),
+    );
+
+    it.effect("returns no matches for a query that does not exist", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "src/a.ts", "export const value = 1;\n");
+
+        const result = yield* workspaceFileSystem.searchContent({
+          cwd,
+          query: "nonexistent-token-xyz",
+        });
+
+        expect(result.matches.length).toBe(0);
+      }),
+    );
+  });
 });

@@ -7,7 +7,6 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { unwrapApiData } from "./api";
 import {
   FolderFilled,
   FolderOpenFilled,
@@ -16,11 +15,17 @@ import {
   AddFilled,
   FolderAddFilled,
 } from "@aliimam/icons";
-import { useEditorStore } from "./editor-store";
+import { useEditorStore, makeFileRef } from "./editor-store";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { WaveSpinner } from "./wave-spinner";
 import { FileTypeIcon } from "./quick-open";
 import { cn } from "~/lib/utils";
+import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { projectEnvironment } from "~/state/projects";
+import { useEnvironmentQuery } from "~/state/query";
+import { vcsEnvironment } from "~/state/vcs";
+import type { ProjectEntry } from "@t3tools/contracts";
 
 interface FileNode {
   name: string;
@@ -73,6 +78,52 @@ export function getFileAccentColor(filePath: string, rootPath: string): string {
   return getFolderColor(firstFolder ?? "");
 }
 
+/**
+ * Build the nested {@link FileNode} tree the floating editor renders from the
+ * flat, recursive `ProjectEntry[]` list returned by the environment-scoped
+ * `projects.listEntries` RPC. Paths are absolute (rooted at `cwd`) to match the
+ * editor's identity model.
+ */
+function entriesToTree(entries: readonly ProjectEntry[], cwd: string): FileNode[] {
+  const root: FileNode[] = [];
+  const dirs = new Map<string, FileNode>();
+
+  const sorted = [...entries].sort((a, b) => a.path.localeCompare(b.path));
+  for (const entry of sorted) {
+    const segments = entry.path.split("/");
+    let siblings = root;
+    let acc = cwd;
+    for (let i = 0; i < segments.length; i++) {
+      const seg = segments[i]!;
+      const isLast = i === segments.length - 1;
+      acc = acc.endsWith("/") ? `${acc}${seg}` : `${acc}/${seg}`;
+
+      if (!isLast) {
+        let dir = dirs.get(acc);
+        if (!dir) {
+          dir = { name: seg, path: acc, type: "dir", children: [] };
+          dirs.set(acc, dir);
+          siblings.push(dir);
+        }
+        siblings = dir.children!;
+        continue;
+      }
+
+      if (entry.kind === "directory") {
+        if (!dirs.has(acc)) {
+          dirs.set(acc, { name: seg, path: acc, type: "dir", children: [] });
+          siblings.push(dirs.get(acc)!);
+        }
+      } else {
+        const dot = seg.lastIndexOf(".");
+        const ext = dot > 0 ? seg.slice(dot) : "";
+        siblings.push({ name: seg, path: acc, type: "file", ext });
+      }
+    }
+  }
+  return root;
+}
+
 const EXPANDED_KEY = "editor-expanded-folders";
 
 function loadExpanded(workspace: string): Set<string> {
@@ -115,13 +166,10 @@ export function FileTree({
   onFileSelect,
 }: FileTreeProps) {
   const [tree, setTree] = useState<FileNode[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [initialized, setInitialized] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [panelHeights, setPanelHeights] = useState<Map<string, number>>(new Map());
-  const [gitStatus, setGitStatus] = useState<Record<string, string>>({});
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const filterRef = useRef<HTMLInputElement>(null);
   const treeRef = useRef<HTMLDivElement>(null);
@@ -132,7 +180,30 @@ export function FileTree({
   const openFile = useEditorStore((s) => s.openFile);
   const pinFile = useEditorStore((s) => s.pinFile);
   const setActiveFile = useEditorStore((s) => s.setActiveFile);
-  const setFileLoading = useEditorStore((s) => s.setFileLoading);
+  const environmentId = useEditorStore((s) => s.environmentId);
+
+  const createFileCmd = useAtomCommand(projectEnvironment.createFile);
+  const renameFileCmd = useAtomCommand(projectEnvironment.renameFile);
+  const deleteFileCmd = useAtomCommand(projectEnvironment.deleteFile);
+
+  // env RPCs take workspace-relative paths; the tree works in absolute paths
+  const toRelative = useCallback(
+    (abs: string) =>
+      abs.startsWith(workspacePath) ? abs.slice(workspacePath.length).replace(/^\/+/, "") : abs,
+    [workspacePath],
+  );
+
+  const entriesQuery = useProjectEntriesQuery(environmentId, workspacePath);
+  const refreshTree = entriesQuery.refresh;
+  const loading = entriesQuery.isPending && tree.length === 0;
+  const error = entriesQuery.error ?? "";
+
+  // derive the nested tree from the flat entries list whenever it changes
+  useEffect(() => {
+    const entries = entriesQuery.data?.entries ?? [];
+    setTree(entriesToTree(entries, workspacePath));
+    if (entriesQuery.data) setInitialized(true);
+  }, [entriesQuery.data, workspacePath]);
 
   const activePane = panes.find((p) => p.id === activePaneId);
   const activeFilePath = activePane?.activePath ?? null;
@@ -148,33 +219,9 @@ export function FileTree({
     if (initialized) saveExpanded(workspacePath, expanded);
   }, [expanded, workspacePath, initialized]);
 
-  const fetchTree = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      const res = await fetch(`/api/editor/fs/tree?workspace=${encodeURIComponent(workspacePath)}`);
-      const raw = await res.json();
-      if (!res.ok) {
-        setError(
-          typeof raw === "object" && raw && "error" in raw && typeof raw.error === "string"
-            ? raw.error
-            : "Failed to load",
-        );
-        return;
-      }
-      const data = unwrapApiData<{ tree?: FileNode[] }>(raw);
-      setTree(data.tree || []);
-      if (!initialized) setInitialized(true);
-    } catch {
-      setError("Failed to load file tree");
-    } finally {
-      setLoading(false);
-    }
-  }, [workspacePath, initialized]);
-
-  useEffect(() => {
-    fetchTree();
-  }, [fetchTree]);
+  const fetchTree = useCallback(() => {
+    refreshTree();
+  }, [refreshTree]);
 
   const toggleExpand = useCallback((path: string) => {
     setExpanded((prev) => {
@@ -207,7 +254,7 @@ export function FileTree({
   }, [activeFilePath, tree]);
 
   const handleFileClick = useCallback(
-    async (node: FileNode) => {
+    (node: FileNode) => {
       setSelectedPath(node.path);
 
       if (node.type === "dir") {
@@ -215,7 +262,7 @@ export function FileTree({
         return;
       }
 
-      if (!activePaneId) return;
+      if (!activePaneId || !environmentId) return;
 
       const alreadyInPane = activePane?.openPaths.includes(node.path);
       if (alreadyInPane) {
@@ -224,24 +271,23 @@ export function FileTree({
         return;
       }
 
-      openFile(activePaneId, node.path, node.name, node.ext || "", "");
-      setFileLoading(node.path, true);
+      // content loads lazily from the shared atom layer when the pane renders
+      openFile(
+        activePaneId,
+        makeFileRef(environmentId, workspacePath, node.path, node.name, node.ext || ""),
+      );
       onFileSelect?.();
-
-      try {
-        const res = await fetch(`/api/editor/fs/file?path=${encodeURIComponent(node.path)}`);
-        const raw = await res.json();
-        if (res.ok) {
-          const data = unwrapApiData<{ content?: string }>(raw);
-          openFile(activePaneId, node.path, node.name, node.ext || "", data.content ?? "");
-        }
-      } catch {
-        // leave empty
-      } finally {
-        setFileLoading(node.path, false);
-      }
     },
-    [activePaneId, activePane, openFile, onFileSelect, setActiveFile, setFileLoading, toggleExpand],
+    [
+      activePaneId,
+      activePane,
+      openFile,
+      onFileSelect,
+      setActiveFile,
+      environmentId,
+      workspacePath,
+      toggleExpand,
+    ],
   );
 
   const handleFileDoubleClick = useCallback(
@@ -381,41 +427,58 @@ export function FileTree({
     }
   }, [inlineCreate]);
 
+  const refreshVcsStatus = useAtomCommand(vcsEnvironment.refreshStatus, { reportFailure: false });
+  const statusQuery = useEnvironmentQuery(
+    environmentId ? vcsEnvironment.status({ environmentId, input: { cwd: workspacePath } }) : null,
+  );
+  // VCS status carries working-tree files without per-file M/A/D kind, so changed
+  // files are badged uniformly. Keyed by absolute path to match tree node paths.
+  const gitStatus = useMemo(() => {
+    const files = statusQuery.data?.workingTree.files ?? [];
+    const out: Record<string, string> = {};
+    for (const file of files) {
+      const abs = workspacePath.endsWith("/")
+        ? `${workspacePath}${file.path}`
+        : `${workspacePath}/${file.path}`;
+      out[abs] = "M";
+    }
+    return out;
+  }, [statusQuery.data, workspacePath]);
   const refreshGitStatus = useCallback(() => {
-    if (!workspacePath) return;
-    fetch(`/api/editor/fs/git-status?workspace=${encodeURIComponent(workspacePath)}`)
-      .then((r) => r.json())
-      .then((raw) => {
-        const data = unwrapApiData<{ status?: Record<string, string> }>(raw);
-        if (data.status) setGitStatus(data.status);
-      })
-      .catch(() => {});
-  }, [workspacePath]);
-
-  // fetch git status on mount
-  useEffect(() => {
-    refreshGitStatus();
-  }, [refreshGitStatus]);
+    if (environmentId) void refreshVcsStatus({ environmentId, input: { cwd: workspacePath } });
+  }, [environmentId, workspacePath, refreshVcsStatus]);
 
   const commitInlineCreate = useCallback(
     async (name: string) => {
-      if (!inlineCreate || !name.trim()) {
+      if (!inlineCreate || !name.trim() || !environmentId) {
         setInlineCreate(null);
         return;
       }
-      const path = `${inlineCreate.parentDir}/${name.trim()}`;
+      const parentRel = toRelative(inlineCreate.parentDir);
+      const relativePath = parentRel ? `${parentRel}/${name.trim()}` : name.trim();
       try {
-        await fetch("/api/editor/fs/create", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ path, type: inlineCreate.type }),
+        await createFileCmd({
+          environmentId,
+          input: {
+            cwd: workspacePath,
+            relativePath,
+            kind: inlineCreate.type === "dir" ? "directory" : "file",
+          },
         });
         fetchTree();
         refreshGitStatus();
       } catch {}
       setInlineCreate(null);
     },
-    [inlineCreate, fetchTree, refreshGitStatus],
+    [
+      inlineCreate,
+      environmentId,
+      workspacePath,
+      toRelative,
+      createFileCmd,
+      fetchTree,
+      refreshGitStatus,
+    ],
   );
 
   const handleCreateFile = useCallback(
@@ -457,24 +520,40 @@ export function FileTree({
 
   const commitRename = useCallback(
     async (newName: string) => {
-      if (!inlineRename || !newName.trim() || newName.trim() === inlineRename.name) {
+      if (
+        !inlineRename ||
+        !newName.trim() ||
+        newName.trim() === inlineRename.name ||
+        !environmentId
+      ) {
         setInlineRename(null);
         return;
       }
       const dir = inlineRename.path.slice(0, inlineRename.path.length - inlineRename.name.length);
-      const newPath = `${dir}${newName.trim()}`;
+      const newAbs = `${dir}${newName.trim()}`;
       try {
-        await fetch("/api/editor/fs/rename", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ oldPath: inlineRename.path, newPath }),
+        await renameFileCmd({
+          environmentId,
+          input: {
+            cwd: workspacePath,
+            fromRelativePath: toRelative(inlineRename.path),
+            toRelativePath: toRelative(newAbs),
+          },
         });
         fetchTree();
         refreshGitStatus();
       } catch {}
       setInlineRename(null);
     },
-    [inlineRename, fetchTree, refreshGitStatus],
+    [
+      inlineRename,
+      environmentId,
+      workspacePath,
+      toRelative,
+      renameFileCmd,
+      fetchTree,
+      refreshGitStatus,
+    ],
   );
 
   const handleRename = useCallback((oldPath: string, currentName: string) => {
@@ -491,18 +570,25 @@ export function FileTree({
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!deleteConfirm) return;
+    if (!deleteConfirm || !environmentId) return;
     try {
-      await fetch("/api/editor/fs/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ path: deleteConfirm.path }),
+      await deleteFileCmd({
+        environmentId,
+        input: { cwd: workspacePath, relativePath: toRelative(deleteConfirm.path) },
       });
       fetchTree();
       refreshGitStatus();
     } catch {}
     setDeleteConfirm(null);
-  }, [deleteConfirm, fetchTree, refreshGitStatus]);
+  }, [
+    deleteConfirm,
+    environmentId,
+    workspacePath,
+    toRelative,
+    deleteFileCmd,
+    fetchTree,
+    refreshGitStatus,
+  ]);
 
   // focus filter input when opened
   useEffect(() => {

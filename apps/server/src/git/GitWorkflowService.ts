@@ -13,6 +13,22 @@ import {
   type VcsCreateWorktreeResult,
   type VcsListRefsInput,
   type VcsListRefsResult,
+  type VcsShowFileInput,
+  type VcsShowFileResult,
+  type VcsDeleteRefInput,
+  type VcsDeleteRefResult,
+  type VcsLogInput,
+  type VcsLogResult,
+  type VcsListStashesInput,
+  type VcsListStashesResult,
+  type VcsCreateStashInput,
+  type VcsCreateStashResult,
+  type VcsApplyStashInput,
+  type VcsApplyStashResult,
+  type VcsDropStashInput,
+  type VcsDropStashResult,
+  type VcsShowStashInput,
+  type VcsShowStashResult,
   type GitManagerServiceError,
   type GitPreparePullRequestThreadInput,
   type GitPreparePullRequestThreadResult,
@@ -86,6 +102,28 @@ export class GitWorkflowService extends Context.Service<
     readonly switchRef: (
       input: VcsSwitchRefInput,
     ) => Effect.Effect<VcsSwitchRefResult, GitCommandError>;
+    readonly showFile: (
+      input: VcsShowFileInput,
+    ) => Effect.Effect<VcsShowFileResult, GitCommandError>;
+    readonly deleteRef: (
+      input: VcsDeleteRefInput,
+    ) => Effect.Effect<VcsDeleteRefResult, GitCommandError>;
+    readonly log: (input: VcsLogInput) => Effect.Effect<VcsLogResult, GitCommandError>;
+    readonly listStashes: (
+      input: VcsListStashesInput,
+    ) => Effect.Effect<VcsListStashesResult, GitCommandError>;
+    readonly createStash: (
+      input: VcsCreateStashInput,
+    ) => Effect.Effect<VcsCreateStashResult, GitCommandError>;
+    readonly applyStash: (
+      input: VcsApplyStashInput,
+    ) => Effect.Effect<VcsApplyStashResult, GitCommandError>;
+    readonly dropStash: (
+      input: VcsDropStashInput,
+    ) => Effect.Effect<VcsDropStashResult, GitCommandError>;
+    readonly showStash: (
+      input: VcsShowStashInput,
+    ) => Effect.Effect<VcsShowStashResult, GitCommandError>;
     readonly renameBranch: (input: {
       readonly cwd: string;
       readonly oldBranch: string;
@@ -318,6 +356,52 @@ export const make = Effect.gen(function* () {
     switchRef: (input) =>
       ensureGitCommand("GitWorkflowService.switchRef", input.cwd).pipe(
         Effect.andThen(Effect.scoped(git.switchRef(input))),
+      ),
+    showFile: (input) =>
+      detectGitRepositoryForCommand("GitWorkflowService.showFile", input.cwd).pipe(
+        Effect.flatMap((isGitRepository) =>
+          isGitRepository
+            ? git.showFile(input)
+            : Effect.succeed({
+                relativePath: input.relativePath,
+                contents: null,
+                ref: input.ref ?? "HEAD",
+              }),
+        ),
+      ),
+    deleteRef: (input) =>
+      ensureGitCommand("GitWorkflowService.deleteRef", input.cwd).pipe(
+        Effect.andThen(git.deleteRef(input)),
+      ),
+    log: (input) =>
+      detectGitRepositoryForCommand("GitWorkflowService.log", input.cwd).pipe(
+        Effect.flatMap((isGitRepository) =>
+          isGitRepository
+            ? git.log(input)
+            : Effect.succeed({ commits: [], nextCursor: null, truncated: false }),
+        ),
+      ),
+    listStashes: (input) =>
+      detectGitRepositoryForCommand("GitWorkflowService.listStashes", input.cwd).pipe(
+        Effect.flatMap((isGitRepository) =>
+          isGitRepository ? git.listStashes(input) : Effect.succeed({ stashes: [] }),
+        ),
+      ),
+    createStash: (input) =>
+      ensureGitCommand("GitWorkflowService.createStash", input.cwd).pipe(
+        Effect.andThen(git.createStash(input)),
+      ),
+    applyStash: (input) =>
+      ensureGitCommand("GitWorkflowService.applyStash", input.cwd).pipe(
+        Effect.andThen(git.applyStash(input)),
+      ),
+    dropStash: (input) =>
+      ensureGitCommand("GitWorkflowService.dropStash", input.cwd).pipe(
+        Effect.andThen(git.dropStash(input)),
+      ),
+    showStash: (input) =>
+      ensureGitCommand("GitWorkflowService.showStash", input.cwd).pipe(
+        Effect.andThen(git.showStash(input)),
       ),
     renameBranch: (input) =>
       ensureGit("GitWorkflowService.renameBranch", input.cwd).pipe(

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { EnvironmentId } from "@t3tools/contracts";
 
 // a non-file editor tab that renders a React view instead of Monaco.
 // keeps Git surfaces (peer review, etc.) inside the editor's own stacking
@@ -17,16 +18,46 @@ export type EditorView =
     };
 
 // shared file data (content is synced across panes showing same file)
-export interface FileData {
-  path: string;
-  name: string;
-  ext: string;
-  content: string;
-  savedContent: string;
-  loading: boolean;
+/**
+ * Environment-scoped reference to a project file. Identity = absolute `path`.
+ * Content is NOT stored here — it lives in the shared atom layer
+ * (`projectFileState`) so both the floating editor and the Files panel share
+ * one buffer per file.
+ */
+export interface FileRef {
+  /** Absolute path (identity + display). */
+  readonly path: string;
+  readonly environmentId: EnvironmentId;
+  readonly cwd: string;
+  readonly relativePath: string;
+  readonly name: string;
+  readonly ext: string;
+}
+
+export interface FileData extends FileRef {
   pinned: boolean;
-  originalContent?: string; // HEAD content for diff view
-  view?: EditorView; // when set, this tab renders a React view (not a file)
+  view?: EditorView;
+  /** HEAD content for diff view (sourced via the VCS subsystem in P4). */
+  diffOriginal?: string;
+  /**
+   * Non-env virtual content for read-only tabs (commit patches). Transitional —
+   * removed when the git panel is rewritten against the VCS subsystem in P4.
+   */
+  virtualContent?: string;
+}
+
+/** Build a {@link FileRef} from an absolute path within a workspace. */
+export function makeFileRef(
+  environmentId: EnvironmentId,
+  cwd: string,
+  absPath: string,
+  name: string,
+  ext: string,
+): FileRef {
+  const relativePath = absPath.startsWith(cwd)
+    ? absPath.slice(cwd.length).replace(/^\/+/, "")
+    : absPath;
+  return { path: absPath, environmentId, cwd, relativePath, name, ext };
 }
 
 // a single pane's view state (paths only, content from fileCache)
@@ -107,23 +138,15 @@ interface EditorStore {
   updateEditorConfig: (partial: Partial<EditorConfig>) => void;
 
   // pane-scoped actions
-  openFile: (paneId: string, path: string, name: string, ext: string, content: string) => void;
+  openFile: (paneId: string, ref: FileRef) => void;
   closeFile: (paneId: string, path: string) => void;
   setActiveFile: (paneId: string, path: string) => void;
-  updateContent: (path: string, content: string) => void;
-  markSaved: (path: string, content: string) => void;
-  setFileLoading: (path: string, loading: boolean) => void;
   pinFile: (path: string) => void;
 
-  // diff view
-  openDiffFile: (
-    paneId: string,
-    path: string,
-    name: string,
-    ext: string,
-    modified: string,
-    original: string,
-  ) => void;
+  // diff view (HEAD original; working content comes from the atom layer)
+  openDiffFile: (paneId: string, ref: FileRef, original: string) => void;
+  // read-only virtual tab carrying its own content (commit patches); transitional
+  openVirtualFile: (paneId: string, path: string, name: string, content: string) => void;
 
   // non-file view tab (peer review, etc.) — keyed by a synthetic path so it
   // participates in the normal tab lifecycle (activate/close/reorder).
@@ -140,6 +163,13 @@ interface EditorStore {
 
   // workspace
   setTreeWorkspacePath: (path: string) => void;
+  environmentId: EnvironmentId | null;
+  setEnvironmentId: (id: EnvironmentId | null) => void;
+
+  // dirty tracking — driven by the shared file-state layer's onPendingChange.
+  // keyed by absolute path (matches pane.openPaths / fileCache keys).
+  dirtyKeys: Set<string>;
+  setFileDirty: (path: string, dirty: boolean) => void;
 
   // floating overlay
   isOverlayOpen: boolean;
@@ -192,6 +222,22 @@ export const useEditorStore = create<EditorStore>((set, get) => {
     activePaneId: initialPane.id,
     splitTree: { type: "leaf", paneId: initialPane.id },
     treeWorkspacePath: null,
+    environmentId: null,
+    dirtyKeys: new Set<string>(),
+    setEnvironmentId: (id) => set({ environmentId: id }),
+    setFileDirty: (path, dirty) =>
+      set((s) => {
+        if (dirty) {
+          if (s.dirtyKeys.has(path)) return s;
+          const next = new Set(s.dirtyKeys);
+          next.add(path);
+          return { dirtyKeys: next };
+        }
+        if (!s.dirtyKeys.has(path)) return s;
+        const next = new Set(s.dirtyKeys);
+        next.delete(path);
+        return { dirtyKeys: next };
+      }),
     sidebarView: "files" as const,
     setSidebarView: (view) => set({ sidebarView: view }),
     searchPanelVisible: false,
@@ -217,26 +263,24 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         return { editorConfig: next };
       }),
 
-    openFile: (paneId, path, name, ext, content) => {
+    openFile: (paneId, ref) => {
       const store = get();
       const pane = store.panes.find((p) => p.id === paneId);
       if (!pane) return;
 
-      // add or update file cache
-      const existing = store.fileCache.get(path);
-      const fileData: FileData = existing
-        ? { ...existing, content, savedContent: content, loading: false }
-        : { path, name, ext, content, savedContent: content, loading: false, pinned: false };
+      // add or update file cache (content lives in the atom layer, not here)
+      const existing = store.fileCache.get(ref.path);
+      const fileData: FileData = existing ? { ...existing, ...ref } : { ...ref, pinned: false };
 
       const newCache = new Map(store.fileCache);
-      newCache.set(path, fileData);
+      newCache.set(ref.path, fileData);
 
       // update pane
       const newPanes = store.panes.map((p) => {
         if (p.id !== paneId) return p;
-        if (p.openPaths.includes(path)) {
+        if (p.openPaths.includes(ref.path)) {
           // already open in this pane - just activate
-          return { ...p, activePath: path };
+          return { ...p, activePath: ref.path };
         }
         // replace preview tab if exists, else add
         const previewIdx = p.openPaths.findIndex((fp) => {
@@ -245,39 +289,32 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         });
         const newOpenPaths = [...p.openPaths];
         if (previewIdx >= 0) {
-          newOpenPaths[previewIdx] = path;
+          newOpenPaths[previewIdx] = ref.path;
         } else {
-          newOpenPaths.push(path);
+          newOpenPaths.push(ref.path);
         }
-        return { ...p, openPaths: newOpenPaths, activePath: path };
+        return { ...p, openPaths: newOpenPaths, activePath: ref.path };
       });
 
       set({ fileCache: newCache, panes: newPanes });
     },
 
-    openDiffFile: (paneId, path, name, ext, modified, original) => {
+    openDiffFile: (paneId, ref, original) => {
       const store = get();
       const pane = store.panes.find((p) => p.id === paneId);
       if (!pane) return;
 
-      const fileData: FileData = {
-        path,
-        name,
-        ext,
-        content: modified,
-        savedContent: modified,
-        loading: false,
-        pinned: false,
-        originalContent: original,
-      };
+      // working/modified content is sourced from the atom layer; only the HEAD
+      // original is carried here for the diff view.
+      const fileData: FileData = { ...ref, pinned: false, diffOriginal: original };
 
       const newCache = new Map(store.fileCache);
-      newCache.set(path, fileData);
+      newCache.set(ref.path, fileData);
 
       const newPanes = store.panes.map((p) => {
         if (p.id !== paneId) return p;
-        if (p.openPaths.includes(path)) {
-          return { ...p, activePath: path };
+        if (p.openPaths.includes(ref.path)) {
+          return { ...p, activePath: ref.path };
         }
         const previewIdx = p.openPaths.findIndex((fp) => {
           const fd = store.fileCache.get(fp);
@@ -285,11 +322,40 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         });
         const newOpenPaths = [...p.openPaths];
         if (previewIdx >= 0) {
-          newOpenPaths[previewIdx] = path;
+          newOpenPaths[previewIdx] = ref.path;
         } else {
-          newOpenPaths.push(path);
+          newOpenPaths.push(ref.path);
         }
-        return { ...p, openPaths: newOpenPaths, activePath: path };
+        return { ...p, openPaths: newOpenPaths, activePath: ref.path };
+      });
+
+      set({ fileCache: newCache, panes: newPanes });
+    },
+
+    openVirtualFile: (paneId, path, name, content) => {
+      const store = get();
+      const pane = store.panes.find((p) => p.id === paneId);
+      if (!pane) return;
+
+      // read-only virtual tab (e.g. a commit patch) carrying its own content.
+      // not env-scoped — synthetic path so it never collides with a real file.
+      const fileData: FileData = {
+        path,
+        environmentId: store.environmentId ?? ("" as EnvironmentId),
+        cwd: store.treeWorkspacePath ?? "",
+        relativePath: name,
+        name,
+        ext: "diff",
+        pinned: true,
+        virtualContent: content,
+      };
+      const newCache = new Map(store.fileCache);
+      newCache.set(path, fileData);
+
+      const newPanes = store.panes.map((p) => {
+        if (p.id !== paneId) return p;
+        if (p.openPaths.includes(path)) return { ...p, activePath: path };
+        return { ...p, openPaths: [...p.openPaths, path], activePath: path };
       });
 
       set({ fileCache: newCache, panes: newPanes });
@@ -304,11 +370,11 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       // opening files never replaces it as a preview tab.
       const fileData: FileData = {
         path: key,
+        environmentId: store.environmentId ?? ("" as EnvironmentId),
+        cwd: store.treeWorkspacePath ?? "",
+        relativePath: name,
         name,
         ext: "",
-        content: "",
-        savedContent: "",
-        loading: false,
         pinned: true,
         view,
       };
@@ -340,22 +406,24 @@ export const useEditorStore = create<EditorStore>((set, get) => {
         p.id === paneId ? { ...p, openPaths: newOpenPaths, activePath: newActivePath } : p,
       );
 
-      // evict from cache if no pane holds this file anymore
+      // evict from cache if no pane holds this file anymore; clear its dirty flag too
       const stillOpen = newPanes.some((p) => p.openPaths.includes(path));
-      const newCache = stillOpen
-        ? store.fileCache
-        : (() => {
-            const c = new Map(store.fileCache);
-            c.delete(path);
-            return c;
-          })();
+      const newCache = new Map(store.fileCache);
+      let newDirtyKeys = store.dirtyKeys;
+      if (!stillOpen) {
+        newCache.delete(path);
+        if (store.dirtyKeys.has(path)) {
+          newDirtyKeys = new Set(store.dirtyKeys);
+          newDirtyKeys.delete(path);
+        }
+      }
 
       // check if pane should be auto-closed (no files left and not the only pane)
       if (newOpenPaths.length === 0 && store.panes.length > 1) {
-        set({ fileCache: newCache });
+        set({ fileCache: newCache, dirtyKeys: newDirtyKeys });
         get().closePane(paneId);
       } else {
-        set({ panes: newPanes, fileCache: newCache });
+        set({ panes: newPanes, fileCache: newCache, dirtyKeys: newDirtyKeys });
       }
     },
 
@@ -363,40 +431,6 @@ export const useEditorStore = create<EditorStore>((set, get) => {
       set((s) => ({
         panes: s.panes.map((p) => (p.id === paneId ? { ...p, activePath: path } : p)),
       }));
-    },
-
-    updateContent: (path, content) => {
-      // editing auto-pins the file
-      set((s) => {
-        const newCache = new Map(s.fileCache);
-        const existing = newCache.get(path);
-        if (existing) {
-          newCache.set(path, { ...existing, content, pinned: true });
-        }
-        return { fileCache: newCache };
-      });
-    },
-
-    markSaved: (path, content) => {
-      set((s) => {
-        const newCache = new Map(s.fileCache);
-        const existing = newCache.get(path);
-        if (existing) {
-          newCache.set(path, { ...existing, savedContent: content, content });
-        }
-        return { fileCache: newCache };
-      });
-    },
-
-    setFileLoading: (path, loading) => {
-      set((s) => {
-        const newCache = new Map(s.fileCache);
-        const existing = newCache.get(path);
-        if (existing) {
-          newCache.set(path, { ...existing, loading });
-        }
-        return { fileCache: newCache };
-      });
     },
 
     pinFile: (path) => {
@@ -523,9 +557,8 @@ export const useEditorStore = create<EditorStore>((set, get) => {
 });
 
 // selectors
-export function isDirty(file: FileData): boolean {
-  return file.content !== file.savedContent;
-}
+// dirty state now lives in the shared atom layer; use `dirtyKeys` via the store
+// (or `useProjectFile(...).isDirty` for a single file) instead.
 
 // get pane data helper
 export function usePane(paneId: string) {

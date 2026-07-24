@@ -17,6 +17,9 @@ const EMPTY_PROJECT_FILE_PATH = "";
 const EMPTY_PROJECT_FILE_QUERY_ATOM = Atom.make(
   AsyncResult.initial<ProjectReadFileResult, never>(false),
 ).pipe(Atom.withLabel("project-file-query:empty"));
+const EMPTY_ENTRIES_ATOM = Atom.make(
+  AsyncResult.initial<ProjectListEntriesResult, never>(false),
+).pipe(Atom.withLabel("project-entries-query:empty"));
 function optimisticFileAtom(environmentId: EnvironmentId, cwd: string, relativePath: string) {
   return projectEnvironment.optimisticFile({ environmentId, cwd, relativePath });
 }
@@ -121,10 +124,10 @@ function errorMessage<A>(result: AsyncResult.AsyncResult<A, unknown>): string | 
 }
 
 export function useProjectEntriesQuery(
-  environmentId: EnvironmentId,
+  environmentId: EnvironmentId | null,
   cwd: string,
 ): ProjectQueryState<ProjectListEntriesResult> {
-  const atom = getProjectEntriesQueryAtom(environmentId, cwd);
+  const atom = environmentId ? getProjectEntriesQueryAtom(environmentId, cwd) : EMPTY_ENTRIES_ATOM;
   const result = useAtomValue(atom);
   const refreshAtom = useAtomRefresh(atom);
   const refresh = useCallback(() => refreshAtom(), [refreshAtom]);

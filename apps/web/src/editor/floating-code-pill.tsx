@@ -9,10 +9,9 @@ import {
   CloseCircleFilled,
   AttachCircleFilled,
 } from "@aliimam/icons";
-import { unwrapApiData } from "./api";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { cn } from "~/lib/utils";
-import { useEditorStore, isDirty } from "./editor-store";
+import { useEditorStore } from "./editor-store";
 import { useWorkspace } from "./workspace";
 import { usePillNavPreferences, getPillNavShineGradient } from "./pill-prefs";
 import { FileTree } from "./file-tree";
@@ -106,17 +105,17 @@ export function FloatingCodePill() {
   const isOpen = useEditorStore((s) => s.isOverlayOpen);
   const openOverlay = useEditorStore((s) => s.openOverlay);
   const closeOverlay = useEditorStore((s) => s.closeOverlay);
-  const fileCache = useEditorStore((s) => s.fileCache);
   const activePaneId = useEditorStore((s) => s.activePaneId);
   const setTreeWorkspacePath = useEditorStore((s) => s.setTreeWorkspacePath);
+  const setEnvironmentId = useEditorStore((s) => s.setEnvironmentId);
   const splitRight = useEditorStore((s) => s.splitRight);
   const sidebarView = useEditorStore((s) => s.sidebarView);
   const setSidebarView = useEditorStore((s) => s.setSidebarView);
 
-  const { workspacePath } = useWorkspace();
+  const { workspacePath, environmentId } = useWorkspace();
   const { prefs: pillPrefs } = usePillNavPreferences();
   const shineColors = getPillNavShineGradient(pillPrefs);
-  const [configRoot, setConfigRoot] = useState<string | null>(null);
+  // hydrate from localStorage (standard React hydration pattern)
   const [quickOpenVisible, setQuickOpenVisible] = useState(false);
   const [fileFilterOpen, setFileFilterOpen] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -168,18 +167,11 @@ export function FloatingCodePill() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // fetch project root as fallback
-  useEffect(() => {
-    fetch("/api/editor/config")
-      .then((r) => r.json())
-      .then((raw) => {
-        const data = unwrapApiData<{ root?: string }>(raw);
-        if (data.root) setConfigRoot(data.root);
-      })
-      .catch(() => {});
-  }, []);
+  const projectRoot = workspacePath;
 
-  const projectRoot = workspacePath || configRoot;
+  useEffect(() => {
+    setEnvironmentId(environmentId);
+  }, [environmentId, setEnvironmentId]);
 
   useEffect(() => {
     if (projectRoot) setTreeWorkspacePath(projectRoot);
@@ -253,7 +245,7 @@ export function FloatingCodePill() {
     };
   }, [isOpen, isPinned, closeOverlay]);
 
-  const dirtyCount = Array.from(fileCache.values()).filter(isDirty).length;
+  const dirtyCount = useEditorStore((s) => s.dirtyKeys.size);
 
   // ─── sidebar resize ───────────────────────────────────────
   const handleResizeStart = useCallback(

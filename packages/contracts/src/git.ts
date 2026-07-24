@@ -187,6 +187,136 @@ export const VcsInitInput = Schema.Struct({
 });
 export type VcsInitInput = typeof VcsInitInput.Type;
 
+// Show a file's contents at a git ref (default HEAD) for diff views.
+export const VcsShowFileInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  relativePath: TrimmedNonEmptyStringSchema.check(Schema.isMaxLength(512)),
+  ref: Schema.optional(TrimmedNonEmptyStringSchema.check(Schema.isMaxLength(256))),
+});
+export type VcsShowFileInput = typeof VcsShowFileInput.Type;
+
+export const VcsShowFileResult = Schema.Struct({
+  relativePath: TrimmedNonEmptyStringSchema,
+  // contents at the ref; null when the file does not exist at that ref
+  // (e.g. a new untracked file vs HEAD -> diff shows full additions)
+  contents: Schema.NullOr(Schema.String),
+  ref: TrimmedNonEmptyStringSchema,
+});
+export type VcsShowFileResult = typeof VcsShowFileResult.Type;
+
+// ── branch delete ────────────────────────────────────────────────────────────
+
+export const VcsDeleteRefInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  refName: TrimmedNonEmptyStringSchema.check(Schema.isMaxLength(256)),
+  remote: Schema.optional(Schema.Boolean),
+  force: Schema.optional(Schema.Boolean),
+});
+export type VcsDeleteRefInput = typeof VcsDeleteRefInput.Type;
+
+export const VcsDeleteRefResult = Schema.Struct({
+  refName: TrimmedNonEmptyStringSchema,
+});
+export type VcsDeleteRefResult = typeof VcsDeleteRefResult.Type;
+
+// ── commit history (log) ─────────────────────────────────────────────────────
+
+export const VcsLogCommit = Schema.Struct({
+  sha: TrimmedNonEmptyStringSchema,
+  shortSha: TrimmedNonEmptyStringSchema,
+  author: Schema.String,
+  email: Schema.String,
+  date: Schema.String, // ISO 8601 (author date)
+  message: Schema.String,
+  parents: Schema.Array(TrimmedNonEmptyStringSchema),
+});
+export type VcsLogCommit = typeof VcsLogCommit.Type;
+
+export const VcsLogInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  limit: Schema.optional(
+    PositiveInt.check(Schema.isLessThanOrEqualTo(GIT_LIST_BRANCHES_MAX_LIMIT)),
+  ),
+  cursor: Schema.optional(NonNegativeInt),
+});
+export type VcsLogInput = typeof VcsLogInput.Type;
+
+export const VcsLogResult = Schema.Struct({
+  commits: Schema.Array(VcsLogCommit),
+  nextCursor: Schema.NullOr(NonNegativeInt),
+  truncated: Schema.Boolean,
+});
+export type VcsLogResult = typeof VcsLogResult.Type;
+
+// ── stash ────────────────────────────────────────────────────────────────────
+
+export const VcsStash = Schema.Struct({
+  id: TrimmedNonEmptyStringSchema,
+  branch: Schema.String,
+  message: Schema.String,
+  date: Schema.String, // ISO 8601
+});
+export type VcsStash = typeof VcsStash.Type;
+
+export const VcsListStashesInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+});
+export type VcsListStashesInput = typeof VcsListStashesInput.Type;
+
+export const VcsListStashesResult = Schema.Struct({
+  stashes: Schema.Array(VcsStash),
+});
+export type VcsListStashesResult = typeof VcsListStashesResult.Type;
+
+export const VcsCreateStashInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  message: Schema.optional(TrimmedNonEmptyStringSchema.check(Schema.isMaxLength(10_000))),
+  includeUntracked: Schema.optional(Schema.Boolean),
+  keepIndex: Schema.optional(Schema.Boolean),
+});
+export type VcsCreateStashInput = typeof VcsCreateStashInput.Type;
+
+export const VcsCreateStashResult = Schema.Struct({
+  id: Schema.NullOr(TrimmedNonEmptyStringSchema),
+});
+export type VcsCreateStashResult = typeof VcsCreateStashResult.Type;
+
+export const VcsApplyStashInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  id: TrimmedNonEmptyStringSchema,
+  dropAfter: Schema.optional(Schema.Boolean),
+});
+export type VcsApplyStashInput = typeof VcsApplyStashInput.Type;
+
+export const VcsApplyStashResult = Schema.Struct({
+  id: TrimmedNonEmptyStringSchema,
+});
+export type VcsApplyStashResult = typeof VcsApplyStashResult.Type;
+
+export const VcsDropStashInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  id: TrimmedNonEmptyStringSchema,
+});
+export type VcsDropStashInput = typeof VcsDropStashInput.Type;
+
+export const VcsDropStashResult = Schema.Struct({
+  id: TrimmedNonEmptyStringSchema,
+});
+export type VcsDropStashResult = typeof VcsDropStashResult.Type;
+
+export const VcsShowStashInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  id: TrimmedNonEmptyStringSchema,
+});
+export type VcsShowStashInput = typeof VcsShowStashInput.Type;
+
+export const VcsShowStashResult = Schema.Struct({
+  id: TrimmedNonEmptyStringSchema,
+  diff: Schema.String,
+  truncated: Schema.Boolean,
+});
+export type VcsShowStashResult = typeof VcsShowStashResult.Type;
+
 // RPC Results
 
 const VcsStatusChangeRequest = Schema.Struct({

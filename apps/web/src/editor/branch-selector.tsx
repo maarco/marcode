@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { ArrowDownFilled, AddFilled, TrashFilled, ArrowRightFilled } from "@aliimam/icons";
+import { useState, useEffect } from "react";
+import { ArrowDownFilled, TrashFilled, ArrowRightFilled } from "@aliimam/icons";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -10,44 +10,61 @@ import {
 } from "./ui-dropdown-menu";
 import { cn } from "~/lib/utils";
 import { showToast } from "./toast";
-import type {
-  GitBranch,
-  GitBranchListResult,
-  GitBranchCreateResult,
-  GitBranchSwitchResult,
-  GitBranchDeleteResult,
-} from "./git-types";
+import { useEditorStore } from "./editor-store";
+import { useEnvironmentQuery } from "~/state/query";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { vcsEnvironment } from "~/state/vcs";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+  type AtomCommandResult,
+} from "@t3tools/client-runtime/state/runtime";
+import type { VcsRef } from "@t3tools/contracts";
+
+/** Extract a user-facing message from a settled atom command result. */
+function resultErrorMessage(result: AtomCommandResult<unknown, unknown>): string | null {
+  if (result._tag === "Success") return null;
+  if (isAtomCommandInterrupted(result)) return null;
+  const error = squashAtomCommandFailure(result);
+  return error instanceof Error && error.message.length > 0 ? error.message : "Operation failed";
+}
 
 /**
  * Props for BranchSelector component
  */
 interface BranchSelectorProps {
-  /** Absolute workspace path (provided by parent GitPanel) */
+  /** Absolute workspace path (the environment cwd; provided by parent GitPanel) */
   workspacePath: string;
   /** Optional callback when branch switch completes */
   onBranchSwitch?: (branchName: string) => void;
 }
 
 /**
- * Branch selector dropdown component
- * Enables users to view, create, switch, and delete Git branches
- * with real-time validation, loading states, and error handling.
- *
- * @component
- * @example
- * ```tsx
- * <BranchSelector
- *   workspacePath="/path/to/repo"
- *   onBranchSwitch={(branch) => console.log("Switched to", branch)}
- * />
- * ```
+ * Branch selector dropdown component.
+ * Lists/creates/switches/deletes Git branches via the env-scoped VCS atoms
+ * (`vcsEnvironment.listRefs` / `createRef` / `switchRef` / `deleteRef`).
  */
 export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelectorProps) {
+  const environmentId = useEditorStore((s) => s.environmentId);
+
+  // ── derived state ─────────────────────────────────────────────────────────
+  const refsQuery = useEnvironmentQuery(
+    environmentId !== null
+      ? vcsEnvironment.listRefs({
+          environmentId,
+          input: { cwd: workspacePath, limit: 100 },
+        })
+      : null,
+  );
+  const refresh = refsQuery.refresh;
+
+  const refs = refsQuery.data?.refs ?? [];
+  const currentBranch = refs.find((r) => r.current)?.name ?? "";
+  const localBranches = refs.filter((b) => !b.isRemote);
+  const remoteBranches = refs.filter((b) => b.isRemote);
+
   // ── state management ──────────────────────────────────────────────────────
   const [isOpen, setIsOpen] = useState(false);
-  const [branches, setBranches] = useState<GitBranch[]>([]);
-  const [currentBranch, setCurrentBranch] = useState("");
-  const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [createInput, setCreateInput] = useState("");
@@ -57,43 +74,19 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
     force: boolean;
   } | null>(null);
 
-  // ── derived state ─────────────────────────────────────────────────────────
-  const localBranches = branches.filter((b) => !b.isRemote);
-  const remoteBranches = branches.filter((b) => b.isRemote);
   const canCreateBranch = createInput.trim().length > 0 && !createValidationError;
 
-  // ── api helper ────────────────────────────────────────────────────────────
-  /**
-   * Generic Git API call helper
-   * All endpoints POST to /api/git with consistent request/response contract
-   */
-  const gitPost = useCallback(
-    async (action: string, payload: Record<string, unknown>) => {
-      const res = await fetch("/api/editor/git", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ workspacePath, action, ...payload }),
-      });
+  // ── commands ──────────────────────────────────────────────────────────────
+  const createRef = useAtomCommand(vcsEnvironment.createRef, { reportFailure: false });
+  const switchRef = useAtomCommand(vcsEnvironment.switchRef, { reportFailure: false });
+  const deleteRef = useAtomCommand(vcsEnvironment.deleteRef, { reportFailure: false });
 
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error?.message ?? `HTTP ${res.status}: git error`);
-      }
-
-      const raw = await res.json();
-      if (!raw.success) {
-        throw new Error(raw.error?.message ?? "git error");
-      }
-      return raw.data;
-    },
-    [workspacePath],
-  );
+  // surface query errors (e.g. "not a repository") in the same banner as action errors
+  useEffect(() => {
+    if (refsQuery.error) setError(refsQuery.error);
+  }, [refsQuery.error]);
 
   // ── validation helpers ────────────────────────────────────────────────────
-  /**
-   * Client-side validation for branch names
-   * Catches common errors before API call
-   */
   const validateBranchNameClient = (name: string): string | null => {
     if (!name.trim()) {
       return null; // Empty is ok on initial render
@@ -103,32 +96,26 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
       return "Branch name too long (max 255 characters)";
     }
 
-    // Git ref format validation
-    if (/[~^:?*\[\\@{}]/.test(name)) {
+    if (/[~^:?*\\@{}[]/.test(name)) {
       return "Contains invalid characters: ~ ^ : ? * [ \\ @ { }";
     }
 
-    // Cannot start or end with dot
     if (name.startsWith(".") || name.endsWith(".")) {
       return "Cannot start or end with dot";
     }
 
-    // Cannot contain consecutive dots
     if (name.includes("..")) {
       return "Cannot contain consecutive dots";
     }
 
-    // Single @
     if (name === "@") {
       return "Cannot be a single @";
     }
 
-    // Contains @{
     if (name.includes("@{")) {
       return "Cannot contain @{";
     }
 
-    // Cannot end with .lock
     if (name.endsWith(".lock")) {
       return "Cannot end with .lock";
     }
@@ -136,31 +123,8 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
     return null;
   };
 
-  // ── fetch branches ────────────────────────────────────────────────────────
-  /**
-   * Fetch all branches from the repository
-   * Called when dropdown opens or on refresh
-   */
-  const refreshBranches = useCallback(async () => {
-    try {
-      setLoading(true);
-      const result = (await gitPost("list_branches", {})) as GitBranchListResult;
-      setBranches(result.branches);
-      setCurrentBranch(result.current);
-      setError(null);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to load branches";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, [gitPost]);
-
   // ── event handlers ────────────────────────────────────────────────────────
 
-  /**
-   * Handle branch name input change with real-time validation
-   */
   const handleCreateInputChange = (value: string) => {
     setCreateInput(value);
 
@@ -169,106 +133,79 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
       return;
     }
 
-    // Check for existing branches (case-insensitive)
-    const exists = branches.some((b) => b.name.toLowerCase() === value.trim().toLowerCase());
+    const exists = refs.some((b) => b.name.toLowerCase() === value.trim().toLowerCase());
     if (exists) {
       setCreateValidationError("Branch already exists");
       return;
     }
 
-    // Client-side format validation
-    const validationError = validateBranchNameClient(value);
-    setCreateValidationError(validationError);
+    setCreateValidationError(validateBranchNameClient(value));
   };
 
-  /**
-   * Create a new branch from current HEAD
-   */
   const handleCreateBranch = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!canCreateBranch) return;
+    if (!canCreateBranch || environmentId === null) return;
 
     try {
       setActionLoading("__create__");
-      const result = (await gitPost("create_branch", {
-        branchName: createInput.trim(),
-      })) as GitBranchCreateResult;
+      setError(null);
+      const result = await createRef({
+        environmentId,
+        input: { cwd: workspacePath, refName: createInput.trim() },
+      });
 
-      if (result.ok) {
-        setCreateInput("");
-        setCreateValidationError(null);
-        setError(null);
-        await refreshBranches();
-
-        showToast({
-          type: "success",
-          title: "Branch created",
-          message: result.branch || createInput.trim(),
-        });
-      } else {
-        setError(result.error || "Failed to create branch");
+      const failure = resultErrorMessage(result);
+      if (failure) {
+        setError(failure);
+        return;
       }
+
+      setCreateInput("");
+      setCreateValidationError(null);
+      refresh();
+      showToast({ type: "success", title: "Branch created", message: createInput.trim() });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to create branch";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to create branch");
     } finally {
       setActionLoading(null);
     }
   };
 
-  /**
-   * Switch to a different branch
-   */
   const handleSwitchBranch = async (branchName: string) => {
-    if (branchName === currentBranch) {
+    if (branchName === currentBranch || environmentId === null) {
       setIsOpen(false);
       return;
     }
 
     try {
       setActionLoading(branchName);
-      const result = (await gitPost("switch_branch", {
-        branchName,
-      })) as GitBranchSwitchResult;
+      setError(null);
+      const result = await switchRef({
+        environmentId,
+        input: { cwd: workspacePath, refName: branchName },
+      });
 
-      if (result.ok) {
-        setCurrentBranch(result.current || branchName);
-        setError(null);
-        setIsOpen(false);
-        await refreshBranches();
-
-        if (result.hasUncommittedChanges) {
-          showToast({
-            type: "info",
-            title: "Branch switched",
-            message: "Uncommitted changes were auto-stashed.",
-          });
-        } else {
-          showToast({
-            type: "success",
-            title: "Switched branch",
-            message: branchName,
-          });
-        }
-
-        // Optional parent callback
-        onBranchSwitch?.(branchName);
-      } else {
-        setError(result.error || "Failed to switch branch");
+      const failure = resultErrorMessage(result);
+      if (failure) {
+        setError(failure);
+        return;
       }
+
+      setIsOpen(false);
+      refresh();
+      showToast({ type: "success", title: "Switched branch", message: branchName });
+      onBranchSwitch?.(branchName);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to switch branch";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to switch branch");
     } finally {
       setActionLoading(null);
     }
   };
 
   /**
-   * Checkout a remote-tracking branch as a new local branch.
-   * Strips the `<remote>/` prefix and switches to the local name; git's DWIM
-   * behavior auto-creates a tracking branch from the unique remote match.
+   * Checkout a remote-tracking branch as a new local branch. Strips the
+   * `<remote>/` prefix and switches to the local name; git's DWIM behavior
+   * auto-creates a tracking branch from the unique remote match.
    */
   const handleCheckoutRemote = async (remoteBranchName: string) => {
     const localName = remoteBranchName.replace(/^[^/]+\//, "");
@@ -279,80 +216,40 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
     await handleSwitchBranch(localName);
   };
 
-  /**
-   * Delete a branch with optional force flag
-   */
   const handleDeleteBranch = async (branchName: string, force = false) => {
+    if (environmentId === null) return;
     try {
       setActionLoading(branchName);
-      const result = (await gitPost("delete_branch", {
-        branchName,
-        force,
-      })) as GitBranchDeleteResult;
+      setError(null);
+      const result = await deleteRef({
+        environmentId,
+        input: { cwd: workspacePath, refName: branchName, force },
+      });
 
-      if (result.ok) {
-        setError(null);
-        setShowDeleteConfirm(null);
-        await refreshBranches();
-        showToast({
-          type: "success",
-          title: "Branch deleted",
-          message: branchName,
-        });
-      } else {
-        // Check if we need to prompt for force delete
-        const isNotMerged = result.error && result.error.toLowerCase().includes("not fully merged");
+      const failure = resultErrorMessage(result);
+      if (failure) {
+        // Prompt for force-delete when the branch has unmerged commits.
+        const isNotMerged = failure.toLowerCase().includes("not fully merged");
         if (!force && isNotMerged) {
           setShowDeleteConfirm({ branchName, force: true });
           setError("Branch has unmerged changes. Use force delete to remove it.");
         } else {
-          setError(result.error || "Failed to delete branch");
+          setError(failure);
         }
+        return;
       }
+
+      setShowDeleteConfirm(null);
+      refresh();
+      showToast({ type: "success", title: "Branch deleted", message: branchName });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed to delete branch";
-      setError(msg);
+      setError(e instanceof Error ? e.message : "Failed to delete branch");
     } finally {
       setActionLoading(null);
     }
   };
 
-  // ── lifecycle effects ─────────────────────────────────────────────────────
-
-  /**
-   * Fetch the current branch + list on mount (and whenever the workspace
-   * changes). Without this the header label sits on "loading…" forever, because
-   * currentBranch is only ever populated by refreshBranches — which otherwise
-   * runs only after the dropdown is opened.
-   */
-  useEffect(() => {
-    refreshBranches();
-  }, [refreshBranches]);
-
-  /**
-   * Fetch branches when dropdown first opens
-   */
-  useEffect(() => {
-    if (isOpen && branches.length === 0) {
-      refreshBranches();
-    }
-  }, [isOpen, branches.length, refreshBranches]);
-
-  /**
-   * Auto-refresh branches while dropdown is open (every 10s)
-   * Ensures user sees latest branch list if other tools modify git state
-   */
-  useEffect(() => {
-    if (!isOpen) return;
-
-    const interval = setInterval(() => {
-      refreshBranches().catch(() => {
-        // Silently ignore refresh errors
-      });
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [isOpen, refreshBranches]);
+  const loading = refsQuery.isPending && refs.length === 0;
 
   // ── render ────────────────────────────────────────────────────────────────
 
@@ -370,7 +267,7 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
           >
             <ArrowRightFilled className="h-3 w-3 text-foreground/25 dark:text-white/25 flex-shrink-0" />
             <span className="text-[10px] font-mono text-foreground/60 dark:text-white/60 truncate max-w-[120px]">
-              {currentBranch || "loading…"}
+              {currentBranch || (loading ? "loading…" : "no branch")}
             </span>
             <ArrowDownFilled
               className={cn(
@@ -399,7 +296,7 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
           )}
 
           {/* Loading state */}
-          {loading && branches.length === 0 ? (
+          {loading ? (
             <div className="flex items-center justify-center py-6 px-4">
               <div className="text-[10px] text-foreground/40 dark:text-white/40">Loading…</div>
             </div>
@@ -518,11 +415,11 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
 // ── sub-components ──────────────────────────────────────────────────────────
 
 /**
- * Individual branch item in the dropdown list
- * Displays branch name, metadata, and action buttons
+ * Individual branch item in the dropdown list.
+ * Displays branch name, current marker, and action buttons.
  */
 interface BranchItemProps {
-  branch: GitBranch;
+  branch: VcsRef;
   isCurrent?: boolean;
   isRemote?: boolean;
   isLoading?: boolean;
@@ -552,7 +449,7 @@ function BranchItem({
       onClick={() => onSwitch(branch.name)}
       role="menuitem"
       aria-current={isCurrent ? "true" : "false"}
-      aria-label={`Branch ${branch.name}${isCurrent ? " (current)" : ""}${branch.tracking ? ` tracking ${branch.tracking}` : ""}${isRemote ? " (remote, click to checkout)" : ""}`}
+      aria-label={`Branch ${branch.name}${isCurrent ? " (current)" : ""}${isRemote ? " (remote, click to checkout)" : ""}`}
       data-branch={branch.name}
       data-is-current={isCurrent}
     >
@@ -569,17 +466,12 @@ function BranchItem({
             {branch.name}
           </div>
           {isRemote && <span className="text-[8px] text-cyan-400/50 flex-shrink-0">remote</span>}
+          {branch.isDefault && !isRemote && (
+            <span className="text-[8px] text-foreground/30 dark:text-white/30 flex-shrink-0">
+              default
+            </span>
+          )}
         </div>
-        {branch.tracking && (
-          <div className="text-[8px] text-foreground/40 dark:text-white/40 ml-2.5">
-            tracking {branch.tracking}
-          </div>
-        )}
-        {branch.lastCommitDate && (
-          <div className="text-[8px] text-foreground/25 dark:text-white/25 ml-2.5">
-            {branch.lastCommitDate}
-          </div>
-        )}
       </div>
 
       {/* Action button: Checkout for remote, Delete for local */}
@@ -598,7 +490,7 @@ function BranchItem({
         >
           <ArrowRightFilled className="h-3 w-3" />
         </button>
-      ) : onDelete ? (
+      ) : onDelete && !isCurrent ? (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -621,8 +513,7 @@ function BranchItem({
 // ── confirmation dialog ─────────────────────────────────────────────────────
 
 /**
- * Delete confirmation modal
- * Prevents accidental deletion of branches
+ * Delete confirmation modal. Prevents accidental deletion of branches.
  */
 interface DeleteConfirmationDialogProps {
   branchName: string;

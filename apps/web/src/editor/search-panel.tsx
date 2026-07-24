@@ -1,8 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import { useEditorStore } from "./editor-store";
+import { useAtomValue } from "@effect/atom-react";
+import * as Option from "effect/Option";
+import { AsyncResult, Atom } from "effect/unstable/reactivity";
+import type { ProjectSearchContentResult } from "@t3tools/contracts";
+import { useEditorStore, makeFileRef } from "./editor-store";
+import { projectEnvironment } from "~/state/projects";
 import { SearchNormalFilled } from "@aliimam/icons";
 import { WaveSpinner } from "./wave-spinner";
+
+const EMPTY_SEARCH_ATOM = Atom.make(
+  AsyncResult.initial<ProjectSearchContentResult, never>(false),
+).pipe(Atom.withLabel("editor-search:empty"));
 
 export interface SearchResult {
   path: string;
@@ -19,15 +28,14 @@ interface SearchPanelProps {
 
 export function SearchPanel({ workspacePath }: SearchPanelProps) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [regex, setRegex] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const activePaneId = useEditorStore((s) => s.activePaneId);
   const openFile = useEditorStore((s) => s.openFile);
   const pinFile = useEditorStore((s) => s.pinFile);
-  const setFileLoading = useEditorStore((s) => s.setFileLoading);
+  const environmentId = useEditorStore((s) => s.environmentId);
   const setPendingReveal = useEditorStore((s) => s.setPendingReveal);
 
   // auto-focus when opened
@@ -35,43 +43,37 @@ export function SearchPanel({ workspacePath }: SearchPanelProps) {
     setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
-  const doSearch = useCallback(
-    async (q: string) => {
-      setLoading(true);
-      try {
-        const url = `/api/editor/fs/search?workspace=${encodeURIComponent(workspacePath)}&query=${encodeURIComponent(q)}&regex=${regex}`;
-        const res = await fetch(url);
-        const raw = await res.json();
-        if (res.ok) {
-          const data = raw as { results?: SearchResult[] };
-          if (data.results) setResults(data.results);
-        }
-      } catch {
-        setResults([]);
-      } finally {
-        setLoading(false);
-      }
-    },
-    [workspacePath, regex],
-  );
-
-  // debounce search
+  // debounce the query into a value used to key the reactive search atom
   useEffect(() => {
-    if (!query || query.length < 2) {
-      setResults([]);
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      doSearch(query);
-    }, 300);
-
+    const timer = setTimeout(() => setDebouncedQuery(query), 300);
     return () => clearTimeout(timer);
-  }, [query, regex, doSearch]);
+  }, [query]);
+
+  const activeSearch =
+    environmentId && debouncedQuery.length >= 2
+      ? projectEnvironment.searchContent({
+          environmentId,
+          input: { cwd: workspacePath, query: debouncedQuery, regex, limit: 200 },
+        })
+      : null;
+  const searchState = useAtomValue(activeSearch ?? EMPTY_SEARCH_ATOM);
+  const searchData = Option.getOrNull(AsyncResult.value(searchState));
+  const loading = activeSearch !== null && searchState.waiting;
+  const results: SearchResult[] = (searchData?.matches ?? []).map((m) => {
+    const rel = m.path.replace(/^\.\//, "");
+    return {
+      path: rel,
+      name: rel.split("/").pop() ?? rel,
+      line: m.line,
+      column: m.column,
+      text: m.text,
+      context: "",
+    };
+  });
 
   const handleResultClick = useCallback(
-    async (result: SearchResult) => {
-      if (!activePaneId) return;
+    (result: SearchResult) => {
+      if (!activePaneId || !environmentId) return;
 
       const ext = result.name.includes(".") ? result.name.slice(result.name.lastIndexOf(".")) : "";
 
@@ -80,27 +82,13 @@ export function SearchPanel({ workspacePath }: SearchPanelProps) {
         ? result.path
         : `${workspacePath}/${result.path}`;
 
-      // set loading state
-      openFile(activePaneId, fullPath, result.name, ext, "");
+      // content loads lazily from the shared atom layer when the pane renders
+      openFile(activePaneId, makeFileRef(environmentId, workspacePath, fullPath, result.name, ext));
       pinFile(fullPath);
-      setFileLoading(fullPath, true);
-
-      try {
-        const res = await fetch(`/api/editor/fs/file?path=${encodeURIComponent(fullPath)}`);
-        const raw = await res.json();
-        if (res.ok) {
-          const data = raw as { content?: string };
-          openFile(activePaneId, fullPath, result.name, ext, data.content ?? "");
-          // trigger reveal after file loads
-          setPendingReveal({ path: fullPath, line: result.line, column: result.column });
-        }
-      } catch {
-        // silent
-      } finally {
-        setFileLoading(fullPath, false);
-      }
+      // trigger reveal after the file mounts
+      setPendingReveal({ path: fullPath, line: result.line, column: result.column });
     },
-    [activePaneId, workspacePath, openFile, pinFile, setFileLoading, setPendingReveal],
+    [activePaneId, workspacePath, openFile, pinFile, environmentId, setPendingReveal],
   );
 
   // group results by file
