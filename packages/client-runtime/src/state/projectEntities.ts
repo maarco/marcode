@@ -15,6 +15,42 @@ import { arrayElementsEqual, parseProjectKey, projectKey, projectRefsEqual } fro
 const EMPTY_PROJECTS: ReadonlyArray<OrchestrationProjectShell> = Object.freeze([]);
 const EMPTY_PROJECT_INDEX: ReadonlyMap<ProjectId, OrchestrationProjectShell> = new Map();
 
+export type EnvironmentProjectAtomAccessor = (
+  ref: ScopedProjectRef,
+) => Atom.Atom<EnvironmentProject | null>;
+
+/**
+ * The `projectAtom` accessor from the most recent `createEnvironmentProjectAtoms`
+ * call below — i.e. whichever running app (today, `apps/web`; `apps/mobile` does not
+ * use the unified workspace tree) most recently wired this factory up to its own
+ * live connection/catalog atoms.
+ *
+ * `packages/client-runtime` has no ambient DI container and no app-agnostic way to
+ * build a live `EnvironmentRegistry` on its own — transport, persistence, and
+ * platform Layers are all supplied per app (see `connection/layer.ts` plus each
+ * app's own `connection/runtime.ts`). `state/projectWorkspace.ts`'s
+ * `useProjectWorkspaceLayout` is frozen (see the unified-workspace-tree interface
+ * freeze) as a bare `(environmentId, projectId)` hook with no wiring parameter, so
+ * it has no other way to reach the app's already-connected project shell without
+ * standing up a second, disconnected connection or a duplicate subscription.
+ * Reading through this registration instead reuses the exact same live
+ * `EnvironmentProject` atom `useProject`/`useThreadShellsForProjectRefs` already
+ * read — no new store, no second fetch.
+ *
+ * This is intentionally narrow — a general cross-package DI mechanism is neither
+ * needed nor provided beyond this one case. Safe for the one real caller: every app
+ * that renders the unified workspace tree calls `createEnvironmentProjectAtoms`
+ * exactly once, at module scope, as part of its normal (already-existing) project
+ * wiring — well before any component renders and reads `useProjectWorkspaceLayout`.
+ * Tests that exercise `projectWorkspace.ts` in isolation must call
+ * `createEnvironmentProjectAtoms` first (see `projectWorkspace.test.ts`).
+ */
+let latestEnvironmentProjectAtomAccessor: EnvironmentProjectAtomAccessor | null = null;
+
+export function getLatestEnvironmentProjectAtomAccessor(): EnvironmentProjectAtomAccessor | null {
+  return latestEnvironmentProjectAtomAccessor;
+}
+
 export function createEnvironmentProjectAtoms(input: {
   readonly catalogValueAtom: Atom.Atom<EnvironmentCatalogState>;
   readonly snapshotAtom: (
@@ -94,12 +130,16 @@ export function createEnvironmentProjectAtoms(input: {
     return previousProjects;
   }).pipe(Atom.withLabel("environment-project-list"));
 
+  const projectAtom: EnvironmentProjectAtomAccessor = (ref: ScopedProjectRef) =>
+    projectAtomFamily(projectKey(ref));
+  latestEnvironmentProjectAtomAccessor = projectAtom;
+
   return {
     environmentProjectsAtom,
     environmentProjectIndexAtom,
     environmentProjectRefsAtom,
     projectRefsAtom,
     projectsAtom,
-    projectAtom: (ref: ScopedProjectRef) => projectAtomFamily(projectKey(ref)),
+    projectAtom,
   };
 }
