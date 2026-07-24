@@ -750,16 +750,25 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
 
         const listed = yield* driver.listStashes({ cwd });
         assert.isAtLeast(listed.stashes.length, 1);
-        assert.isNotEmpty(listed.stashes[0]!.id);
+        const stash = listed.stashes[0]!;
+        assert.isNotEmpty(stash.id);
+        assert.isNotEmpty(stash.commitSha);
 
-        const shown = yield* driver.showStash({ cwd, id: created.id! });
+        const shown = yield* driver.showStash({ cwd, id: stash.id, commitSha: stash.commitSha });
         assert.isNotEmpty(shown.diff);
 
-        const applied = yield* driver.applyStash({ cwd, id: created.id! });
-        assert.equal(applied.id, created.id);
+        const applied = yield* driver.applyStash({
+          cwd,
+          id: stash.id,
+          commitSha: stash.commitSha,
+        });
+        assert.equal(applied.id, stash.id);
 
-        // drop the stash we created (now at index 0 after apply without pop)
-        yield* driver.dropStash({ cwd, id: created.id! });
+        // drop the stash we created (still at index 0 after apply without
+        // pop) — re-list first, mirroring how a real caller would.
+        const beforeDrop = yield* driver.listStashes({ cwd });
+        const stashToDrop = beforeDrop.stashes[0]!;
+        yield* driver.dropStash({ cwd, id: stashToDrop.id, commitSha: stashToDrop.commitSha });
         const afterDrop = yield* driver.listStashes({ cwd });
         assert.equal(afterDrop.stashes.length, 0);
       }),
@@ -774,6 +783,78 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
         const created = yield* driver.createStash({ cwd });
         assert.isNull(created.id);
       }),
+    );
+
+    it.effect("applyStash re-resolves a stale positional id via commitSha", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        yield* initRepoWithCommit(cwd);
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        yield* writeTextFile(cwd, "README.md", "# first change\n");
+        yield* driver.createStash({ cwd, message: "first" });
+        const afterFirst = yield* driver.listStashes({ cwd });
+        const stashA = afterFirst.stashes[0]!; // observed here as "stash@{0}"
+
+        yield* writeTextFile(cwd, "README.md", "# second change\n");
+        yield* driver.createStash({ cwd, message: "second" });
+        // stashA has now shifted to stash@{1} — stashA.id ("stash@{0}") is
+        // stale and currently refers to the "second" stash, not stashA.
+
+        const applied = yield* driver.applyStash({
+          cwd,
+          id: stashA.id,
+          commitSha: stashA.commitSha,
+        });
+        assert.equal(applied.id, stashA.id);
+
+        const fileSystem = yield* FileSystem.FileSystem;
+        const pathService = yield* Path.Path;
+        const contents = yield* fileSystem.readFileString(pathService.join(cwd, "README.md"));
+        // a naive implementation that trusted the stale id would have
+        // applied "second" here instead.
+        assert.equal(contents, "# first change\n");
+      }),
+    );
+
+    it.effect(
+      "applyStash errors instead of misapplying when commitSha no longer matches any stash",
+      () =>
+        Effect.gen(function* () {
+          const cwd = yield* makeTmpDir();
+          yield* initRepoWithCommit(cwd);
+          const driver = yield* GitVcsDriver.GitVcsDriver;
+
+          yield* writeTextFile(cwd, "README.md", "# original stash\n");
+          yield* driver.createStash({ cwd, message: "original" });
+          const listed = yield* driver.listStashes({ cwd });
+          const originalStash = listed.stashes[0]!;
+
+          // drop it, then push an unrelated new stash — "stash@{0}" exists
+          // again, but now refers to a completely different commit.
+          yield* driver.dropStash({
+            cwd,
+            id: originalStash.id,
+            commitSha: originalStash.commitSha,
+          });
+          yield* writeTextFile(cwd, "README.md", "# unrelated stash\n");
+          yield* driver.createStash({ cwd, message: "unrelated" });
+
+          // applying the original (now-gone) stash's id+commitSha must
+          // error, not silently apply whatever now sits at "stash@{0}".
+          const error = yield* driver
+            .applyStash({ cwd, id: originalStash.id, commitSha: originalStash.commitSha })
+            .pipe(Effect.flip);
+          assert.instanceOf(error, GitCommandError);
+
+          // the unrelated stash must still be untouched
+          const stillStashed = yield* driver.listStashes({ cwd });
+          assert.equal(stillStashed.stashes.length, 1);
+          const fileSystem = yield* FileSystem.FileSystem;
+          const pathService = yield* Path.Path;
+          const contents = yield* fileSystem.readFileString(pathService.join(cwd, "README.md"));
+          assert.equal(contents, "# test\n"); // working tree still clean at HEAD
+        }),
     );
   });
 

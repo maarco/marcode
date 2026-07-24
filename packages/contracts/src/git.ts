@@ -252,6 +252,13 @@ export type VcsLogResult = typeof VcsLogResult.Type;
 
 export const VcsStash = Schema.Struct({
   id: TrimmedNonEmptyStringSchema,
+  /**
+   * Full commit SHA of the stash commit, captured at list time. Stable
+   * identity for re-resolving `id` (a positional `stash@{N}` selector that
+   * shifts whenever any stash is pushed/dropped) immediately before a
+   * mutating operation — see `VcsApplyStashInput`/`VcsDropStashInput`.
+   */
+  commitSha: TrimmedNonEmptyStringSchema,
   branch: Schema.String,
   message: Schema.String,
   date: Schema.String, // ISO 8601
@@ -284,6 +291,10 @@ export type VcsCreateStashResult = typeof VcsCreateStashResult.Type;
 export const VcsApplyStashInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   id: TrimmedNonEmptyStringSchema,
+  // Required: the driver re-resolves `id` against a fresh `stash list` by
+  // matching this SHA before applying, and errors rather than falling back
+  // to a possibly-stale positional index. See VcsStash.commitSha.
+  commitSha: TrimmedNonEmptyStringSchema,
   dropAfter: Schema.optional(Schema.Boolean),
 });
 export type VcsApplyStashInput = typeof VcsApplyStashInput.Type;
@@ -296,6 +307,9 @@ export type VcsApplyStashResult = typeof VcsApplyStashResult.Type;
 export const VcsDropStashInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   id: TrimmedNonEmptyStringSchema,
+  // Required: same re-resolve-or-error guard as VcsApplyStashInput — drop is
+  // irreversible, so a stale index must never silently drop the wrong stash.
+  commitSha: TrimmedNonEmptyStringSchema,
 });
 export type VcsDropStashInput = typeof VcsDropStashInput.Type;
 
@@ -307,6 +321,9 @@ export type VcsDropStashResult = typeof VcsDropStashResult.Type;
 export const VcsShowStashInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   id: TrimmedNonEmptyStringSchema,
+  // Required: same re-resolve-or-error guard — otherwise a diff view can be
+  // silently mislabeled with the wrong stash's contents.
+  commitSha: TrimmedNonEmptyStringSchema,
 });
 export type VcsShowStashInput = typeof VcsShowStashInput.Type;
 

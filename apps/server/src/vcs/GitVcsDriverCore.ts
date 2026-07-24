@@ -2700,19 +2700,20 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     const stdout = yield* runGitStdout(
       "GitVcsDriver.listStashes",
       input.cwd,
-      ["stash", "list", "--format=%gd%x00%ci%x00%s"],
+      ["stash", "list", "--format=%gd%x00%H%x00%ci%x00%s"],
       true,
     );
     const stashes: VcsStash[] = [];
     for (const line of stdout.split("\n")) {
       const entry = line.trim();
       if (entry.length === 0) continue;
-      const [id, date, message] = entry.split("\x00");
-      if (!id) continue;
+      const [id, commitSha, date, message] = entry.split("\x00");
+      if (!id || !commitSha) continue;
       // "WIP on <branch>:" / "On <branch>:" → extract branch
       const branchMatch = message?.match(/^(?:WIP|On) (.+?):/) ?? null;
       stashes.push({
         id,
+        commitSha,
         branch: branchMatch?.[1] ?? "",
         message: message ?? "",
         date: date ?? "",
@@ -2752,42 +2753,64 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     return { id: after > before ? "stash@{0}" : null };
   });
 
+  // Positional `stash@{N}` selectors shift whenever any stash is
+  // pushed/dropped between list time and the moment a mutation actually
+  // runs (e.g. a concurrent terminal, or just list-then-click latency).
+  // Re-resolve against a FRESH `stash list` by the SHA captured at list
+  // time (VcsStash.commitSha) and use whatever positional ref that SHA
+  // currently sits at — never the caller's possibly-stale `id`. If the SHA
+  // is no longer present, error; never fall back to a positional index.
+  const resolveStashRefBySha = Effect.fn("GitVcsDriver.resolveStashRefBySha")(function* (
+    operation: string,
+    cwd: string,
+    commitSha: string,
+  ) {
+    const stdout = yield* runGitStdout(operation, cwd, ["stash", "list", "--format=%gd%x00%H"]);
+    for (const line of stdout.split("\n")) {
+      const entry = line.trim();
+      if (entry.length === 0) continue;
+      const [ref, sha] = entry.split("\x00");
+      if (ref && sha === commitSha) return ref;
+    }
+    return yield* new GitCommandError({
+      operation,
+      command: "git",
+      cwd,
+      detail: `Stash ${commitSha.slice(0, 12)} is no longer present (it may already have been applied, dropped, or the list has changed) — refresh and try again.`,
+    });
+  });
+
   const applyStash: GitVcsDriver.GitVcsDriver["Service"]["applyStash"] = Effect.fn(
     "GitVcsDriver.applyStash",
   )(function* (input) {
-    const id = yield* rejectGitOptionLikeValue(
-      "GitVcsDriver.applyStash",
-      input.cwd,
-      "id",
-      input.id,
-    );
-    const args = ["stash", input.dropAfter ? "pop" : "apply", "--", id];
+    const ref = yield* resolveStashRefBySha("GitVcsDriver.applyStash", input.cwd, input.commitSha);
+    const args = ["stash", input.dropAfter ? "pop" : "apply", "--", ref];
     yield* executeGit("GitVcsDriver.applyStash", input.cwd, args, {
       timeoutMs: 30_000,
       fallbackErrorDetail: "git stash apply failed",
     });
-    return { id };
+    return { id: input.id };
   });
 
   const dropStash: GitVcsDriver.GitVcsDriver["Service"]["dropStash"] = Effect.fn(
     "GitVcsDriver.dropStash",
   )(function* (input) {
-    const id = yield* rejectGitOptionLikeValue("GitVcsDriver.dropStash", input.cwd, "id", input.id);
-    yield* executeGit("GitVcsDriver.dropStash", input.cwd, ["stash", "drop", "--", id], {
+    const ref = yield* resolveStashRefBySha("GitVcsDriver.dropStash", input.cwd, input.commitSha);
+    yield* executeGit("GitVcsDriver.dropStash", input.cwd, ["stash", "drop", "--", ref], {
       timeoutMs: 10_000,
       fallbackErrorDetail: "git stash drop failed",
     });
-    return { id };
+    return { id: input.id };
   });
 
   const showStash: GitVcsDriver.GitVcsDriver["Service"]["showStash"] = Effect.fn(
     "GitVcsDriver.showStash",
   )(function* (input) {
-    const id = yield* rejectGitOptionLikeValue("GitVcsDriver.showStash", input.cwd, "id", input.id);
+    const ref = yield* resolveStashRefBySha("GitVcsDriver.showStash", input.cwd, input.commitSha);
     const result = yield* executeGit(
       "GitVcsDriver.showStash",
       input.cwd,
-      ["stash", "show", "-p", "--", id],
+      ["stash", "show", "-p", "--", ref],
       {
         timeoutMs: 15_000,
         maxOutputBytes: 512 * 1024,
@@ -2795,7 +2818,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       },
     );
     return {
-      id,
+      id: input.id,
       diff: result.stdout,
       truncated: result.stdoutTruncated,
     };

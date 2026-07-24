@@ -142,11 +142,12 @@ function StashRow({
 }: {
   stash: VcsStash;
   loading?: boolean;
-  onApply: (stashId: string) => void;
-  onDrop: (stashId: string) => void;
-  onView: (stashId: string) => void;
+  onApply: (stash: VcsStash) => void;
+  onDrop: (stash: VcsStash) => void;
+  onView: (stash: VcsStash) => void;
 }) {
-  const stashLabel = stash.message || `stash@{${stash.id}}`;
+  // stash.id is already the full "stash@{N}" selector — do not re-wrap it.
+  const stashLabel = stash.message || stash.id;
 
   return (
     <div role="listitem" className={stashRowVariants({ loading })}>
@@ -155,7 +156,7 @@ function StashRow({
         className="w-20 shrink-0 text-[9px] font-mono text-foreground/40 dark:text-white/40"
         aria-hidden="true"
       >
-        {`stash@{${stash.id}}`}
+        {stash.id}
       </span>
 
       {/* Branch */}
@@ -179,21 +180,21 @@ function StashRow({
       {/* Actions — always in DOM; visible on hover or focus-within for keyboard users */}
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
         <button
-          onClick={() => onView(stash.id)}
+          onClick={() => onView(stash)}
           aria-label={`View ${stashLabel} diff`}
           className="flex items-center justify-center w-5 h-5 rounded text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-foreground/50 dark:focus-visible:outline-white/50 transition-colors"
         >
           <DocumentFilled className="h-3 w-3" />
         </button>
         <button
-          onClick={() => onApply(stash.id)}
+          onClick={() => onApply(stash)}
           aria-label={`Apply ${stashLabel}`}
           className="flex items-center justify-center w-5 h-5 rounded text-foreground/25 dark:text-white/25 hover:text-emerald-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-foreground/50 dark:focus-visible:outline-white/50 transition-colors"
         >
           <ArrowRightFilled className="h-3 w-3" />
         </button>
         <button
-          onClick={() => onDrop(stash.id)}
+          onClick={() => onDrop(stash)}
           aria-label={`Delete ${stashLabel}`}
           className="flex items-center justify-center w-5 h-5 rounded text-foreground/25 dark:text-white/25 hover:text-red-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-foreground/50 dark:focus-visible:outline-white/50 transition-colors"
         >
@@ -351,15 +352,13 @@ function CreateStashDialog({
 
 interface ApplyStashConfirmDialogProps {
   open: boolean;
-  stashId: string;
-  stash?: VcsStash | undefined;
+  stash: VcsStash;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
 }
 
 function ApplyStashConfirmDialog({
   open,
-  stashId,
   stash,
   onConfirm,
   onOpenChange,
@@ -371,7 +370,7 @@ function ApplyStashConfirmDialog({
 
   if (!open) return null;
 
-  const stashLabel = stash?.message || `stash@{${stashId}}`;
+  const stashLabel = stash.message || stash.id;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
@@ -446,8 +445,7 @@ function ApplyStashConfirmDialog({
 
 interface DropStashConfirmDialogProps {
   open: boolean;
-  stashId: string;
-  stash?: VcsStash | undefined;
+  stash: VcsStash;
   loading: boolean;
   error?: string | null;
   onConfirm: () => void;
@@ -456,7 +454,6 @@ interface DropStashConfirmDialogProps {
 
 function DropStashConfirmDialog({
   open,
-  stashId,
   stash,
   loading,
   error,
@@ -471,7 +468,7 @@ function DropStashConfirmDialog({
 
   if (!open) return null;
 
-  const stashLabel = stash?.message || `stash@{${stashId}}`;
+  const stashLabel = stash.message || stash.id;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80">
@@ -505,40 +502,38 @@ function DropStashConfirmDialog({
             Delete <strong>{stashLabel}</strong>? This action cannot be undone.
           </p>
 
-          {stash && (
-            <dl className="space-y-2 px-3 py-2 bg-foreground/5 dark:bg-white/5 border border-foreground/10 dark:border-white/10 rounded">
-              <div className="flex items-center gap-2">
-                <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
-                  Stash:
-                </dt>
-                <dd className="text-[10px] font-mono text-foreground/70 dark:text-white/70">{`stash@{${stash.id}}`}</dd>
-              </div>
-              <div className="flex items-center gap-2">
-                <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
-                  Message:
-                </dt>
-                <dd className="text-[10px] text-foreground/70 dark:text-white/70 truncate">
-                  {stash.message}
-                </dd>
-              </div>
-              <div className="flex items-center gap-2">
-                <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
-                  Branch:
-                </dt>
-                <dd className="text-[10px] text-foreground/70 dark:text-white/70">
-                  {stash.branch}
-                </dd>
-              </div>
-              <div className="flex items-center gap-2">
-                <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
-                  Date:
-                </dt>
-                <dd className="text-[10px] text-foreground/70 dark:text-white/70">
-                  {formatStashDate(stash.date)}
-                </dd>
-              </div>
-            </dl>
-          )}
+          <dl className="space-y-2 px-3 py-2 bg-foreground/5 dark:bg-white/5 border border-foreground/10 dark:border-white/10 rounded">
+            <div className="flex items-center gap-2">
+              <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
+                Stash:
+              </dt>
+              <dd className="text-[10px] font-mono text-foreground/70 dark:text-white/70">
+                {stash.id}
+              </dd>
+            </div>
+            <div className="flex items-center gap-2">
+              <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
+                Message:
+              </dt>
+              <dd className="text-[10px] text-foreground/70 dark:text-white/70 truncate">
+                {stash.message}
+              </dd>
+            </div>
+            <div className="flex items-center gap-2">
+              <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
+                Branch:
+              </dt>
+              <dd className="text-[10px] text-foreground/70 dark:text-white/70">{stash.branch}</dd>
+            </div>
+            <div className="flex items-center gap-2">
+              <dt className="text-[10px] font-medium text-foreground/50 dark:text-white/50 w-16">
+                Date:
+              </dt>
+              <dd className="text-[10px] text-foreground/70 dark:text-white/70">
+                {formatStashDate(stash.date)}
+              </dd>
+            </div>
+          </dl>
 
           {error && (
             <div
@@ -598,12 +593,14 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
   const refresh = listQuery.refresh;
 
   // view a stash patch: feed the showStash diff into a read-only editor tab.
-  const [viewingStashId, setViewingStashId] = useState<string | null>(null);
+  // Holds the full stash (not just its id) so commitSha survives to the
+  // request below for stale-index re-resolution — see VcsStash.commitSha.
+  const [viewingStash, setViewingStash] = useState<VcsStash | null>(null);
   const showStashQuery = useEnvironmentQuery(
-    environmentId !== null && viewingStashId !== null
+    environmentId !== null && viewingStash !== null
       ? vcsEnvironment.showStash({
           environmentId,
-          input: { cwd: workspacePath, id: viewingStashId },
+          input: { cwd: workspacePath, id: viewingStash.id, commitSha: viewingStash.commitSha },
         })
       : null,
   );
@@ -617,11 +614,11 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
-  // Pre-apply confirmation: stashId pending user confirmation before applying.
-  const [applyConfirmId, setApplyConfirmId] = useState<string | null>(null);
+  // Pre-apply confirmation: stash pending user confirmation before applying.
+  const [applyConfirmStash, setApplyConfirmStash] = useState<VcsStash | null>(null);
   const [applyLoading, setApplyLoading] = useState(false);
 
-  const [showDropDialog, setShowDropDialog] = useState<string | null>(null);
+  const [showDropDialog, setShowDropDialog] = useState<VcsStash | null>(null);
   const [dropLoading, setDropLoading] = useState(false);
   const [dropError, setDropError] = useState<string | null>(null);
 
@@ -635,27 +632,26 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
 
   // ── view stash diff (showStash → read-only editor tab) ─────────────────────
   useEffect(() => {
-    if (viewingStashId === null || activePaneId === null) return;
+    if (viewingStash === null || activePaneId === null) return;
     const diff = showStashQuery.data?.diff;
     if (diff === undefined) return; // still loading
-    const stash = stashes.find((s) => s.id === viewingStashId);
     const base = workspacePath.endsWith("/") ? workspacePath.slice(0, -1) : workspacePath;
-    const virtualPath = `${base}/.diffs/stash-${viewingStashId}.diff`;
-    const name = (stash?.message || `stash@{${viewingStashId}}`).slice(0, 60);
+    const virtualPath = `${base}/.diffs/stash-${viewingStash.id}.diff`;
+    const name = (viewingStash.message || viewingStash.id).slice(0, 60);
     openVirtualFile(activePaneId, virtualPath, name, diff);
-    setViewingStashId(null);
-  }, [viewingStashId, showStashQuery.data, activePaneId, openVirtualFile, stashes, workspacePath]);
+    setViewingStash(null);
+  }, [viewingStash, showStashQuery.data, activePaneId, openVirtualFile, workspacePath]);
 
   useEffect(() => {
-    if (viewingStashId !== null && showStashQuery.error) {
+    if (viewingStash !== null && showStashQuery.error) {
       showToast({
         type: "error",
         title: "Failed to load stash diff",
         message: showStashQuery.error,
       });
-      setViewingStashId(null);
+      setViewingStash(null);
     }
-  }, [viewingStashId, showStashQuery.error]);
+  }, [viewingStash, showStashQuery.error]);
 
   // ── create stash ──────────────────────────────────────────────────────────
   const handleCreateStash = useCallback(
@@ -697,19 +693,22 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
   // ── apply stash ───────────────────────────────────────────────────────────
   // Opens a confirmation dialog first; the actual apply runs only after the
   // user confirms (see runApplyStash).
-  const requestApplyStash = useCallback((stashId: string) => {
-    setApplyConfirmId(stashId);
+  const requestApplyStash = useCallback((stash: VcsStash) => {
+    setApplyConfirmStash(stash);
   }, []);
 
   const runApplyStash = useCallback(
-    async (stashId: string) => {
+    async (stash: VcsStash) => {
       if (environmentId === null) return;
-      setApplyConfirmId(null);
+      setApplyConfirmStash(null);
       setApplyLoading(true);
       try {
+        // commitSha (captured when this stash was listed) lets the server
+        // re-resolve the current stash@{N} for it and refuse rather than
+        // silently applying whatever now sits at a stale index.
         const result = await applyStash({
           environmentId,
-          input: { cwd: workspacePath, id: stashId },
+          input: { cwd: workspacePath, id: stash.id, commitSha: stash.commitSha },
         });
 
         const failure = resultErrorMessage(result);
@@ -718,8 +717,8 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
           return;
         }
 
-        showToast({ type: "success", title: "Stash applied", message: `stash@{${stashId}}` });
-        onStashApplied?.(stashId);
+        showToast({ type: "success", title: "Stash applied", message: stash.id });
+        onStashApplied?.(stash.id);
         refresh();
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : "Failed to apply stash";
@@ -733,14 +732,15 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
 
   // ── drop stash ────────────────────────────────────────────────────────────
   const handleDropStash = useCallback(
-    async (stashId: string) => {
+    async (stash: VcsStash) => {
       if (environmentId === null) return;
       setDropLoading(true);
       setDropError(null);
       try {
+        // Same stale-index guard as apply — drop is irreversible.
         const result = await dropStash({
           environmentId,
-          input: { cwd: workspacePath, id: stashId },
+          input: { cwd: workspacePath, id: stash.id, commitSha: stash.commitSha },
         });
 
         const failure = resultErrorMessage(result);
@@ -750,7 +750,7 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
           return;
         }
 
-        showToast({ type: "success", title: "Stash deleted", message: `stash@{${stashId}}` });
+        showToast({ type: "success", title: "Stash deleted", message: stash.id });
         setShowDropDialog(null);
         refresh();
       } catch (e) {
@@ -847,9 +847,9 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
                 key={stash.id}
                 stash={stash}
                 loading={isMutating}
-                onApply={() => requestApplyStash(stash.id)}
-                onDrop={() => setShowDropDialog(stash.id)}
-                onView={(id) => setViewingStashId(id)}
+                onApply={requestApplyStash}
+                onDrop={setShowDropDialog}
+                onView={setViewingStash}
               />
             ))}
           </div>
@@ -878,14 +878,13 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
         onOpenChange={setShowCreateDialog}
       />
 
-      {applyConfirmId && (
+      {applyConfirmStash && (
         <ApplyStashConfirmDialog
           open={true}
-          stashId={applyConfirmId}
-          stash={stashes.find((s) => s.id === applyConfirmId)}
-          onConfirm={() => runApplyStash(applyConfirmId)}
+          stash={applyConfirmStash}
+          onConfirm={() => runApplyStash(applyConfirmStash)}
           onOpenChange={(open) => {
-            if (!open) setApplyConfirmId(null);
+            if (!open) setApplyConfirmStash(null);
           }}
         />
       )}
@@ -893,8 +892,7 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
       {showDropDialog && (
         <DropStashConfirmDialog
           open={true}
-          stashId={showDropDialog}
-          stash={stashes.find((s) => s.id === showDropDialog)}
+          stash={showDropDialog}
           loading={dropLoading}
           error={dropError}
           onConfirm={() => handleDropStash(showDropDialog)}
