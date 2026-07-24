@@ -76,7 +76,9 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-const APP_BASE_NAME = "T3 Code";
+// Marcode is the user-facing desktop brand. Keep the legacy T3 Code names
+// below for migration and compatibility paths; they are not menu labels.
+const APP_BASE_NAME = "Marcode";
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;
