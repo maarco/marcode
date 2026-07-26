@@ -9,8 +9,8 @@ pre-existing errors; 189 tests pass across the editor, bridge, and
 unified-workspace suites. Pre-merge branch head is preserved at
 `backup/editor-unify-premerge` (`4ff0c1e3`).
 
-Still open: the tree → editor click path and the git surfaces have no live
-browser verification — see _Remaining_ at the bottom.
+The workspace tree → floating editor path is verified live. Still open: chat file
+links and the git surfaces — see _Remaining_ at the bottom.
 
 The rest of this document is the record of what the merge involved.
 
