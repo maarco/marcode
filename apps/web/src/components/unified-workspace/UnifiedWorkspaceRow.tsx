@@ -36,6 +36,8 @@ import { formatWorktreePathForDisplay } from "../../worktreeCleanup";
 import type { UnifiedWorkspaceDropZone } from "./UnifiedWorkspaceTree.logic";
 import { unifiedWorkspaceRowIndentStyle } from "./UnifiedWorkspaceTree.logic";
 import {
+  UW_TREE_ACTIVE_ICON_CLASS,
+  UW_TREE_ACTIVE_RAIL_CLASS,
   UW_TREE_DISCLOSURE_CLASS,
   UW_TREE_DISCLOSURE_SPACER_CLASS,
   UW_TREE_DROP_INSIDE_CLASS,
@@ -144,12 +146,17 @@ function iconForNode(
   }
 }
 
-function hasAccordionDisclosure(node: UnifiedWorkspaceNode): boolean {
-  // Threads are valid parents for live terminals, previews, and child threads,
-  // but an empty chat row is still a chat row—not an empty folder with a
-  // misleading disclosure arrow. Folders keep the arrow for lazy ambient
-  // expansion even before their children have materialized.
-  return node.canHaveChildren && (node.kind === "folder" || node.children.length > 0);
+function isFolderAccordion(node: UnifiedWorkspaceNode): boolean {
+  // Folders use their filled open/closed glyph as the accordion affordance;
+  // the editor tree does not put a second chevron beside it.
+  return node.kind === "folder" && node.canHaveChildren;
+}
+
+function hasDisclosure(node: UnifiedWorkspaceNode): boolean {
+  // Threads can still expose live terminals, previews, or child threads. Keep
+  // their disclosure control when there is actually something to reveal, but
+  // never show an empty chat row as an expandable container.
+  return node.kind !== "folder" && node.canHaveChildren && node.children.length > 0;
 }
 
 /**
@@ -357,7 +364,9 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     event.stopPropagation();
   }, []);
 
-  const hasDisclosure = hasAccordionDisclosure(node);
+  const folderAccordion = isFolderAccordion(node);
+  const disclosure = hasDisclosure(node);
+  const isExpandable = folderAccordion || disclosure;
   const Icon = useMemo(
     () => iconForNode(node, commandIcon, isCollapsed),
     [node, commandIcon, isCollapsed],
@@ -385,18 +394,19 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       ref={combinedNodeRef}
       role="treeitem"
       aria-level={node.depth + 1}
-      aria-expanded={hasDisclosure ? !isCollapsed : undefined}
+      aria-expanded={isExpandable ? !isCollapsed : undefined}
       aria-selected={isSelected}
       tabIndex={isFocused ? 0 : -1}
       data-active={isActive}
       data-selected={isSelected}
       data-broken={node.isBroken}
-      data-accordion={hasDisclosure || undefined}
-      data-expanded={hasDisclosure ? !isCollapsed : undefined}
+      data-accordion={isExpandable || undefined}
+      data-expanded={isExpandable ? !isCollapsed : undefined}
       data-unified-workspace-row
       data-node-id={node.id}
       className={cn(
         UW_TREE_ROW_CLASS,
+        isActive && node.kind !== "thread" && UW_TREE_ACTIVE_RAIL_CLASS,
         node.depth > 0 && UW_TREE_GUIDE_CLASS,
         isDragging && "opacity-40",
         dropZoneClassName,
@@ -410,7 +420,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       onContextMenu={handleContextMenu}
       onFocus={handleFocus}
     >
-      {hasDisclosure ? (
+      {folderAccordion ? null : disclosure ? (
         <button
           type="button"
           tabIndex={-1}
@@ -435,6 +445,8 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
         <Icon
           className={cn(
             UW_TREE_ICON_CLASS,
+            node.kind !== "thread" && UW_TREE_ACTIVE_ICON_CLASS,
+            node.kind === "thread" && (statusPill?.colorClass ?? (isActive && "text-foreground")),
             node.isBroken &&
               "text-warning-foreground group-data-[active=true]/workspace-row:text-warning-foreground",
           )}

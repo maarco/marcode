@@ -17,13 +17,15 @@ export const UW_TREE_ROW_CLASS =
   "focus-visible:ring-1 focus-visible:ring-ring " +
   "data-[active=true]:bg-foreground/[0.06] data-[active=true]:font-medium " +
   "data-[active=true]:text-foreground/80 " +
-  "data-[active=true]:after:pointer-events-none data-[active=true]:after:absolute " +
-  "data-[active=true]:after:inset-y-1.5 data-[active=true]:after:left-0.5 " +
-  "data-[active=true]:after:w-0.5 data-[active=true]:after:rounded-r " +
-  "data-[active=true]:after:bg-emerald-400/60 " +
   "data-[selected=true]:bg-foreground/[0.04] " +
   "data-[broken=true]:text-muted-foreground " +
   "max-sm:h-[var(--uw-tree-row-height-touch)] max-sm:text-sm pointer-coarse:h-[var(--uw-tree-row-height-touch)]";
+
+export const UW_TREE_ACTIVE_RAIL_CLASS =
+  "data-[active=true]:after:pointer-events-none data-[active=true]:after:absolute " +
+  "data-[active=true]:after:inset-y-1.5 data-[active=true]:after:left-0.5 " +
+  "data-[active=true]:after:w-0.5 data-[active=true]:after:rounded-r " +
+  "data-[active=true]:after:bg-emerald-400/60";
 
 export const UW_TREE_DISCLOSURE_CLASS =
   "inline-flex size-4 shrink-0 items-center justify-center rounded-sm " +
@@ -33,8 +35,9 @@ export const UW_TREE_DISCLOSURE_CLASS =
 /** Invisible size-4 spacer for leaves so labels still align with containers. */
 export const UW_TREE_DISCLOSURE_SPACER_CLASS = "inline-block size-4 shrink-0";
 
-export const UW_TREE_ICON_CLASS =
-  "size-[var(--uw-tree-icon-size)] shrink-0 text-muted-foreground group-data-[active=true]/workspace-row:text-foreground";
+export const UW_TREE_ICON_CLASS = "size-[var(--uw-tree-icon-size)] shrink-0 text-muted-foreground";
+
+export const UW_TREE_ACTIVE_ICON_CLASS = "group-data-[active=true]/workspace-row:text-foreground";
 
 export const UW_TREE_LABEL_CLASS = "min-w-0 flex-1 truncate text-left font-mono text-[11px]";
 
