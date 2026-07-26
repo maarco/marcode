@@ -61,10 +61,22 @@ export const fetchEnvironmentThreadSnapshot = Effect.fn(
 export type FetchEnvironmentThreadSnapshotError = RemoteEnvironmentRequestError;
 
 /**
- * Loads a thread's detail snapshot over HTTP, returning `Option.none()` when it
- * cannot be loaded (so the caller falls back to the socket-embedded snapshot).
- * Decouples the thread state machine from the underlying HTTP + DPoP details and
- * keeps them out of test contexts.
+ * Outcome of an HTTP snapshot load.
+ *
+ * `missing` (the server answered 404) and `unavailable` (the request itself
+ * failed) are deliberately distinct: both fall back to the socket snapshot, but
+ * only `missing` is a permanent answer, so only `missing` lets the caller stop
+ * asking. Collapsing them into one "no snapshot" value is what made a deleted
+ * thread re-fetch its 404 on every resubscribe, forever.
+ */
+export type ThreadSnapshotLoadResult =
+  | { readonly _tag: "found"; readonly snapshot: OrchestrationThreadDetailSnapshot }
+  | { readonly _tag: "missing" }
+  | { readonly _tag: "unavailable" };
+
+/**
+ * Loads a thread's detail snapshot over HTTP. Decouples the thread state machine
+ * from the underlying HTTP + DPoP details and keeps them out of test contexts.
  */
 export class ThreadSnapshotLoader extends Context.Service<
   ThreadSnapshotLoader,
@@ -72,7 +84,7 @@ export class ThreadSnapshotLoader extends Context.Service<
     readonly load: (
       prepared: PreparedConnection,
       threadId: ThreadId,
-    ) => Effect.Effect<Option.Option<OrchestrationThreadDetailSnapshot>>;
+    ) => Effect.Effect<ThreadSnapshotLoadResult>;
   }
 >()("@t3tools/client-runtime/state/threadSnapshotHttp/ThreadSnapshotLoader") {}
 
@@ -91,7 +103,9 @@ export const threadSnapshotLoaderLayer: Layer.Layer<
     return ThreadSnapshotLoader.of({
       load: (prepared: PreparedConnection, threadId: ThreadId) =>
         fetchEnvironmentThreadSnapshot({ prepared, threadId, signer }).pipe(
-          Effect.map(Option.some<OrchestrationThreadDetailSnapshot>),
+          Effect.map(
+            (snapshot): ThreadSnapshotLoadResult => ({ _tag: "found", snapshot }) as const,
+          ),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           // A genuinely missing thread (404) is expected — the socket
           // subscription is the source of truth for thread existence and will
@@ -103,7 +117,7 @@ export const threadSnapshotLoaderLayer: Layer.Layer<
                 "Thread snapshot not found over HTTP; deferring to the socket subscription.",
               ).pipe(
                 Effect.annotateLogs({ threadId }),
-                Effect.as(Option.none<OrchestrationThreadDetailSnapshot>()),
+                Effect.as<ThreadSnapshotLoadResult>({ _tag: "missing" } as const),
               ),
           }),
           Effect.catchCause((cause) =>
@@ -111,7 +125,7 @@ export const threadSnapshotLoaderLayer: Layer.Layer<
               "Could not load the thread snapshot over HTTP; using the socket snapshot instead.",
             ).pipe(
               Effect.annotateLogs({ threadId, cause: Cause.pretty(cause) }),
-              Effect.as(Option.none<OrchestrationThreadDetailSnapshot>()),
+              Effect.as<ThreadSnapshotLoadResult>({ _tag: "unavailable" } as const),
             ),
           ),
         ),

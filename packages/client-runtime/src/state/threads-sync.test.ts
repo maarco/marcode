@@ -35,6 +35,7 @@ import {
   makeEnvironmentThreadState,
   ThreadSnapshotLoader,
   type EnvironmentThreadState,
+  type ThreadSnapshotLoadResult,
 } from "./threads.ts";
 
 const TARGET = new PrimaryConnectionTarget({
@@ -130,6 +131,8 @@ function awaitThreadState(
 const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (options?: {
   readonly cached?: OrchestrationThread;
   readonly httpSnapshot?: Option.Option<OrchestrationThreadDetailSnapshot>;
+  /** Make the HTTP snapshot load report a 404 rather than a transport failure. */
+  readonly httpSnapshotMissing?: boolean;
   readonly completionMarker?: boolean;
 }) {
   const inputs = yield* Queue.unbounded<TestThreadInput>();
@@ -179,10 +182,15 @@ const makeHarness = Effect.fn("TestEnvironmentThreads.makeHarness")(function* (o
   const snapshotLoader = ThreadSnapshotLoader.of({
     load: (_prepared, threadId) =>
       Ref.update(loaderCalls, (count) => count + 1).pipe(
-        Effect.as(
-          threadId === THREAD_ID
-            ? (options?.httpSnapshot ?? Option.none<OrchestrationThreadDetailSnapshot>())
-            : Option.none<OrchestrationThreadDetailSnapshot>(),
+        Effect.as<ThreadSnapshotLoadResult>(
+          threadId === THREAD_ID && options?.httpSnapshot !== undefined
+            ? Option.match(options.httpSnapshot, {
+                onSome: (snapshot) => ({ _tag: "found", snapshot }) as const,
+                onNone: () => ({ _tag: "unavailable" }) as const,
+              })
+            : options?.httpSnapshotMissing === true
+              ? ({ _tag: "missing" } as const)
+              : ({ _tag: "unavailable" } as const),
         ),
       ),
   });
@@ -558,6 +566,67 @@ describe("EnvironmentThreads", () => {
       expect(Option.isNone(recovered.error)).toBe(true);
       expect(yield* Ref.get(harness.subscriptionCount)).toBe(2);
       expect(yield* Ref.get(harness.retryCount)).toBe(0);
+    }),
+  );
+
+  it.effect("stops retrying once the server says the thread is gone", () =>
+    Effect.gen(function* () {
+      // HTTP says 404 and the subscription fails: both sources agree the thread
+      // is gone, so retrying can only produce more 404s. Before this, the
+      // 250 ms expected-failure retry re-ran the subscription setup — and its
+      // HTTP snapshot fetch — forever.
+      const harness = yield* makeHarness({ httpSnapshotMissing: true });
+      yield* Queue.offer(harness.inputs, new Error("thread not found"));
+
+      const deleted = yield* awaitThreadState(
+        harness.observed,
+        (value) => value.status === "deleted",
+      );
+      expect(Option.isNone(deleted.data)).toBe(true);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
+      expect(yield* Ref.get(harness.subscriptionCount)).toBe(1);
+
+      yield* TestClock.adjust("5 seconds");
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        yield* Effect.yieldNow;
+      }
+
+      expect(yield* Ref.get(harness.subscriptionCount)).toBe(1);
+      expect(yield* Ref.get(harness.loaderCalls)).toBe(1);
+      expect(yield* Ref.get(harness.retryCount)).toBe(0);
+    }),
+  );
+
+  it.effect("keeps retrying when the socket delivers a thread the HTTP snapshot 404'd", () =>
+    Effect.gen(function* () {
+      // A 404 is not always permanent — the projection can lag behind a
+      // just-created thread. If the socket then delivers it, the thread is
+      // alive and must not stay marked missing, or the next genuine transient
+      // failure would end the subscription for good.
+      const harness = yield* makeHarness({ httpSnapshotMissing: true });
+      yield* Queue.offer(harness.inputs, snapshot({ ...BASE_THREAD, title: "Late thread" }));
+
+      const live = yield* awaitThreadState(
+        harness.observed,
+        (value) =>
+          value.status === "live" &&
+          Option.isSome(value.data) &&
+          value.data.value.title === "Late thread",
+      );
+      expect(Option.isNone(live.error)).toBe(true);
+
+      // a later transient failure must still retry, not terminate
+      yield* Queue.offer(harness.inputs, new Error("transient"));
+      yield* awaitThreadState(harness.observed, (value) => Option.isSome(value.error));
+      yield* TestClock.adjust("250 millis");
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        if ((yield* Ref.get(harness.subscriptionCount)) >= 2) {
+          break;
+        }
+        yield* Effect.yieldNow;
+      }
+
+      expect(yield* Ref.get(harness.subscriptionCount)).toBe(2);
     }),
   );
 

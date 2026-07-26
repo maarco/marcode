@@ -129,6 +129,11 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
       status: current.status === "deleted" ? current.status : statusWithoutLiveData(current.data),
     }));
   });
+  // Set when the HTTP snapshot 404s, cleared as soon as any thread data lands.
+  // Plain mutable state because the subscription's isTerminalFailure predicate
+  // is synchronous; it is only ever touched from this scope's single fiber.
+  let sawMissingSnapshot = false;
+
   const setStreamError = (cause: Cause.Cause<unknown>) =>
     Ref.set(awaitingCompletion, false).pipe(
       Effect.andThen(
@@ -145,6 +150,9 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
     thread: OrchestrationThread,
   ) {
     const waiting = yield* Ref.get(awaitingCompletion);
+    // the thread exists after all (e.g. the HTTP 404 was projection lag and the
+    // socket delivered it) — allow snapshot fetches and retries again.
+    sawMissingSnapshot = false;
     yield* SubscriptionRef.set(state, {
       data: Option.some(thread),
       status: waiting ? "synchronizing" : "live",
@@ -252,7 +260,7 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         yield* setSynchronizing;
 
         let current = yield* SubscriptionRef.get(state);
-        if (Option.isNone(current.data) && current.status !== "deleted") {
+        if (Option.isNone(current.data) && current.status !== "deleted" && !sawMissingSnapshot) {
           const prepared = yield* SubscriptionRef.get(supervisor.prepared).pipe(
             Effect.flatMap(
               Option.match({
@@ -268,9 +276,16 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
             ),
           );
           const httpSnapshot = yield* snapshotLoader.load(prepared, threadId);
-          if (Option.isSome(httpSnapshot)) {
-            yield* applyItem({ kind: "snapshot", snapshot: httpSnapshot.value });
+          if (httpSnapshot._tag === "found") {
+            yield* applyItem({ kind: "snapshot", snapshot: httpSnapshot.snapshot });
             current = yield* SubscriptionRef.get(state);
+          } else if (httpSnapshot._tag === "missing") {
+            // The server has no such thread. Don't ask again on the next
+            // resubscribe; if the socket subscription now fails too, both
+            // sources agree it is gone and the retry is pointless (see
+            // isTerminalFailure below). A snapshot arriving over the socket
+            // clears this in setThread.
+            sawMissingSnapshot = true;
           }
         }
 
@@ -291,7 +306,11 @@ export const makeEnvironmentThreadState = Effect.fn("EnvironmentThreadState.make
         };
       }),
       {
-        onExpectedFailure: setStreamError,
+        // The HTTP snapshot said the thread is gone and the subscription failed
+        // too — nothing is going to change that, so record the deletion and stop
+        // instead of re-running this setup (and its 404) every 250 ms forever.
+        onExpectedFailure: (cause) => (sawMissingSnapshot ? setDeleted() : setStreamError(cause)),
+        isTerminalFailure: () => sawMissingSnapshot,
         retryExpectedFailureAfter: "250 millis",
         resubscribe: foregroundResubscriptions,
       },

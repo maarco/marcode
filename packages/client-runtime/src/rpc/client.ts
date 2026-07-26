@@ -153,6 +153,15 @@ interface SubscriptionOptions<TTag extends EnvironmentSubscriptionRpcTag> {
     cause: Cause.Cause<EnvironmentRpcStreamFailure<TTag>>,
   ) => Effect.Effect<void, never, never>;
   readonly retryExpectedFailureAfter?: Duration.Input;
+  /**
+   * Called after `onExpectedFailure` when a retry delay is configured. Returning
+   * `true` ends the subscription instead of retrying — for failures that cannot
+   * resolve themselves, like subscribing to a resource the server no longer has.
+   * Without it, `retryExpectedFailureAfter` retries such a failure forever, and
+   * every attempt re-runs `makeInput` (which may do real work, e.g. fetch a
+   * snapshot over HTTP).
+   */
+  readonly isTerminalFailure?: (cause: Cause.Cause<EnvironmentRpcStreamFailure<TTag>>) => boolean;
   readonly resubscribe?: Stream.Stream<unknown, never, never>;
 }
 
@@ -227,7 +236,10 @@ export function subscribeDynamic<TTag extends EnvironmentSubscriptionRpcTag>(
                                 const handled = Stream.fromEffect(
                                   options.onExpectedFailure(cause),
                                 ).pipe(Stream.drain);
-                                if (options.retryExpectedFailureAfter === undefined) {
+                                if (
+                                  options.retryExpectedFailureAfter === undefined ||
+                                  options.isTerminalFailure?.(cause) === true
+                                ) {
                                   return handled;
                                 }
                                 return handled.pipe(
