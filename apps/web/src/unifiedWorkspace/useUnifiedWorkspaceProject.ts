@@ -489,7 +489,7 @@ export function useUnifiedWorkspaceProject(input: {
         const targetThread = projectThreadShells.find((thread) => thread.id === threadId);
         const workspacePath = targetThread?.worktreePath ?? project?.workspaceRoot;
         if (workspacePath) {
-          void openFileInFloatingEditor({ workspacePath, relativePath });
+          openFileInFloatingEditor({ environmentId, workspacePath, relativePath });
           return;
         }
         useRightPanelStore

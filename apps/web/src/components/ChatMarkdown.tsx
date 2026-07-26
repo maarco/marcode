@@ -1067,7 +1067,8 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       handleOpenInEditor();
       return;
     }
-    void openFileInFloatingEditor({
+    openFileInFloatingEditor({
+      environmentId: threadRef.environmentId,
       workspacePath,
       relativePath: workspaceRelativePath,
       line,

@@ -1,9 +1,18 @@
+import type { EnvironmentId } from "@t3tools/contracts";
+
 import { resolvePathLinkTarget } from "~/terminal-links";
 
-import { getApiErrorMessage, unwrapApiData } from "./api";
-import { useEditorStore } from "./editor-store";
+import { fileKey, makeFileRef, useEditorStore } from "./editor-store";
 
 export interface OpenFloatingFileInput {
+  /**
+   * Environment the file belongs to — supplied by the caller, NOT read from the
+   * editor store. A workspace-tree node or a chat file link belongs to its own
+   * project/thread's environment, which is not necessarily the environment the
+   * editor is currently pointed at; reading the store here would open a
+   * same-path file from the wrong environment.
+   */
+  readonly environmentId: EnvironmentId;
   readonly workspacePath: string;
   readonly relativePath: string;
   readonly line?: number | undefined;
@@ -35,11 +44,14 @@ export function resolveFloatingFileTarget(
  * Open a workspace file in Marco's existing Monaco tab surface.
  *
  * The floating editor owns its tabs in `editor-store`; this bridge deliberately
- * uses that store instead of opening another right-panel file surface. The
- * existing floating editor's loader/save path remains the source of truth for
- * this short-term integration.
+ * uses that store instead of opening another right-panel file surface.
+ *
+ * No content is fetched here. The tab carries an environment-scoped ref and the
+ * pane loads it lazily from the shared file-state layer, exactly like the file
+ * tree, quick open, and the search panel — one buffer per file, one transport.
  */
-export async function openFileInFloatingEditor(input: OpenFloatingFileInput): Promise<void> {
+export function openFileInFloatingEditor(input: OpenFloatingFileInput): void {
+  const { environmentId } = input;
   const target = resolveFloatingFileTarget(input.workspacePath, input.relativePath);
   const store = useEditorStore.getState();
   const pane = store.panes.find((candidate) => candidate.id === store.activePaneId);
@@ -49,44 +61,22 @@ export async function openFileInFloatingEditor(input: OpenFloatingFileInput): Pr
   store.setTreeWorkspacePath(input.workspacePath);
   store.openOverlay();
 
-  if (pane.openPaths.includes(target.absolutePath)) {
-    store.setActiveFile(pane.id, target.absolutePath);
-    if (input.line !== undefined) {
-      store.setPendingReveal({
-        path: target.absolutePath,
-        line: Math.max(1, Math.trunc(input.line)),
-        column: Math.max(1, Math.trunc(input.column ?? 1)),
-      });
-    }
-    return;
+  const key = fileKey(environmentId, target.absolutePath);
+  if (pane.openPaths.includes(key)) {
+    store.setActiveFile(pane.id, key);
+  } else {
+    store.openFile(
+      pane.id,
+      makeFileRef(environmentId, input.workspacePath, target.absolutePath, target.name, target.ext),
+    );
   }
 
-  store.openFile(pane.id, target.absolutePath, target.name, target.ext, "");
-  store.setFileLoading(target.absolutePath, true);
   if (input.line !== undefined) {
     store.setPendingReveal({
+      environmentId,
       path: target.absolutePath,
       line: Math.max(1, Math.trunc(input.line)),
       column: Math.max(1, Math.trunc(input.column ?? 1)),
     });
-  }
-
-  try {
-    const response = await fetch(
-      `/api/editor/fs/file?path=${encodeURIComponent(target.absolutePath)}`,
-    );
-    const raw = await response.json();
-    if (!response.ok) {
-      throw new Error(getApiErrorMessage(raw, "Failed to load file"));
-    }
-    const data = unwrapApiData<{ content?: string }>(raw);
-    useEditorStore
-      .getState()
-      .openFile(pane.id, target.absolutePath, target.name, target.ext, data.content ?? "");
-  } catch {
-    // Keep the tab visible with the same empty-state behavior as FileTree. The
-    // editor remains available for retrying through the floating explorer.
-  } finally {
-    useEditorStore.getState().setFileLoading(target.absolutePath, false);
   }
 }
