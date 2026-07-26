@@ -11,6 +11,7 @@ import {
 } from "@aliimam/icons";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { cn } from "~/lib/utils";
+import { isHitTestSuppressed } from "~/lib/modalLayer";
 import { useEditorStore } from "./editor-store";
 import { useWorkspace } from "./workspace";
 import { usePillNavPreferences, getPillNavShineGradient } from "./pill-prefs";
@@ -221,6 +222,16 @@ export function FloatingCodePill() {
     const handler = (e: MouseEvent) => {
       const overlay = overlayRef.current;
       if (!overlay) return;
+      // An open Radix modal layer suppresses hit-testing, so `e.target` is the
+      // document element no matter where the pointer really was — see
+      // isHitTestSuppressed. Checked before `overlay.contains` because that is
+      // exactly the test the suppression defeats: clicking our own branch/stash
+      // trigger a second time to close its menu looked like a click outside the
+      // panel, and tore down the whole editor. Safe as an unconditional bail
+      // here: the scrim covers the viewport whenever this handler is armed
+      // (it is disabled while pinned), so a genuine outside click always lands
+      // on a real element and never on the document element itself.
+      if (isHitTestSuppressed(e.target)) return;
       if (overlay.contains(e.target as Node)) return;
       const target = e.target as HTMLElement;
       if (target.closest("[data-pill-nav]") || target.closest("[data-terminal-panel]")) return;

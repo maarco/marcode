@@ -85,6 +85,7 @@ import { cn, isMacPlatform } from "../lib/utils";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/unstable/reactivity";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
+import { isHitTestSuppressed } from "~/lib/modalLayer";
 import { buildProjectScript, commandForProjectScript, nextProjectScriptId } from "~/projectScripts";
 import {
   readThreadShell,
@@ -3952,6 +3953,12 @@ export default function Sidebar() {
   useEffect(() => {
     const onMouseDown = (event: globalThis.MouseEvent) => {
       if (!useThreadSelectionStore.getState().hasSelection()) return;
+      // An open Radix modal layer reports the document element as the target
+      // for every outside mousedown (see isHitTestSuppressed), and it matches
+      // no selection-safe selector — so closing any dropdown would silently
+      // drop the user's thread selection. Same root cause as the floating
+      // editor's outside-click handler.
+      if (isHitTestSuppressed(event.target)) return;
       const target = event.target instanceof HTMLElement ? event.target : null;
       if (!shouldClearThreadSelectionOnMouseDown(target)) return;
       clearSelection();
