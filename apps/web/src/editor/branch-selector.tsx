@@ -446,6 +446,12 @@ function BranchItem({
         !isLoading && "hover:bg-foreground/5 dark:hover:bg-white/5",
         isLoading && "opacity-50 pointer-events-none",
       )}
+      // Radix dismisses the menu on select by default, which unmounts
+      // DropdownMenuContent — and with it the only place the error banner
+      // renders. Switching is async and can fail (a dirty file that differs
+      // between branches makes git refuse), so keep the menu mounted and let
+      // the success path close it explicitly via `setIsOpen(false)`.
+      onSelect={(event) => event.preventDefault()}
       onClick={() => onSwitch(branch.name)}
       role="menuitem"
       aria-current={isCurrent ? "true" : "false"}
