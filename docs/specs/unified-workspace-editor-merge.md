@@ -2,9 +2,20 @@
 
 ## Status
 
-Two features were built in parallel and neither knows about the other. Both are
-effectively complete on their own branch; the integration between them is not
-written yet.
+**Merged.** `main` is merged into `feature/editor-file-state-unification`
+(`4716726f`) and the bridge between the two features is rewritten against the
+shared file-state seam (`c9b282a0`). Web typecheck is back to main's 2
+pre-existing errors; 189 tests pass across the editor, bridge, and
+unified-workspace suites. Pre-merge branch head is preserved at
+`backup/editor-unify-premerge` (`4ff0c1e3`).
+
+Still open: the tree → editor click path and the git surfaces have no live
+browser verification — see _Remaining_ at the bottom.
+
+The rest of this document is the record of what the merge involved.
+
+Two features were built in parallel and neither knew about the other. Both were
+complete on their own branch; the integration between them was not written.
 
 - **main** (`108b4330`) — unified workspace tree sidebar
   (`apps/web/src/unifiedWorkspace/**`, `apps/web/src/components/unified-workspace/**`),
@@ -51,44 +62,54 @@ branch's version, which is correct.
 `apps/server/src/ws.ts` is modified on **both** sides. It auto-merges, but read
 the merged hunks: the branch adds the new file-mutation and VCS RPCs there.
 
-## Work remaining
+## What the merge took
 
-1. ~~Finish the branch's in-flight `fileKey` conversion~~ — done, see
-   _Completed_ below.
-2. **Merge main → branch** in the worktree. Expect no conflicts and a broken
-   typecheck; that is the expected state, not a surprise.
-3. **Rewrite `openFileInFloatingEditor` against the shared seam.** It should:
-   - resolve an `environmentId` (store `environmentId`, or the active thread's
-     environment the way `useWorkspace()` does);
-   - build a ref with `makeFileRef(environmentId, workspacePath, absPath, name, ext)`
-     and call `openFile(paneId, ref)`;
-   - drop the `fetch` and both `setFileLoading` calls entirely — content loads
-     lazily from the atom layer once the pane renders;
-   - pass `environmentId` into `setPendingReveal`;
-   - key the already-open check with `fileKey(environmentId, absPath)`.
+1. ~~Finish the branch's in-flight `fileKey` conversion~~ — done (`4ff0c1e3`),
+   see _Completed_ below.
+2. ~~Merge main → branch~~ — done (`4716726f`). No conflicts, and exactly the
+   predicted breakage: 6 new errors, all in `open-floating-file.ts`. The 6
+   stale-base errors in `unifiedWorkspace/useUnifiedWorkspaceProject.ts`
+   disappeared, since main's copy replaces the branch's.
+3. ~~Rewrite `openFileInFloatingEditor` against the shared seam~~ — done
+   (`c9b282a0`). It builds a `FileRef` via `makeFileRef` and calls
+   `openFile(paneId, ref)`; the `fetch` and both `setFileLoading` calls are gone,
+   so content loads lazily from the atom layer; the already-open check is keyed
+   with `fileKey`; `setPendingReveal` carries the environment.
 
-   Two open questions to settle while doing it:
-   - The function is `async` today **only** because it fetched. After the seam it
-     can be synchronous — decide whether to keep the `Promise<void>` signature for
-     the two call sites or simplify both.
-   - Which environment does a workspace-tree file node belong to?
-     `useUnifiedWorkspaceProject` has `workspacePath` but no environment id;
-     either thread one through the tree's ops or resolve it from the active
-     thread at activation time. This is the one real design decision in the merge.
+   Both open questions resolved:
+   - **Sync, not async.** The `Promise<void>` existed only for the fetch. It is
+     now `void` and both call sites dropped their `void` operator.
+   - **`environmentId` is a required input, not read from the store.** A
+     workspace-tree node belongs to its project/thread's environment, which is
+     not necessarily the environment the editor is currently pointed at — reading
+     `store.environmentId` would open a same-path file from the wrong
+     environment, the exact collision composite tab keys exist to prevent. Both
+     callers already had the id in scope (`useUnifiedWorkspaceProject`'s
+     `environmentId`, `ChatMarkdown`'s `threadRef.environmentId`).
 
-4. **Update `apps/web/src/editor/open-floating-file.test.ts`** — it currently only
-   covers `resolveFloatingFileTarget`, which the rewrite does not change, so it
-   will keep passing while the module is broken. Add coverage for the store
-   interaction.
-5. **Re-verify.** Web typecheck should go from 8 errors to 2: the 6 in
-   `unifiedWorkspace/useUnifiedWorkspaceProject.ts` (module resolution +
-   implicit `any`) are the branch's stale copy, and main's version replaces it.
-   The remaining 2 (`Sidebar.logic.test.ts:870`, `environmentGrouping.test.ts:32`)
-   are pre-existing on main.
-6. **Live pass on what is still unverified** (see _Completed_ for what already
-   has live proof): git panel commit/push, stash create/apply/drop/show, branch
-   switch and delete, the diff view, and the workspace tree's file activation
-   landing in the floating editor.
+4. ~~Cover the store interaction in `open-floating-file.test.ts`~~ — done. Five
+   cases: env-scoped ref with no content in the store, re-open activates instead
+   of duplicating, two environments' identical paths stay separate tabs, reveal
+   is env-scoped, no-op without an active pane.
+5. ~~Re-verify~~ — web typecheck is at main's 2 pre-existing errors
+   (`Sidebar.logic.test.ts:870`, `environmentGrouping.test.ts:32`). 189 tests
+   pass across `open-floating-file`, `editor-store`, `fileSaveCoordinator`,
+   `Sidebar.logic`, and the `unifiedWorkspace` suite. `vp lint` clean on the
+   touched files. The app boots on the merged branch.
+
+## Remaining
+
+Live browser verification only — nothing is known broken.
+
+- **Workspace tree → floating editor.** The rewritten bridge is covered by unit
+  tests but the click path was not driven end to end: it needs a project in the
+  test environment, and "Add project" did not open under browser automation.
+  Drive it manually, or seed a project, then click a file node and confirm the
+  tab opens with content over WS.
+- **Chat file links → floating editor** (`ChatMarkdown`) — same bridge, also not
+  driven.
+- **Git surfaces** — commit/push, stash create/apply/drop/show, branch switch and
+  delete, and the diff view. Outstanding since before the merge.
 
 ## Not in scope
 
