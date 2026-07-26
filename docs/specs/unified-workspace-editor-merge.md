@@ -9,8 +9,11 @@ pre-existing errors; 189 tests pass across the editor, bridge, and
 unified-workspace suites. Pre-merge branch head is preserved at
 `backup/editor-unify-premerge` (`4ff0c1e3`).
 
-The workspace tree → floating editor path is verified live. Still open: chat file
-links and the git surfaces — see _Remaining_ at the bottom.
+The workspace tree → floating editor path and **all of the git surfaces** are now
+verified live against a throwaway sandbox repo, which turned up two real bugs
+(both fixed, both pre-existing on `main` rather than caused by the merge) — see
+_Live git verification_ below. Still open: chat file links, and one path that
+automation cannot reach. See _Remaining_ at the bottom.
 
 The rest of this document is the record of what the merge involved.
 
@@ -106,15 +109,76 @@ the merged hunks: the branch adds the new file-mutation and VCS RPCs there.
    were made — content came over the WS seam, which is the whole point of the
    rewrite.
 
+## Live git verification
+
+Driven in a browser against a throwaway sandbox repo — `/private/tmp/marcode-git-verify`,
+three commits, two branches, and a local bare repo as `origin` so push has a real
+target and nothing reaches a network. Registered with
+`node apps/server/src/bin.ts project add <path> --base-dir <dir> --title git-verify`.
+Every result below was checked against real git state in a shell, not against
+what the panel drew.
+
+- **Status / changes list** — the sandbox's modified + untracked files, with the
+  count and per-file line deltas.
+- **Diff view** — side-by-side HEAD vs working tree, added line marked.
+- **Commit** — produced `210e7cd` containing both selected files (including the
+  untracked one), tree clean afterwards, panel dropped to zero changes and the
+  message box cleared.
+- **Push** — the bare `origin`'s `main` advanced to `210e7cd`, local ahead count
+  went 1 → 0 and the footer's push affordance disappeared.
+- **Stash create** — `stash@{0}`, working tree reverted.
+- **Stash show** — opens the patch as a `.diffs/stash-stash@{0}.diff` tab.
+- **Stash apply** — confirm dialog, then the change is back on disk and the stash
+  is retained (apply, not pop).
+- **Stash drop** — confirm dialog listing id / message / branch / date, then the
+  stash list is empty.
+- **Branch switch** — succeeds on a clean tree (verified in both directions), and
+  now surfaces an error when git refuses (see the two bugs below).
+- **Branch delete** — confirm dialog, branch gone from `git branch`.
+- **Edit → autosave → disk** — typing in the editor reached the real file and
+  showed up in `git status` as a modification. First live proof of the
+  `FileSaveCoordinator` path; previously only unit-tested.
+
+### Two bugs this found, both pre-existing on `main`
+
+1. **The git panel acted on the wrong repo** (`322f13bf`). `useWorkspace` only
+   resolved a workspace for a `kind: "server"` route, so every `/draft/:draftId`
+   route — including the app's own startup state — fell through to `projects[0]`.
+   The whole editor takes its root from that value, so a draft in project B put
+   the git panel on project A's repo. Caught before touching anything: the panel
+   reported `main`, no changes, and **60 unpushed commits**, which is the real
+   `dev/marcode` checkout, not the sandbox. Push was one click away.
+2. **A failed branch switch was silent** (`e1fba006`). The error state and its
+   banner both existed; Radix's default select-dismiss unmounted the banner's
+   host before it could render.
+
+Both are `main` bugs that the merge inherited, not merge damage.
+
 ## Remaining
 
-Live browser verification only — nothing is known broken.
-
 - **Chat file links → floating editor** (`ChatMarkdown`) — same bridge, same code
-  path as the tree, but not driven end to end (needs a thread with a message
-  containing a file path).
-- **Git surfaces** — commit/push, stash create/apply/drop/show, branch switch and
-  delete, and the diff view. Outstanding since before the merge.
+  path as the verified tree click, but not driven end to end (needs a thread with
+  a message containing a file path).
+- **Dirty-tab discard confirm** — still not driven, and now understood to be
+  close to unreachable rather than merely awkward. Autosave debounces at 500 ms
+  (`FILE_AUTOSAVE_DEBOUNCE_MS`), and the confirm is gated on
+  `dirtyKeys.has(key)`, which autosave clears — so the prompt only appears if the
+  close click lands within half a second of the last keystroke. Attempts to race
+  it from browser automation never produced a prompt while the file was already
+  persisted to disk. Worth deciding whether that confirm should exist at all,
+  rather than testing harder.
+- **Git panel does not react to an in-editor save.** Editing a file writes it to
+  disk, but the panel keeps showing "no changes" until Refresh is clicked; the
+  status did appear correctly on refresh. This is the "cross-surface dirty state"
+  item from the older spec, now pinned down: it is a missing live update, not a
+  wrong value.
+- **Driver errors are not specific.** A refused branch switch reports
+  `GitVcsDriver.switchRef.checkout ... failed` without git's stderr, so the user
+  is told an operation failed but not why.
+- **Stash rows overflow the sidebar.** At the default git-panel width the stash
+  message and the View / Apply / Delete buttons cannot be on screen at the same
+  time; the actions sit outside the 240px panel and need a horizontal scroll to
+  reach.
 
 ## Unrelated finding
 
