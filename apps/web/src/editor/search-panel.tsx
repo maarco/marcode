@@ -4,7 +4,7 @@ import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/unstable/reactivity";
 import type { ProjectSearchContentResult } from "@t3tools/contracts";
-import { useEditorStore, makeFileRef } from "./editor-store";
+import { useEditorStore, makeFileRef, fileKey } from "./editor-store";
 import { projectEnvironment } from "~/state/projects";
 import { SearchNormalFilled } from "@aliimam/icons";
 import { WaveSpinner } from "./wave-spinner";
@@ -84,9 +84,9 @@ export function SearchPanel({ workspacePath }: SearchPanelProps) {
 
       // content loads lazily from the shared atom layer when the pane renders
       openFile(activePaneId, makeFileRef(environmentId, workspacePath, fullPath, result.name, ext));
-      pinFile(fullPath);
+      pinFile(fileKey(environmentId, fullPath));
       // trigger reveal after the file mounts
-      setPendingReveal({ path: fullPath, line: result.line, column: result.column });
+      setPendingReveal({ environmentId, path: fullPath, line: result.line, column: result.column });
     },
     [activePaneId, workspacePath, openFile, pinFile, environmentId, setPendingReveal],
   );

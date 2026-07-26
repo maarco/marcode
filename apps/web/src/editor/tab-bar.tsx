@@ -1,8 +1,12 @@
 import { useState, useRef, useCallback } from "react";
 import { CloseCircleFilled, ArrowRight1Filled, PeopleFilled } from "@aliimam/icons";
-import { useEditorStore, usePane } from "./editor-store";
+import { useEditorStore, usePane, fileKey } from "./editor-store";
 import { getFileAccentColor } from "./file-tree";
-import { flushProjectFile, clearProjectFileQueryData } from "~/state/projectFileState";
+import {
+  flushProjectFile,
+  cancelProjectFile,
+  clearProjectFileQueryData,
+} from "~/state/projectFileState";
 
 interface TabBarProps {
   paneId: string;
@@ -79,9 +83,18 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
       onDragOver={(e) => e.preventDefault()}
     >
       {openFiles.map((file, index) => {
-        const isActive = activeFile?.path === file.path;
+        // reference equality: activeFile and each `file` here are both
+        // fileCache.get(key) lookups against the SAME map within this
+        // render, so this is correct (and env-collision-proof) regardless
+        // of the underlying key format — unlike comparing .path, which two
+        // different environments' same-path files would both share.
+        const isActive = activeFile === file;
         const isView = !!file.view;
-        const dirty = dirtyKeys.has(file.path);
+        // composite identity: two open tabs can share `file.path` if they
+        // belong to different environments, so bare path alone can't be a
+        // React list key or an identity passed back into the store.
+        const key = fileKey(file.environmentId, file.path);
+        const dirty = dirtyKeys.has(key);
         const accent = isView ? "#22d3ee" : getFileAccentColor(file.path, rootPath);
         const isDragging = dragIndex === index;
         const showDropBefore = dropTarget === index;
@@ -95,7 +108,7 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
 
         return (
           <div
-            key={file.path}
+            key={key}
             ref={(el) => {
               if (el) tabRefs.current.set(index, el);
               else tabRefs.current.delete(index);
@@ -107,10 +120,10 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
             onDragOver={(e) => handleDragOver(e, index)}
             onDrop={(e) => handleDrop(e, index)}
             onDragEnd={handleDragEnd}
-            onClick={() => setActiveFile(paneId, file.path)}
-            onDoubleClick={() => pinFile(file.path)}
+            onClick={() => setActiveFile(paneId, key)}
+            onDoubleClick={() => pinFile(key)}
             onKeyDown={(e) => {
-              if (e.key === "Enter") setActiveFile(paneId, file.path);
+              if (e.key === "Enter") setActiveFile(paneId, key);
             }}
             className={`relative flex items-center gap-1 px-2 py-0.5 text-[9px] shrink-0 cursor-pointer transition-all rounded-md group ${
               isDragging ? "opacity-40" : ""
@@ -174,13 +187,15 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                const fileDirty = dirtyKeys.has(file.path);
-                if (fileDirty && !window.confirm(`Discard unsaved changes to ${file.name}?`))
-                  return;
-                if (fileDirty && file.environmentId && file.cwd && file.relativePath) {
+                if (dirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
+                // same discard order as editor-pane's Cmd+W: stop the pending
+                // autosave first, then drop the optimistic overlay — otherwise
+                // an in-flight write resurrects the discarded content.
+                if (dirty && file.environmentId && file.cwd && file.relativePath) {
+                  cancelProjectFile(file.environmentId, file.cwd, file.relativePath);
                   clearProjectFileQueryData(file.environmentId, file.cwd, file.relativePath);
                 }
-                closeFile(paneId, file.path);
+                closeFile(paneId, key);
               }}
               className="shrink-0 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-all"
             >

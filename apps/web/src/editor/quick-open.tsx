@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
-import { useEditorStore, makeFileRef } from "./editor-store";
+import { useEditorStore, makeFileRef, fileKey } from "./editor-store";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
 
 interface FlatFile {
@@ -71,7 +71,7 @@ export function QuickOpen({ open, onClose, workspacePath }: QuickOpenProps) {
         activePaneId,
         makeFileRef(environmentId, workspacePath, file.path, file.name, file.ext),
       );
-      pinFile(file.path);
+      pinFile(fileKey(environmentId, file.path));
     },
     [onClose, activePaneId, openFile, pinFile, environmentId, workspacePath],
   );

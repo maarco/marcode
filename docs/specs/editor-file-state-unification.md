@@ -7,8 +7,12 @@ provider-environment model: file content, the file tree, file mutations, git
 operations, and content search all flow through environment-scoped WebSocket
 RPCs. The raw host-filesystem HTTP surface is retired.
 
-The one outstanding verification is an interactive browser pass (see
-_Verification_).
+A follow-up pass re-keyed tabs by composite `fileKey(environmentId, path)` so two
+environments mounted at the same absolute path cannot share a tab; that
+conversion is complete and browser-verified for the file/tab surfaces. The git
+surfaces still have no interactive verification (see _Verification_), and the
+merge with main's unified workspace sidebar is specified separately in
+[`unified-workspace-editor-merge.md`](./unified-workspace-editor-merge.md).
 
 ## Background
 
@@ -168,11 +172,28 @@ Automated, all green at the pre-existing baselines:
   (showFile / deleteRef / log / stash lifecycle), 3 `flush()` tests, 2
   `searchContent` tests.
 
-**Outstanding:** no interactive browser verification was performed (the
-`test-t3-app` skill requires a browser-automation surface that was not
-available in the implementing session). Live flows — edit → autosave →
-dirty-state-cross-surface, and the git commit / stash / diff / branch flows —
-should be exercised in a browser before merge.
+Interactive, in a browser against a dev server on this branch:
+
+- open a file from the tree — content arrives over the WS RPC (status bar line
+  count / size / language populated);
+- double-click a tab pins it — a second opened file adds a tab instead of
+  replacing the preview tab;
+- the tab close button closes that tab and leaves the other open;
+- content search returns hits across files;
+- clicking a search result in a not-yet-open file opens it and lands the cursor
+  on the hit line/column;
+- quick-open (`Cmd+P`) opens and pins.
+
+**Outstanding:**
+
+- The git surfaces have no interactive verification: commit / push, stash
+  create / apply / drop / show, branch switch and delete, and the diff view.
+- The dirty-tab discard confirm was deliberately not driven in automation — a
+  `window.confirm` blocks the browser-automation session, and producing a dirty
+  buffer would have written to real files in this worktree. `FileSaveCoordinator`'s
+  flush tests cover the save path instead.
+- Cross-surface dirty state (edit in the floating editor → dirty in the Files
+  panel) is unverified for the same reason.
 
 ## Known reductions vs. the ported mentiko panel
 

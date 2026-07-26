@@ -15,7 +15,7 @@ import {
   AddFilled,
   FolderAddFilled,
 } from "@aliimam/icons";
-import { useEditorStore, makeFileRef } from "./editor-store";
+import { useEditorStore, makeFileRef, fileKey, barePathForEnv } from "./editor-store";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { WaveSpinner } from "./wave-spinner";
 import { FileTypeIcon } from "./quick-open";
@@ -222,7 +222,13 @@ export function FileTree({
   }, [entriesQuery.data, workspacePath]);
 
   const activePane = panes.find((p) => p.id === activePaneId);
+  // composite key (env + path) of the pane's active tab, if any.
   const activeFilePath = activePane?.activePath ?? null;
+  // ...and its BARE path, but only if that active tab belongs to THIS tree's
+  // environment — this tree only ever shows one environment's files, so an
+  // active tab from a different environment has nothing to match here.
+  const activeBarePath =
+    activeFilePath !== null ? barePathForEnv(activeFilePath, environmentId) : null;
 
   // hydrate expanded state from localStorage
   useEffect(() => {
@@ -253,8 +259,8 @@ export function FileTree({
   }, []);
 
   const revealActiveFile = useCallback(() => {
-    if (!activeFilePath || tree.length === 0) return;
-    const ancestors = getAncestorPaths(activeFilePath, tree);
+    if (!activeBarePath || tree.length === 0) return;
+    const ancestors = getAncestorPaths(activeBarePath, tree);
     if (ancestors.length > 0) {
       setExpanded((prev) => {
         const next = new Set(prev);
@@ -267,7 +273,7 @@ export function FileTree({
       const el = treeRef.current?.querySelector('[data-active="true"]');
       el?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
-  }, [activeFilePath, tree]);
+  }, [activeBarePath, tree]);
 
   const handleFileClick = useCallback(
     (node: FileNode) => {
@@ -280,9 +286,10 @@ export function FileTree({
 
       if (!activePaneId || !environmentId) return;
 
-      const alreadyInPane = activePane?.openPaths.includes(node.path);
+      const key = fileKey(environmentId, node.path);
+      const alreadyInPane = activePane?.openPaths.includes(key);
       if (alreadyInPane) {
-        setActiveFile(activePaneId, node.path);
+        setActiveFile(activePaneId, key);
         onFileSelect?.();
         return;
       }
@@ -308,9 +315,9 @@ export function FileTree({
 
   const handleFileDoubleClick = useCallback(
     (node: FileNode) => {
-      if (node.type === "file") pinFile(node.path);
+      if (node.type === "file" && environmentId) pinFile(fileKey(environmentId, node.path));
     },
-    [pinFile],
+    [pinFile, environmentId],
   );
 
   // flattened, keyboard-navigable order of everything currently visible
@@ -392,10 +399,13 @@ export function FileTree({
   }, [selectedPath]);
 
   // follow the active file so keyboard nav starts from wherever the editor is
-  // (e.g. a file opened via quick-open or a tab click, not just this tree)
+  // (e.g. a file opened via quick-open or a tab click, not just this tree).
+  // selectedPath is compared against bare tree-node paths elsewhere, so this
+  // must use activeBarePath (and only fires when the active tab is actually
+  // in this tree's environment).
   useEffect(() => {
-    if (activeFilePath) setSelectedPath(activeFilePath);
-  }, [activeFilePath]);
+    if (activeBarePath) setSelectedPath(activeBarePath);
+  }, [activeBarePath]);
 
   // context menu
   const [contextMenu, setContextMenu] = useState<{
@@ -577,7 +587,7 @@ export function FileTree({
         // dispose() on unmount, can silently recreate content at the old
         // path. Reopen at the new path only if the renamed node itself
         // (not a nested sibling) was the active tab somewhere.
-        const affected = closeFilesUnder(oldPath);
+        const affected = closeFilesUnder(environmentId, oldPath);
         for (const entry of affected) {
           const relativePath = toRelative(entry.path);
           cancelProjectFile(environmentId, workspacePath, relativePath);
@@ -638,7 +648,7 @@ export function FileTree({
       // or dispose() on unmount, can silently recreate the file. `writeFile`
       // has no existence check, so an unstopped coordinator resurrects
       // whatever was last in its buffer at the old path.
-      const affected = closeFilesUnder(deleteConfirm.path);
+      const affected = closeFilesUnder(environmentId, deleteConfirm.path);
       for (const entry of affected) {
         const relativePath = toRelative(entry.path);
         cancelProjectFile(environmentId, workspacePath, relativePath);
@@ -722,7 +732,7 @@ export function FileTree({
         >
           <ArrowDown1Filled className="h-3 w-3 rotate-90" />
         </button>
-        {activeFilePath && (
+        {activeBarePath && (
           <button
             onClick={revealActiveFile}
             className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
@@ -819,7 +829,7 @@ export function FileTree({
             node={dir}
             depth={0}
             expanded={expanded}
-            activeFilePath={activeFilePath}
+            activeFilePath={activeBarePath}
             selectedPath={selectedPath}
             searchQuery={searchQuery}
             panelHeights={panelHeights}
@@ -841,7 +851,7 @@ export function FileTree({
                 <FileItem
                   key={file.path}
                   node={file}
-                  isActive={activeFilePath === file.path}
+                  isActive={activeBarePath === file.path}
                   isSelected={selectedPath === file.path}
                   gitIndicator={
                     gitStatus[

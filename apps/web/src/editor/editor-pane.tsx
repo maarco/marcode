@@ -1,5 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { useEditorStore, usePane, type FileData } from "./editor-store";
+import { useEditorStore, usePane, fileKey, type FileData } from "./editor-store";
 import {
   flushProjectFile,
   cancelProjectFile,
@@ -156,7 +156,8 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
       // cmd+w close active tab
       if (mod && e.key === "w") {
         e.preventDefault();
-        const dirty = dirtyKeys.has(file.path);
+        const key = fileKey(file.environmentId, file.path);
+        const dirty = dirtyKeys.has(key);
         if (dirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
         // stop the pending autosave, then drop the optimistic overlay so the
         // discard reverts to server content. Order matters: stop writes →
@@ -165,7 +166,7 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
           cancelProjectFile(file.environmentId, file.cwd, file.relativePath);
           clearProjectFileQueryData(file.environmentId, file.cwd, file.relativePath);
         }
-        closeFileAction(paneId, file.path);
+        closeFileAction(paneId, key);
         return;
       }
 
@@ -173,7 +174,7 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
       if (mod && e.shiftKey && e.key === "[") {
         e.preventDefault();
         if (!pane) return;
-        const idx = pane.openPaths.indexOf(file.path ?? "");
+        const idx = pane.openPaths.indexOf(fileKey(file.environmentId, file.path));
         if (idx > 0) setActiveFileAction(paneId, pane.openPaths[idx - 1]!);
         return;
       }
@@ -182,7 +183,7 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
       if (mod && e.shiftKey && e.key === "]") {
         e.preventDefault();
         if (!pane) return;
-        const idx = pane.openPaths.indexOf(file.path ?? "");
+        const idx = pane.openPaths.indexOf(fileKey(file.environmentId, file.path));
         if (idx < pane.openPaths.length - 1) setActiveFileAction(paneId, pane.openPaths[idx + 1]!);
         return;
       }
@@ -230,12 +231,19 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
     return null;
   }
 
+  // keyed by composite identity so switching tabs remounts the child instead
+  // of reusing it: its editorRef/monacoRef would otherwise still point at the
+  // PREVIOUS file's Monaco instance for a render, and the pending-reveal
+  // effect would fire against that stale editor (search hit opens at line 1,
+  // reveal silently consumed).
+  const identity = fileKey(file.environmentId, file.path);
+
   // virtual (non-env) read-only content, e.g. a commit patch
   if (file.virtualContent !== undefined) {
-    return <VirtualFileEditor file={file} rootPath={rootPath} />;
+    return <VirtualFileEditor key={identity} file={file} rootPath={rootPath} />;
   }
 
-  return <EnvFileEditor file={file} rootPath={rootPath} isMarkdown={isMarkdown} />;
+  return <EnvFileEditor key={identity} file={file} rootPath={rootPath} isMarkdown={isMarkdown} />;
 }
 
 interface ChildProps {
@@ -249,13 +257,19 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
   const editorConfig = useEditorStore((s) => s.editorConfig);
   const setFileDirty = useEditorStore((s) => s.setFileDirty);
 
+  // composite tab identity (env + path) — see fileKey. Used for dirty
+  // tracking, Monaco's own per-model identity, and detecting "this is a
+  // genuinely different file" below, so two environments that happen to
+  // share an absolute path never get treated as the same open tab.
+  const fileIdentityKey = fileKey(file.environmentId, file.path);
+
   const fileState = useProjectFile(file.environmentId, file.cwd, file.relativePath);
   // stable per open file so useProjectFileEditor's coordinator useMemo (keyed
   // in part on this callback) isn't rebuilt on every render — see
   // FileSaveCoordinator's dispose()-forces-persist semantics.
   const onPendingChange = useCallback(
-    (pending: boolean) => setFileDirty(file.path, pending),
-    [setFileDirty, file.path],
+    (pending: boolean) => setFileDirty(fileIdentityKey, pending),
+    [setFileDirty, fileIdentityKey],
   );
   const editor = useProjectFileEditor(file.environmentId, file.cwd, file.relativePath, {
     onPendingChange,
@@ -281,14 +295,16 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<typeof import("monaco-editor") | null>(null);
 
-  // reset to preview mode when switching to a markdown file
+  // reset to preview mode when switching to a (genuinely different) markdown
+  // file — keyed by fileIdentityKey, not file.path, so switching between two
+  // environments' same-path files also resets this.
   const prevPathRef = useRef<string | null>(null);
   useEffect(() => {
-    if (file.path !== prevPathRef.current) {
-      prevPathRef.current = file.path;
+    if (fileIdentityKey !== prevPathRef.current) {
+      prevPathRef.current = fileIdentityKey;
       setMdPreview(isMarkdown);
     }
-  }, [file.path, isMarkdown]);
+  }, [fileIdentityKey, isMarkdown]);
 
   const accent = getFileAccentColor(file.path, rootPath);
 
@@ -322,7 +338,11 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         }
       });
 
-      if (pendingReveal && pendingReveal.path === file.path) {
+      if (
+        pendingReveal &&
+        pendingReveal.environmentId === file.environmentId &&
+        pendingReveal.path === file.path
+      ) {
         editorInstance.revealLineInCenter(pendingReveal.line);
         editorInstance.setPosition({
           lineNumber: pendingReveal.line,
@@ -331,12 +351,17 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         setPendingReveal(null);
       }
     },
-    [file.path, pendingReveal, setPendingReveal],
+    [file.environmentId, file.path, pendingReveal, setPendingReveal],
   );
 
   // handle pending reveal when switching tabs
   useEffect(() => {
-    if (!pendingReveal || pendingReveal.path !== file.path) return;
+    if (
+      !pendingReveal ||
+      pendingReveal.environmentId !== file.environmentId ||
+      pendingReveal.path !== file.path
+    )
+      return;
     if (!editorRef.current) return;
     editorRef.current.revealLineInCenter(pendingReveal.line);
     editorRef.current.setPosition({
@@ -344,7 +369,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
       column: pendingReveal.column,
     });
     setPendingReveal(null);
-  }, [file.path, pendingReveal, setPendingReveal]);
+  }, [file.environmentId, file.path, pendingReveal, setPendingReveal]);
 
   if (fileState.isPending && fileState.contents === null) {
     return (
@@ -400,7 +425,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
           <Suspense fallback={<MonacoLoading />}>
             <MonacoEditor
               height="100%"
-              path={file.path}
+              path={fileIdentityKey}
               language={language}
               value={contents}
               onChange={(val) => editor.update(val ?? "")}
@@ -512,7 +537,7 @@ function VirtualFileEditor({ file, rootPath }: ChildProps) {
         <Suspense fallback={<MonacoLoading />}>
           <MonacoEditor
             height="100%"
-            path={file.path}
+            path={fileKey(file.environmentId, file.path)}
             language="diff"
             value={file.virtualContent ?? ""}
             beforeMount={handleBeforeMount}
