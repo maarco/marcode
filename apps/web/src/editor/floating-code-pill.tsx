@@ -78,10 +78,10 @@ function loadPanelBounds(): PanelBounds {
     const s = localStorage.getItem(PANEL_BOUNDS_KEY);
     if (s) {
       const p = JSON.parse(s);
-      if (typeof p.top === "number") return p;
+      if (p && typeof p === "object") return normalizePanelBounds(p);
     }
   } catch {}
-  return DEFAULT_BOUNDS;
+  return normalizePanelBounds(DEFAULT_BOUNDS);
 }
 
 type ResizeDir = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
@@ -98,6 +98,30 @@ const CURSOR_MAP: Record<ResizeDir, string> = {
 
 function clamp(v: number, min: number, max: number) {
   return Math.max(min, Math.min(max, v));
+}
+
+function normalizePanelBounds(
+  bounds: Partial<PanelBounds>,
+  viewportW = window.innerWidth,
+  viewportH = window.innerHeight,
+): PanelBounds {
+  const minWidthPercent = Math.min(100, (MIN_PANEL_W / viewportW) * 100);
+  const minHeightPercent = Math.min(100, (MIN_PANEL_H / viewportH) * 100);
+  const maxHorizontalInset = Math.max(0, 100 - minWidthPercent);
+  const maxVerticalInset = Math.max(0, 100 - minHeightPercent);
+
+  const edge = (value: number | undefined, fallback: number) =>
+    typeof value === "number" && Number.isFinite(value) ? value : fallback;
+
+  let left = clamp(edge(bounds.left, DEFAULT_BOUNDS.left), 0, maxHorizontalInset);
+  let right = clamp(edge(bounds.right, DEFAULT_BOUNDS.right), 0, maxHorizontalInset);
+  let top = clamp(edge(bounds.top, DEFAULT_BOUNDS.top), 0, maxVerticalInset);
+  let bottom = clamp(edge(bounds.bottom, DEFAULT_BOUNDS.bottom), 0, maxVerticalInset);
+
+  if (left + right > maxHorizontalInset) right = maxHorizontalInset - left;
+  if (top + bottom > maxVerticalInset) bottom = maxVerticalInset - top;
+
+  return { top, left, right, bottom };
 }
 
 // ─── component ───────────────────────────────────────────────
@@ -152,7 +176,11 @@ export function FloatingCodePill() {
     };
     applyViewportMode(mq.matches);
     const onChange = (e: MediaQueryListEvent) => applyViewportMode(e.matches);
+    const onResize = () => {
+      if (!mq.matches) setPanelBounds((prev) => normalizePanelBounds(prev));
+    };
     mq.addEventListener("change", onChange);
+    window.addEventListener("resize", onResize);
     try {
       const sw = localStorage.getItem(SIDEBAR_W_KEY);
       if (sw) setSidebarW(clamp(parseInt(sw, 10), MIN_SIDEBAR_W, MAX_SIDEBAR_W));
@@ -164,7 +192,10 @@ export function FloatingCodePill() {
     try {
       if (localStorage.getItem("editor-overlay-open") === "true") openOverlay();
     } catch {}
-    return () => mq.removeEventListener("change", onChange);
+    return () => {
+      mq.removeEventListener("change", onChange);
+      window.removeEventListener("resize", onResize);
+    };
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
@@ -383,12 +414,18 @@ export function FloatingCodePill() {
       const ob = panelDragStart.current.bounds;
       const dpx = (dx / w) * 100;
       const dpy = (dy / h) * 100;
-      setPanelBounds({
-        top: clamp(ob.top + dpy, 0, 80),
-        bottom: clamp(ob.bottom - dpy, 0, 80),
-        left: clamp(ob.left + dpx, 0, 80),
-        right: clamp(ob.right - dpx, 0, 80),
-      });
+      setPanelBounds(
+        normalizePanelBounds(
+          {
+            top: clamp(ob.top + dpy, 0, 80),
+            bottom: clamp(ob.bottom - dpy, 0, 80),
+            left: clamp(ob.left + dpx, 0, 80),
+            right: clamp(ob.right - dpx, 0, 80),
+          },
+          w,
+          h,
+        ),
+      );
     },
     [isPanelDragging],
   );

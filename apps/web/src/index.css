@@ -1098,7 +1098,6 @@ label:has(> select#reasoning-effort) select {
   [data-variant="floating"] [data-slot="sidebar-inner"],
   [data-mobile="true"][data-slot="sidebar"]
 ) {
-  position: relative;
   overflow: hidden;
   border: none;
   border-radius: 0.875rem;
@@ -1120,6 +1119,13 @@ label:has(> select#reasoning-effort) select {
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 7%),
     0 8px 32px rgb(0 0 0 / 45%);
+}
+
+:is(
+  [data-variant="floating"] [data-slot="sidebar-inner"],
+  [data-mobile="true"][data-slot="sidebar"]
+) {
+  position: relative;
 }
 
 /* Mentiko shine rim: 1px animated conic gradient masked to the border box */
