@@ -97,19 +97,33 @@ the merged hunks: the branch adds the new file-mutation and VCS RPCs there.
    `Sidebar.logic`, and the `unifiedWorkspace` suite. `vp lint` clean on the
    touched files. The app boots on the merged branch.
 
+6. ~~Drive the workspace tree → floating editor path live~~ — done. Added the
+   marcode repo as a project with `node apps/server/src/bin.ts project add <path>
+--base-dir <dir>` (the application command; no projection seeding), then
+   clicked file nodes in the unified workspace tree. Both `AGENTS.md` and
+   `package.json` opened in the floating editor with content, the editor
+   re-rooted to the project (`dev/marcode`), and **zero `/api/editor/*` requests**
+   were made — content came over the WS seam, which is the whole point of the
+   rewrite.
+
 ## Remaining
 
 Live browser verification only — nothing is known broken.
 
-- **Workspace tree → floating editor.** The rewritten bridge is covered by unit
-  tests but the click path was not driven end to end: it needs a project in the
-  test environment, and "Add project" did not open under browser automation.
-  Drive it manually, or seed a project, then click a file node and confirm the
-  tab opens with content over WS.
-- **Chat file links → floating editor** (`ChatMarkdown`) — same bridge, also not
-  driven.
+- **Chat file links → floating editor** (`ChatMarkdown`) — same bridge, same code
+  path as the tree, but not driven end to end (needs a thread with a message
+  containing a file path).
 - **Git surfaces** — commit/push, stash create/apply/drop/show, branch switch and
   delete, and the diff view. Outstanding since before the merge.
+
+## Unrelated finding
+
+While verifying, the client polled `GET /api/orchestration/threads/<id>` in a
+tight loop against a thread that no longer exists, taking a 404 every time and
+never backing off or giving up. The id came from a `t3code:composer-drafts:v1`
+entry in `localStorage` — a composer draft outliving its thread, which is what a
+wiped or rebuilt environment produces (and what deleting a thread with an open
+draft would also produce). Not caused by this merge and not fixed here.
 
 ## Not in scope
 
