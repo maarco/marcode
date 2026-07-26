@@ -1,16 +1,10 @@
 /**
- * Exact class recipes from docs/specs/unified-workspace-tree-sidebar.md §12.4.
- *
- * These strings are the literal spec — do not "clean up," reorder, or merge
- * them into Tailwind shorthand. The visual spec calls them out verbatim so the
- * tree stays inside Marcode's flat, neutral, compact system instead of
- * drifting toward a VS Code-style explorer. Row state (active/selected/broken)
- * is driven entirely by the `data-*` attributes below — set the attribute on
- * the row element and the arbitrary Tailwind variants baked into
- * `UW_TREE_ROW_CLASS` do the rest.
+ * Shared tree recipes. The state selectors remain the unified-tree contract;
+ * the typography, density, and active treatment deliberately borrow the
+ * floating editor's file-tree register so both surfaces read as one explorer.
  */
 
-export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0.5";
+export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0.5 font-mono";
 
 // Row/touch-row height read from `--uw-tree-row-height(-touch)` (§12.3) rather
 // than hardcoded `h-7`/`max-sm:h-10` — same computed values (1.75rem/2.5rem),
@@ -18,13 +12,18 @@ export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0.5";
 // defined once in index.css instead of being duplicated as a literal here.
 export const UW_TREE_ROW_CLASS =
   "group/workspace-row relative isolate flex h-[var(--uw-tree-row-height)] min-w-0 cursor-default select-none " +
-  "items-center gap-1.5 rounded-md pr-1.5 text-xs text-foreground outline-none " +
-  "transition-colors duration-150 hover:bg-accent " +
+  "items-center gap-1.5 rounded-sm pr-1.5 text-[11px] font-mono text-foreground/70 outline-none " +
+  "transition-colors duration-150 hover:bg-foreground/[0.03] " +
   "focus-visible:ring-1 focus-visible:ring-ring " +
-  "data-[active=true]:bg-accent data-[active=true]:font-medium " +
-  "data-[selected=true]:bg-accent/80 " +
+  "data-[active=true]:bg-foreground/[0.06] data-[active=true]:font-medium " +
+  "data-[active=true]:text-foreground/80 " +
+  "data-[active=true]:after:pointer-events-none data-[active=true]:after:absolute " +
+  "data-[active=true]:after:inset-y-1.5 data-[active=true]:after:left-0.5 " +
+  "data-[active=true]:after:w-0.5 data-[active=true]:after:rounded-r " +
+  "data-[active=true]:after:bg-emerald-400/60 " +
+  "data-[selected=true]:bg-foreground/[0.04] " +
   "data-[broken=true]:text-muted-foreground " +
-  "max-sm:h-[var(--uw-tree-row-height-touch)] pointer-coarse:h-[var(--uw-tree-row-height-touch)] max-sm:text-sm";
+  "max-sm:h-[var(--uw-tree-row-height-touch)] max-sm:text-sm pointer-coarse:h-[var(--uw-tree-row-height-touch)]";
 
 export const UW_TREE_DISCLOSURE_CLASS =
   "inline-flex size-4 shrink-0 items-center justify-center rounded-sm " +
@@ -37,10 +36,10 @@ export const UW_TREE_DISCLOSURE_SPACER_CLASS = "inline-block size-4 shrink-0";
 export const UW_TREE_ICON_CLASS =
   "size-[var(--uw-tree-icon-size)] shrink-0 text-muted-foreground group-data-[active=true]/workspace-row:text-foreground";
 
-export const UW_TREE_LABEL_CLASS = "min-w-0 flex-1 truncate text-left";
+export const UW_TREE_LABEL_CLASS = "min-w-0 flex-1 truncate text-left font-mono text-[11px]";
 
 export const UW_TREE_META_CLASS =
-  "ml-auto flex shrink-0 items-center gap-1 text-[10px] text-muted-foreground";
+  "ml-auto flex shrink-0 items-center gap-1 font-mono text-[9px] text-muted-foreground";
 
 export const UW_TREE_HOVER_ACTIONS_CLASS =
   "pointer-events-none absolute right-1 flex items-center gap-0.5 opacity-0 " +

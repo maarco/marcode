@@ -1,5 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import type { ProjectScriptIcon } from "@t3tools/contracts";
+import { FolderFilled, FolderOpenFilled, MessageCircleFilled } from "@aliimam/icons";
 import {
   BugIcon,
   ChevronRightIcon,
@@ -8,10 +9,8 @@ import {
   FileIcon,
   FlaskConicalIcon,
   FolderGit2Icon,
-  FolderIcon,
   Globe2Icon,
   HammerIcon,
-  MessageSquareIcon,
   PlayIcon,
   SettingsIcon,
   TerminalIcon,
@@ -122,15 +121,19 @@ export interface UnifiedWorkspaceRowProps {
   readonly registerRowElement: (nodeId: string, element: HTMLElement | null) => void;
 }
 
-function iconForNode(node: UnifiedWorkspaceNode, commandIcon: ProjectScriptIcon | null) {
+function iconForNode(
+  node: UnifiedWorkspaceNode,
+  commandIcon: ProjectScriptIcon | null,
+  isCollapsed: boolean,
+) {
   if (node.isBroken) return TriangleAlertIcon;
   switch (node.kind) {
     case "file":
       return FileIcon;
     case "folder":
-      return FolderIcon;
+      return isCollapsed ? FolderFilled : FolderOpenFilled;
     case "thread":
-      return MessageSquareIcon;
+      return MessageCircleFilled;
     case "terminal":
       return TerminalIcon;
     case "browser":
@@ -139,6 +142,14 @@ function iconForNode(node: UnifiedWorkspaceNode, commandIcon: ProjectScriptIcon 
     case "command":
       return commandIcon ? COMMAND_ICON_BY_SCRIPT_ICON[commandIcon] : PlayIcon;
   }
+}
+
+function hasAccordionDisclosure(node: UnifiedWorkspaceNode): boolean {
+  // Threads are valid parents for live terminals, previews, and child threads,
+  // but an empty chat row is still a chat row—not an empty folder with a
+  // misleading disclosure arrow. Folders keep the arrow for lazy ambient
+  // expansion even before their children have materialized.
+  return node.canHaveChildren && (node.kind === "folder" || node.children.length > 0);
 }
 
 /**
@@ -346,7 +357,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     event.stopPropagation();
   }, []);
 
-  const Icon = useMemo(() => iconForNode(node, commandIcon), [node, commandIcon]);
+  const hasDisclosure = hasAccordionDisclosure(node);
+  const Icon = useMemo(
+    () => iconForNode(node, commandIcon, isCollapsed),
+    [node, commandIcon, isCollapsed],
+  );
   // `unifiedWorkspaceRowIndentStyle` stays React-free (see its docstring), so
   // the `--uw-row-depth` custom property it returns is cast to `CSSProperties`
   // here at the JSX boundary rather than in the pure logic module.
@@ -370,12 +385,14 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       ref={combinedNodeRef}
       role="treeitem"
       aria-level={node.depth + 1}
-      aria-expanded={node.canHaveChildren ? !isCollapsed : undefined}
+      aria-expanded={hasDisclosure ? !isCollapsed : undefined}
       aria-selected={isSelected}
       tabIndex={isFocused ? 0 : -1}
       data-active={isActive}
       data-selected={isSelected}
       data-broken={node.isBroken}
+      data-accordion={hasDisclosure || undefined}
+      data-expanded={hasDisclosure ? !isCollapsed : undefined}
       data-unified-workspace-row
       data-node-id={node.id}
       className={cn(
@@ -393,7 +410,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       onContextMenu={handleContextMenu}
       onFocus={handleFocus}
     >
-      {node.canHaveChildren ? (
+      {hasDisclosure ? (
         <button
           type="button"
           tabIndex={-1}
@@ -403,9 +420,9 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
         >
           <ChevronRightIcon className="size-3" />
         </button>
-      ) : (
+      ) : node.kind !== "thread" ? (
         <span aria-hidden="true" className={UW_TREE_DISCLOSURE_SPACER_CLASS} />
-      )}
+      ) : null}
 
       {(node.kind === "browser" || node.kind === "url") && node.iconUrl ? (
         // eslint-disable-next-line @next/next/no-img-element -- tiny favicon, not a Next.js app
@@ -453,7 +470,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
           already in the label's tooltip above, so this never needs to carry
           the whole thing itself. */}
       {!isRenaming && node.disambiguator && (
-        <span className="max-w-24 shrink-0 truncate text-[10px] text-muted-foreground">
+        <span className="max-w-24 shrink-0 truncate font-mono text-[9px] text-muted-foreground">
           · {node.disambiguator}
         </span>
       )}

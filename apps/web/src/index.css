@@ -1089,11 +1089,15 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* ── Mentiko floating chrome ──────────────────────────────────────────────
-   Skins the shadcn floating sidebar variant + popups to the Mentiko editor
-   voice: glass panels with a 1px ring, deep shadow, animated shine rim,
-   dense mono nav type. Pure overrides — no component structure changes. */
+   The floating editor and the unified workspace sidebar share one surface
+   treatment. Keep the surface CSS here so the editor doesn't own a second,
+   subtly different copy of the sidebar chrome. */
 
-[data-variant="floating"] [data-slot="sidebar-inner"] {
+:is(
+  [data-floating-code-panel],
+  [data-variant="floating"] [data-slot="sidebar-inner"],
+  [data-mobile="true"][data-slot="sidebar"]
+) {
   position: relative;
   overflow: hidden;
   border: none;
@@ -1106,7 +1110,12 @@ label:has(> select#reasoning-effort) select {
     0 12px 40px -12px rgb(0 0 0 / 30%);
 }
 
-.dark [data-variant="floating"] [data-slot="sidebar-inner"] {
+.dark
+  :is(
+    [data-floating-code-panel],
+    [data-variant="floating"] [data-slot="sidebar-inner"],
+    [data-mobile="true"][data-slot="sidebar"]
+  ) {
   background: color-mix(in oklch, var(--card) 58%, transparent);
   box-shadow:
     0 0 0 1px rgb(255 255 255 / 7%),
@@ -1114,7 +1123,11 @@ label:has(> select#reasoning-effort) select {
 }
 
 /* Mentiko shine rim: 1px animated conic gradient masked to the border box */
-.dark [data-variant="floating"] [data-slot="sidebar-inner"]::after {
+.dark
+  :is(
+    [data-variant="floating"] [data-slot="sidebar-inner"],
+    [data-mobile="true"][data-slot="sidebar"]
+  )::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -1153,7 +1166,11 @@ label:has(> select#reasoning-effort) select {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .dark [data-variant="floating"] [data-slot="sidebar-inner"]::after {
+  .dark
+    :is(
+      [data-variant="floating"] [data-slot="sidebar-inner"],
+      [data-mobile="true"][data-slot="sidebar"]
+    )::after {
     animation: none;
   }
 }
