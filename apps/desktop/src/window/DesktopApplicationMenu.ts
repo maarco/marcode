@@ -7,7 +7,6 @@ import * as Schema from "effect/Schema";
 import type * as Electron from "electron";
 
 import { makeComponentLogger } from "../app/DesktopObservability.ts";
-import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 import * as ElectronMenu from "../electron/ElectronMenu.ts";
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
@@ -59,7 +58,7 @@ const checkForUpdatesFromMenu = Effect.gen(function* () {
     yield* electronDialog.showMessageBox({
       type: "info",
       title: "You're up to date!",
-      message: `T3 Code ${updateState.currentVersion} is currently the newest version available.`,
+      message: `Marcode ${updateState.currentVersion} is currently the newest version available.`,
       buttons: ["OK"],
     });
   } else if (updateState.status === "error") {
@@ -97,10 +96,12 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
 export const make = Effect.gen(function* () {
-  const electronApp = yield* ElectronApp.ElectronApp;
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const appName = yield* electronApp.name;
+  // Electron's app name can still reflect the package/product name while
+  // identity configuration is settling. The resolved environment branding is
+  // the source of truth for the user-visible application menu label.
+  const appName = environment.displayName;
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
 

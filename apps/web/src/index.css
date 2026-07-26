@@ -333,6 +333,34 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
+/* Unified workspace tree (spec §12.3) — additions only, no root-palette or
+   theme redefinition. */
+@layer components {
+  /* Geometry variables consumed by apps/web/src/components/unified-workspace/*
+     — row/touch-row height, indent step, primary-icon size, and the two
+     indirection colors for the branch guide (§12.5) and drop indicator (§10).
+     Scoped to the tree's own root attribute, not the root palette. */
+  [data-unified-workspace-tree] {
+    --uw-tree-row-height: 1.75rem;
+    --uw-tree-row-height-touch: 2.5rem;
+    --uw-tree-indent: 0.875rem;
+    --uw-tree-icon-size: 0.875rem;
+    --uw-tree-guide-color: color-mix(in srgb, var(--border) 70%, transparent);
+    --uw-tree-drop-color: var(--ring);
+  }
+
+  /* §12.6: the tree's expand/collapse, hover-action, and drop-indicator
+     transitions collapse to instant under reduced motion. The dnd-kit drag
+     overlay's JS-driven drop animation is handled separately in
+     UnifiedWorkspaceTree.tsx (a CSS rule can't reach a JS-supplied duration). */
+  @media (prefers-reduced-motion: reduce) {
+    [data-unified-workspace-tree] * {
+      transition-duration: 0ms !important;
+      animation-duration: 0ms !important;
+    }
+  }
+}
+
 /* Safe-area inset utilities for surfaces that opt into edge-to-edge rendering.
    Insets resolve to 0 when the browser already constrains the layout viewport
    to the safe area. */

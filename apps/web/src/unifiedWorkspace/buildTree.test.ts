@@ -1,5 +1,6 @@
 import {
   ThreadId,
+  type ProjectEntry,
   type ProjectScript,
   type ProjectWorkspaceEntry,
   type ProjectWorkspaceItemId,
@@ -9,6 +10,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   buildUnifiedWorkspaceTree,
+  EMPTY_AMBIENT_ENTRIES,
+  EMPTY_EXPANDED_AMBIENT_DIRS,
+  toggleExpandedAmbientDir,
   type UnifiedWorkspacePreviewTabInput,
   type UnifiedWorkspaceTerminalInput,
   type UnifiedWorkspaceThreadInput,
@@ -89,6 +93,11 @@ function commandEntry(input: {
   };
 }
 
+/** Fixture for the flat disk listing `useProjectEntriesQuery` returns. */
+function ambientEntry(path: string, kind: "file" | "directory" = "file"): ProjectEntry {
+  return { path, kind };
+}
+
 function urlEntry(input: {
   id: string;
   parentId: string | null;
@@ -139,6 +148,9 @@ function baseInput(overrides: {
   terminals?: UnifiedWorkspaceTerminalInput[];
   previewTabs?: UnifiedWorkspacePreviewTabInput[];
   knownPaths?: ReadonlySet<string> | null;
+  ambientEntries?: ProjectEntry[];
+  ambientEntriesTruncated?: boolean;
+  expandedAmbientDirs?: ReadonlySet<string>;
 }) {
   return {
     environmentId: ENV,
@@ -150,6 +162,9 @@ function baseInput(overrides: {
     previewTabs: overrides.previewTabs ?? [],
     threadSortOrder: "updated_at" as const,
     knownPaths: overrides.knownPaths ?? null,
+    ambientEntries: overrides.ambientEntries ?? EMPTY_AMBIENT_ENTRIES,
+    ambientEntriesTruncated: overrides.ambientEntriesTruncated ?? false,
+    expandedAmbientDirs: overrides.expandedAmbientDirs ?? EMPTY_EXPANDED_AMBIENT_DIRS,
   };
 }
 
@@ -504,5 +519,443 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
     const commandNode = roots.find((n) => n.kind === "command")!;
     expect(commandNode.canRename).toBe(false);
     expect(commandNode.canRemove).toBe(true);
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — ambient disk nodes (spec override of §4)", () => {
+  it("projects the workspace root's immediate children with no layout entries at all", () => {
+    const { roots, diagnostics } = buildUnifiedWorkspaceTree(
+      baseInput({
+        ambientEntries: [ambientEntry("b-folder", "directory"), ambientEntry("a-file.ts")],
+      }),
+    );
+    expect(diagnostics).toEqual([]);
+    expect(roots.map((n) => n.activation)).toEqual([
+      { kind: "folder", relativePath: "b-folder" },
+      { kind: "file", relativePath: "a-file.ts" },
+    ]);
+    for (const n of roots) {
+      expect(n).toMatchObject({
+        isAmbient: true,
+        isLive: true,
+        isBroken: false,
+        canMove: false,
+        canRename: false,
+        canRemove: false,
+        status: null,
+      });
+    }
+  });
+
+  it("sorts ambient roots folders-before-files, alphabetically within each kind", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        ambientEntries: [
+          ambientEntry("z.ts"),
+          ambientEntry("b-dir", "directory"),
+          ambientEntry("a.ts"),
+          ambientEntry("a-dir", "directory"),
+        ],
+      }),
+    );
+    expect(roots.map((n) => n.label)).toEqual(["a-dir", "b-dir", "a.ts", "z.ts"]);
+  });
+
+  it("renders ambient roots after ranked/persisted roots and before synthetic commands/threads", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: "attached.ts" })],
+        scripts: [script({ id: "s1" })],
+        threads: [thread({ threadId: "t1" })],
+        ambientEntries: [ambientEntry("ambient.ts")],
+      }),
+    );
+    expect(roots.map((n) => n.kind)).toEqual(["file", "file", "command", "thread"]);
+    expect(roots.map((n) => n.isAmbient)).toEqual([false, true, false, false]);
+  });
+
+  it("a directory whose only disk child is attached elsewhere has nothing left to ambiently show", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({ ambientEntries: [ambientEntry("empty-dir", "directory")] }),
+    );
+    expect(roots[0]).toMatchObject({ canHaveChildren: false, children: [] });
+  });
+
+  it("an ambient file/folder's activation reuses the exact persisted shapes — no new activation kind", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({ ambientEntries: [ambientEntry("dir", "directory"), ambientEntry("file.ts")] }),
+    );
+    const folderNode = roots.find((n) => n.kind === "folder")!;
+    const fileNode = roots.find((n) => n.kind === "file")!;
+    expect(folderNode.activation).toEqual({ kind: "folder", relativePath: "dir" });
+    expect(fileNode.activation).toEqual({ kind: "file", relativePath: "file.ts" });
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — ambient nodes are lazy, one directory level per expansion", () => {
+  const nestedAmbientEntries = [
+    ambientEntry("a", "directory"),
+    ambientEntry("a/b.txt"),
+    ambientEntry("a/c", "directory"),
+    ambientEntry("a/c/d.txt"),
+  ];
+
+  it("does not materialize a directory's children until its own path is expanded", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({ ambientEntries: nestedAmbientEntries }),
+    );
+    expect(roots).toHaveLength(1);
+    expect(roots[0]).toMatchObject({
+      activation: { kind: "folder", relativePath: "a" },
+      children: [],
+      // Known (from the flat index) to have content, even though nothing is
+      // materialized yet — the disclosure affordance is honest, not a lie.
+      canHaveChildren: true,
+    });
+  });
+
+  it("expanding a directory reveals only its own immediate children, not its grandchildren", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({ ambientEntries: nestedAmbientEntries, expandedAmbientDirs: new Set(["a"]) }),
+    );
+    const dirA = roots[0]!;
+    expect(dirA.children.map((n) => n.activation)).toEqual([
+      { kind: "folder", relativePath: "a/c" },
+      { kind: "file", relativePath: "a/b.txt" },
+    ]);
+    const dirC = dirA.children[0]!;
+    expect(dirC.canHaveChildren).toBe(true); // known non-empty...
+    expect(dirC.children).toEqual([]); // ...but not itself expanded — no cascade
+  });
+
+  it("expanding a nested directory too reveals its own children, still one level at a time", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        ambientEntries: nestedAmbientEntries,
+        expandedAmbientDirs: new Set(["a", "a/c"]),
+      }),
+    );
+    const dirC = roots[0]!.children[0]!;
+    expect(dirC.children.map((n) => n.activation)).toEqual([
+      { kind: "file", relativePath: "a/c/d.txt" },
+    ]);
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — attached path wins over its ambient projection", () => {
+  it("renders a path exactly once when it is both attached and ambient", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: "a.ts" })],
+        ambientEntries: [ambientEntry("a.ts")],
+      }),
+    );
+    const matches = flattenUnifiedWorkspaceNodes(roots).filter(
+      (n) => n.activation.kind === "file" && n.activation.relativePath === "a.ts",
+    );
+    expect(matches).toHaveLength(1);
+    expect(matches[0]).toMatchObject({ id: q("f1"), isAmbient: false });
+  });
+
+  it("still ambiently projects an attached folder's other, un-attached disk children once expanded", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [folderEntry({ id: "folder-1", parentId: null, rank: "a0", relativePath: "src" })],
+        ambientEntries: [ambientEntry("src/extra.ts")],
+        expandedAmbientDirs: new Set(["src"]),
+      }),
+    );
+    const folder = roots[0]!;
+    expect(folder.id).toBe(q("folder-1"));
+    expect(folder.children).toHaveLength(1);
+    expect(folder.children[0]).toMatchObject({
+      isAmbient: true,
+      activation: { kind: "file", relativePath: "src/extra.ts" },
+    });
+  });
+
+  it("an attached folder shows no ambient children until its own path is expanded", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [folderEntry({ id: "folder-1", parentId: null, rank: "a0", relativePath: "src" })],
+        ambientEntries: [ambientEntry("src/extra.ts")],
+      }),
+    );
+    expect(roots[0]!.children).toEqual([]);
+  });
+
+  it("a broken attached folder (path no longer on disk) projects nothing ambiently", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [folderEntry({ id: "folder-1", parentId: null, rank: "a0", relativePath: "src" })],
+        ambientEntries: [ambientEntry("src/extra.ts")],
+        knownPaths: new Set(["src/extra.ts"]), // "src" itself is absent => broken
+        expandedAmbientDirs: new Set(["src"]),
+      }),
+    );
+    expect(roots[0]).toMatchObject({ isBroken: true, children: [] });
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — regression: threads still appear exactly once alongside ambient nodes", () => {
+  it("an unplaced thread appears exactly once even when ambient nodes are present", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        threads: [thread({ threadId: "t1" })],
+        ambientEntries: [ambientEntry("a.ts"), ambientEntry("b-dir", "directory")],
+      }),
+    );
+    const threadNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread");
+    expect(threadNodes).toHaveLength(1);
+  });
+
+  it("a placed (attached) thread still appears exactly once when ambient nodes share the tree", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [threadEntry({ id: "thread:t1", parentId: null, rank: "a0", threadId: "t1" })],
+        threads: [thread({ threadId: "t1" })],
+        ambientEntries: [ambientEntry("a.ts")],
+      }),
+    );
+    const threadNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread");
+    expect(threadNodes).toHaveLength(1);
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — ambient index truncation", () => {
+  it("emits a diagnostic (not a silent gap) when the disk index hit its cap", () => {
+    const { diagnostics } = buildUnifiedWorkspaceTree(baseInput({ ambientEntriesTruncated: true }));
+    expect(diagnostics).toEqual([
+      { code: "index-truncated", nodeId: expect.any(String), detail: expect.any(String) },
+    ]);
+  });
+
+  it("emits nothing when the index is not truncated", () => {
+    const { diagnostics } = buildUnifiedWorkspaceTree(baseInput({}));
+    expect(diagnostics).toEqual([]);
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — ambient sort demotes dot-directories, never hides them", () => {
+  it("sorts regular folders, then dot-folders, then files, alphabetical within each group", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        ambientEntries: [
+          ambientEntry(".vscode", "directory"),
+          ambientEntry("packages", "directory"),
+          ambientEntry(".github", "directory"),
+          ambientEntry("apps", "directory"),
+          ambientEntry("z.ts"),
+          ambientEntry(".env"),
+        ],
+      }),
+    );
+    expect(roots.map((n) => n.label)).toEqual([
+      "apps",
+      "packages",
+      ".github",
+      ".vscode",
+      "z.ts",
+      ".env",
+    ]);
+  });
+
+  it("still projects dot-directories as ordinary, fully expandable ambient nodes — demoted, not hidden", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        ambientEntries: [
+          ambientEntry(".github", "directory"),
+          ambientEntry(".github/workflows.yml"),
+        ],
+        expandedAmbientDirs: new Set([".github"]),
+      }),
+    );
+    const dotFolder = roots.find((n) => n.label === ".github")!;
+    expect(dotFolder).toMatchObject({ isAmbient: true, canHaveChildren: true });
+    expect(dotFolder.children.map((n) => n.activation)).toEqual([
+      { kind: "file", relativePath: ".github/workflows.yml" },
+    ]);
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — disambiguator for a persisted entry rendered away from its disk parent", () => {
+  it("sets a disambiguator when an attached root file's real path is nested elsewhere", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: ".plans/README.md" }),
+        ],
+      }),
+    );
+    expect(roots[0]).toMatchObject({ label: "README.md", disambiguator: ".plans" });
+  });
+
+  it("uses the immediate parent's basename for a deeply nested real path", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          fileEntry({
+            id: "f1",
+            parentId: null,
+            rank: "a0",
+            relativePath: ".repos/alchemy-effect/examples/aws-ec2/package.json",
+          }),
+        ],
+      }),
+    );
+    expect(roots[0]).toMatchObject({ label: "package.json", disambiguator: "aws-ec2" });
+  });
+
+  it("does not disambiguate an attached root file that really is at the root", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: "README.md" })],
+      }),
+    );
+    expect(roots[0]).toMatchObject({ label: "README.md" });
+    expect(roots[0]!.disambiguator).toBeUndefined();
+  });
+
+  it("disambiguates two same-named root rows: one true root ambient file, one attached from elsewhere", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: ".plans/README.md" }),
+        ],
+        ambientEntries: [ambientEntry("README.md")],
+      }),
+    );
+    const readmeRows = roots.filter((n) => n.label === "README.md");
+    expect(readmeRows).toHaveLength(2);
+    const attached = readmeRows.find((n) => !n.isAmbient)!;
+    const ambient = readmeRows.find((n) => n.isAmbient)!;
+    expect(attached.disambiguator).toBe(".plans");
+    expect(ambient.disambiguator).toBeUndefined();
+  });
+
+  it("does not disambiguate a file truly nested inside the attached folder that contains it", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          folderEntry({ id: "folder-1", parentId: null, rank: "a0", relativePath: "packages" }),
+          fileEntry({
+            id: "f1",
+            parentId: "folder-1",
+            rank: "a0",
+            relativePath: "packages/contracts.ts",
+          }),
+        ],
+      }),
+    );
+    const folder = roots[0]!;
+    expect(folder.disambiguator).toBeUndefined();
+    expect(folder.children[0]).toMatchObject({ label: "contracts.ts" });
+    expect(folder.children[0]!.disambiguator).toBeUndefined();
+  });
+
+  it("disambiguates a file moved under an unrelated folder, away from its true disk parent", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          folderEntry({ id: "folder-1", parentId: null, rank: "a0", relativePath: "packages" }),
+          fileEntry({
+            id: "f1",
+            parentId: "folder-1",
+            rank: "a0",
+            relativePath: "apps/web/foo.ts",
+          }),
+        ],
+      }),
+    );
+    const nested = roots[0]!.children[0]!;
+    expect(nested).toMatchObject({ label: "foo.ts", disambiguator: "web" });
+  });
+
+  it("never disambiguates an ambient node — it is always exactly where its own disk path says", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        ambientEntries: [ambientEntry("src", "directory"), ambientEntry("src/a.ts")],
+        expandedAmbientDirs: new Set(["src"]),
+      }),
+    );
+    const src = roots[0]!;
+    expect(src.disambiguator).toBeUndefined();
+    expect(src.children[0]!.disambiguator).toBeUndefined();
+  });
+
+  it("does not disambiguate a file nested under a thread — no disk context to compare against", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          threadEntry({ id: "thread:t1", parentId: null, rank: "a0", threadId: "t1" }),
+          fileEntry({
+            id: "f1",
+            parentId: "thread:t1",
+            rank: "a0",
+            relativePath: ".plans/README.md",
+          }),
+        ],
+        threads: [thread({ threadId: "t1" })],
+      }),
+    );
+    const threadNode = roots.find((n) => n.kind === "thread")!;
+    expect(threadNode.children[0]).toMatchObject({ label: "README.md" });
+    expect(threadNode.children[0]!.disambiguator).toBeUndefined();
+  });
+});
+
+describe("toggleExpandedAmbientDir", () => {
+  it("adds a relativePath not yet in the set", () => {
+    const next = toggleExpandedAmbientDir(EMPTY_EXPANDED_AMBIENT_DIRS, "apps");
+    expect(next.has("apps")).toBe(true);
+  });
+
+  it("removes a relativePath already in the set, leaving siblings untouched", () => {
+    const expanded = new Set(["apps", "packages"]);
+    const next = toggleExpandedAmbientDir(expanded, "apps");
+    expect(next.has("apps")).toBe(false);
+    expect(next.has("packages")).toBe(true);
+  });
+
+  it("never mutates the set passed in", () => {
+    const original = new Set(["apps"]);
+    toggleExpandedAmbientDir(original, "apps");
+    expect(original.has("apps")).toBe(true);
+    expect(original.size).toBe(1);
+  });
+
+  it("round-trips through buildUnifiedWorkspaceTree: toggling twice returns to the collapsed shape", () => {
+    // Simulates the sidebar's disclosure-arrow click path end to end:
+    // `useUnifiedWorkspaceProject.ts`'s `toggleAmbientFolder` calls this same
+    // helper to grow/shrink the `expandedAmbientDirs` state it threads into
+    // `buildUnifiedWorkspaceTree`.
+    let expandedAmbientDirs: ReadonlySet<string> = EMPTY_EXPANDED_AMBIENT_DIRS;
+    const input = () =>
+      baseInput({
+        ambientEntries: [ambientEntry("apps", "directory"), ambientEntry("apps/web.ts")],
+        expandedAmbientDirs,
+      });
+
+    // Before any click: the folder shows a disclosure affordance but nothing
+    // beneath it — never eagerly materialized.
+    const collapsed = buildUnifiedWorkspaceTree(input());
+    expect(collapsed.roots[0]).toMatchObject({
+      label: "apps",
+      canHaveChildren: true,
+      children: [],
+    });
+
+    // First click: one level materializes.
+    expandedAmbientDirs = toggleExpandedAmbientDir(expandedAmbientDirs, "apps");
+    const expanded = buildUnifiedWorkspaceTree(input());
+    expect(expanded.roots[0]!.children).toHaveLength(1);
+    expect(expanded.roots[0]!.children[0]).toMatchObject({
+      activation: { kind: "file", relativePath: "apps/web.ts" },
+    });
+
+    // Second click: back to nothing materialized.
+    expandedAmbientDirs = toggleExpandedAmbientDir(expandedAmbientDirs, "apps");
+    const collapsedAgain = buildUnifiedWorkspaceTree(input());
+    expect(collapsedAgain.roots[0]!.children).toEqual([]);
   });
 });

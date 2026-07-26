@@ -16,6 +16,10 @@ import {
   deleteProject,
   updateProject,
 } from "../operations/commands.ts";
+import {
+  type ApplyProjectWorkspaceLayoutInput,
+  applyProjectWorkspaceLayout,
+} from "../operations/projectWorkspace.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 
 export type {
@@ -89,6 +93,19 @@ export function createProjectEnvironmentAtoms<R, E>(
     delete: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:project:delete",
       execute: (input: DeleteProjectInput) => deleteProject(input),
+      scheduler: projectScheduler,
+      concurrency: projectConcurrency,
+    }),
+    // `applyProjectWorkspaceLayout` (operations/projectWorkspace.ts) is an `Effect.Effect<...>`
+    // factory, not a Promise — it must be run through this atom-command wrapper (never
+    // `await`ed or `.then`/`.catch`'d directly) or it silently never executes. Shares
+    // `projectConcurrency` with create/update/delete: it keys on the same
+    // `{environmentId, input.projectId}` pair (every `ApplyProjectWorkspaceLayoutInput` carries
+    // a `projectId`), so concurrent layout mutations against the same project serialize instead
+    // of racing on `expectedVersion`.
+    applyWorkspaceLayout: createEnvironmentCommand(runtime, {
+      label: "environment-data:commands:project:apply-workspace-layout",
+      execute: (input: ApplyProjectWorkspaceLayoutInput) => applyProjectWorkspaceLayout(input),
       scheduler: projectScheduler,
       concurrency: projectConcurrency,
     }),

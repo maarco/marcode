@@ -7,6 +7,8 @@ import {
   buildUnifiedWorkspaceNodeIndex,
   canDropUnifiedWorkspaceNode,
   canDropUnifiedWorkspaceNodeAtRoot,
+  collectUnifiedWorkspaceAncestorIds,
+  findUnifiedWorkspaceAttachedNodeId,
   flattenVisibleUnifiedWorkspaceNodes,
   isNodeSelfOrDescendant,
   isUnifiedWorkspaceNodeCollapsed,
@@ -33,6 +35,7 @@ function node(input: {
   canRename?: boolean;
   canRemove?: boolean;
   isBroken?: boolean;
+  activation?: UnifiedWorkspaceNode["activation"];
 }): UnifiedWorkspaceNode {
   return {
     id: input.id,
@@ -42,12 +45,13 @@ function node(input: {
     depth: input.depth ?? 0,
     children: input.children ?? [],
     isLive: false,
+    isAmbient: false,
     isBroken: input.isBroken ?? false,
     canHaveChildren: input.canHaveChildren ?? false,
     canMove: input.canMove ?? true,
     canRename: input.canRename ?? true,
     canRemove: input.canRemove ?? true,
-    activation: { kind: "none" },
+    activation: input.activation ?? { kind: "none" },
     status: null,
   };
 }
@@ -522,12 +526,14 @@ describe("resolveMoveTargetForDrop", () => {
 });
 
 describe("unifiedWorkspaceRowIndentStyle", () => {
-  it("builds the exact calc() formula from §12.4", () => {
+  it("builds the exact calc() formula from §12.4, plus the --uw-row-depth custom property", () => {
     expect(unifiedWorkspaceRowIndentStyle(0)).toEqual({
       paddingInlineStart: "calc(0.375rem + 0 * var(--uw-tree-indent))",
+      "--uw-row-depth": 0,
     });
     expect(unifiedWorkspaceRowIndentStyle(3)).toEqual({
       paddingInlineStart: "calc(0.375rem + 3 * var(--uw-tree-indent))",
+      "--uw-row-depth": 3,
     });
   });
 });
@@ -612,6 +618,65 @@ describe("resolveAddMenuParentId", () => {
   it("is root when the focused node is a root-level leaf", () => {
     const url = node({ id: "url", kind: "url" });
     expect(resolveAddMenuParentId(url)).toBeNull();
+  });
+});
+
+describe("collectUnifiedWorkspaceAncestorIds", () => {
+  it("is empty for a root-level node", () => {
+    const index = buildUnifiedWorkspaceNodeIndex(buildFixtureTree());
+    expect(collectUnifiedWorkspaceAncestorIds(index, "sibling-file")).toEqual([]);
+  });
+
+  it("returns every ancestor, nearest first", () => {
+    const index = buildUnifiedWorkspaceNodeIndex(buildFixtureTree());
+    expect(collectUnifiedWorkspaceAncestorIds(index, "terminal")).toEqual([
+      "child-thread",
+      "folder",
+    ]);
+  });
+
+  it("is empty for an unknown node id", () => {
+    const index = buildUnifiedWorkspaceNodeIndex(buildFixtureTree());
+    expect(collectUnifiedWorkspaceAncestorIds(index, "does-not-exist")).toEqual([]);
+  });
+});
+
+describe("findUnifiedWorkspaceAttachedNodeId", () => {
+  it("finds an attached file by relative path", () => {
+    const file = node({
+      id: "f1",
+      kind: "file",
+      activation: { kind: "file", relativePath: "src/index.ts" },
+    });
+    const index = buildUnifiedWorkspaceNodeIndex([file]);
+    expect(findUnifiedWorkspaceAttachedNodeId(index, "file", "src/index.ts")).toBe("f1");
+  });
+
+  it("finds an attached folder by relative path, nested under another node", () => {
+    const folder = node({
+      id: "folder-2",
+      kind: "folder",
+      parentId: "folder",
+      depth: 1,
+      activation: { kind: "folder", relativePath: "src/lib" },
+    });
+    const index = buildUnifiedWorkspaceNodeIndex(buildFixtureTree().concat(folder));
+    expect(findUnifiedWorkspaceAttachedNodeId(index, "folder", "src/lib")).toBe("folder-2");
+  });
+
+  it("does not cross-match file and folder kinds sharing a path", () => {
+    const file = node({
+      id: "f1",
+      kind: "file",
+      activation: { kind: "file", relativePath: "src" },
+    });
+    const index = buildUnifiedWorkspaceNodeIndex([file]);
+    expect(findUnifiedWorkspaceAttachedNodeId(index, "folder", "src")).toBeNull();
+  });
+
+  it("is null when nothing matches", () => {
+    const index = buildUnifiedWorkspaceNodeIndex(buildFixtureTree());
+    expect(findUnifiedWorkspaceAttachedNodeId(index, "file", "src/missing.ts")).toBeNull();
   });
 });
 
@@ -718,5 +783,33 @@ describe("buildUnifiedWorkspaceContextMenuItems", () => {
       (item) => item.id === "delete-thread",
     );
     expect(deleteItem).toMatchObject({ destructive: true, icon: "trash" });
+  });
+
+  it("canMutate: false (§17 read-only) omits move-to/new-child-thread/rename/remove/pin-shortcut but keeps activation and thread-lifecycle items", () => {
+    const folder = node({ id: "d", kind: "folder", canHaveChildren: true });
+    expect(ids(folder)).not.toEqual(
+      buildUnifiedWorkspaceContextMenuItems({ node: folder, canMutate: false }).map(
+        (item) => item.id,
+      ),
+    );
+    expect(
+      buildUnifiedWorkspaceContextMenuItems({ node: folder, canMutate: false }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["open-in-files", "copy-relative-path", "add-to-chat"]);
+
+    const browser = node({ id: "b", kind: "browser", canMove: false, canRename: false });
+    expect(
+      buildUnifiedWorkspaceContextMenuItems({ node: browser, canMutate: false }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["open", "copy-url", "open-externally", "close-live"]);
+
+    const thread = node({ id: "t", kind: "thread", canHaveChildren: true });
+    expect(
+      buildUnifiedWorkspaceContextMenuItems({ node: thread, canMutate: false }).map(
+        (item) => item.id,
+      ),
+    ).toEqual(["open", "mark-unread", "archive-thread", "copy-thread-id", "delete-thread"]);
   });
 });

@@ -11,6 +11,7 @@ import {
   isUnifiedWorkspaceDescendant,
   parseUnifiedWorkspaceNodeId,
   qualifyUnifiedWorkspaceNodeId,
+  resolveUnifiedWorkspaceAmbientMaterializationChain,
   resolveUnifiedWorkspaceDropZone,
   resolveUnifiedWorkspaceMoveTarget,
   unifiedWorkspaceNodeProjectScopeKey,
@@ -26,6 +27,7 @@ function node(input: {
   kind?: UnifiedWorkspaceNode["kind"];
   canHaveChildren?: boolean;
   canMove?: boolean;
+  isAmbient?: boolean;
 }): UnifiedWorkspaceNode {
   return {
     id: input.id,
@@ -35,6 +37,7 @@ function node(input: {
     depth: 0,
     children: input.children ?? [],
     isLive: false,
+    isAmbient: input.isAmbient ?? false,
     isBroken: false,
     canHaveChildren: input.canHaveChildren ?? true,
     canMove: input.canMove ?? true,
@@ -233,6 +236,22 @@ describe("resolveUnifiedWorkspaceMoveTarget + validateUnifiedWorkspaceMove", () 
     expect(result).toEqual({ ok: false, reason: "invalid-target" });
   });
 
+  it("allows moving into an ambient node — the controller materializes it first", () => {
+    const ambientFolder = node({
+      id: q("ambient-folder"),
+      parentId: null,
+      kind: "folder",
+      canHaveChildren: true,
+      isAmbient: true,
+    });
+    const localById = indexUnifiedWorkspaceNodesById([root, dragged, ambientFolder]);
+    const result = validateUnifiedWorkspaceMove(
+      { nodeId: q("dragged"), parentId: ambientFolder.id, beforeId: null },
+      localById,
+    );
+    expect(result).toEqual({ ok: true });
+  });
+
   it("rejects moves that would create a cycle", () => {
     const result = validateUnifiedWorkspaceMove(
       { nodeId: q("root"), parentId: q("thread-a"), beforeId: null },
@@ -272,6 +291,106 @@ describe("resolveUnifiedWorkspaceMoveTarget + validateUnifiedWorkspaceMove", () 
       byId,
     );
     expect(result).toEqual({ ok: false, reason: "invalid-target" });
+  });
+});
+
+describe("resolveUnifiedWorkspaceAmbientMaterializationChain", () => {
+  const q = (itemId: string) => qualifyUnifiedWorkspaceNodeId("env-1", "proj-1", itemId);
+
+  it("returns empty for a null parentId (root)", () => {
+    expect(resolveUnifiedWorkspaceAmbientMaterializationChain(null, new Map())).toEqual([]);
+  });
+
+  it("returns empty when the parent id is unknown", () => {
+    const byId = indexUnifiedWorkspaceNodesById([node({ id: q("root"), parentId: null })]);
+    expect(resolveUnifiedWorkspaceAmbientMaterializationChain(q("missing"), byId)).toEqual([]);
+  });
+
+  it("returns empty when the parent already resolves to a persisted (non-ambient) node", () => {
+    const persistedFolder = node({
+      id: q("apps"),
+      parentId: null,
+      kind: "folder",
+      isAmbient: false,
+    });
+    const byId = indexUnifiedWorkspaceNodesById([persistedFolder]);
+    expect(resolveUnifiedWorkspaceAmbientMaterializationChain(q("apps"), byId)).toEqual([]);
+  });
+
+  it("returns a single-entry chain for a root-level ambient folder", () => {
+    const apps = node({ id: q("apps"), parentId: null, kind: "folder", isAmbient: true });
+    const byId = indexUnifiedWorkspaceNodesById([apps]);
+    expect(resolveUnifiedWorkspaceAmbientMaterializationChain(q("apps"), byId)).toEqual([apps]);
+  });
+
+  it("orders a nested ambient chain root-most first", () => {
+    const desktop = node({
+      id: q("ambient:apps/desktop"),
+      parentId: q("ambient:apps"),
+      kind: "folder",
+      isAmbient: true,
+    });
+    const apps = node({
+      id: q("ambient:apps"),
+      parentId: null,
+      kind: "folder",
+      isAmbient: true,
+      children: [desktop],
+    });
+    const byId = indexUnifiedWorkspaceNodesById([apps]);
+    expect(
+      resolveUnifiedWorkspaceAmbientMaterializationChain(q("ambient:apps/desktop"), byId),
+    ).toEqual([apps, desktop]);
+  });
+
+  it("stops at the first persisted ancestor instead of walking past it", () => {
+    // `apps` is already attached for real; only `apps/desktop` is ambient.
+    const desktop = node({
+      id: q("ambient:apps/desktop"),
+      parentId: q("apps"),
+      kind: "folder",
+      isAmbient: true,
+    });
+    const apps = node({
+      id: q("apps"),
+      parentId: null,
+      kind: "folder",
+      isAmbient: false,
+      children: [desktop],
+    });
+    const byId = indexUnifiedWorkspaceNodesById([apps]);
+    expect(
+      resolveUnifiedWorkspaceAmbientMaterializationChain(q("ambient:apps/desktop"), byId),
+    ).toEqual([desktop]);
+  });
+
+  it("handles a three-level ambient chain", () => {
+    const c = node({
+      id: q("ambient:a/b/c"),
+      parentId: q("ambient:a/b"),
+      kind: "folder",
+      isAmbient: true,
+    });
+    const b = node({
+      id: q("ambient:a/b"),
+      parentId: q("ambient:a"),
+      kind: "folder",
+      isAmbient: true,
+      children: [c],
+    });
+    const a = node({
+      id: q("ambient:a"),
+      parentId: null,
+      kind: "folder",
+      isAmbient: true,
+      children: [b],
+    });
+    const byId = indexUnifiedWorkspaceNodesById([a]);
+    expect(resolveUnifiedWorkspaceAmbientMaterializationChain(q("ambient:a/b/c"), byId)).toEqual([
+      a,
+      b,
+      c,
+    ]);
   });
 });
 

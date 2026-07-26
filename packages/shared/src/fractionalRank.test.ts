@@ -222,7 +222,12 @@ describe("compactRanks", () => {
     const siblingsInOrder: string[] = [left, right];
     let cursor = right;
     let compactionTriggered = false;
-    for (let i = 0; i < 40 && !compactionTriggered; i += 1) {
+    // 40 same-gap inserts isn't enough to cross MAX_RANK_LENGTH (30): this
+    // recurrence grows the rank by roughly one base-36 digit every ~5-6
+    // inserts (measured), so compaction doesn't trip until ~173 iterations.
+    // Cap generously above that so the test proves real exhaustion instead
+    // of assuming a bound that undershoots it.
+    for (let i = 0; i < 200 && !compactionTriggered; i += 1) {
       const inserted = rankBetween(left, cursor);
       siblingsInOrder.splice(siblingsInOrder.length - 1, 0, inserted);
       cursor = inserted;

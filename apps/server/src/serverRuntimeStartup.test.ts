@@ -1,5 +1,12 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { DEFAULT_MODEL, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import {
+  DEFAULT_MODEL,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  ProjectId,
+  ProviderInstanceId,
+  ThreadId,
+} from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
@@ -148,6 +155,8 @@ it.effect("resolveAutoBootstrapWelcomeTargets returns existing project and threa
               workspaceRoot: "/tmp/startup-project",
               defaultModelSelection: ServerRuntimeStartup.getAutoBootstrapDefaultModelSelection(),
               scripts: [],
+              workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+              workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
               createdAt: "2026-01-01T00:00:00.000Z",
               updatedAt: "2026-01-01T00:00:00.000Z",
               deletedAt: null,

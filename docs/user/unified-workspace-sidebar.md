@@ -6,12 +6,12 @@ about, live terminals, live browser tabs, URL shortcuts, and project commands, a
 The tree is for navigation and organization. The right panel is still where things open — clicking a
 row activates the surface you already know.
 
-## Turning it on
+## Default behavior
 
-The unified sidebar ships behind the `unifiedWorkspaceSidebar` setting and is off by default. With it
-off you get the familiar flat thread list. If your server is older than your client, the tree renders
-read-only: you can browse and open, but attaching and moving are disabled with a message explaining
-the server needs an upgrade.
+The unified sidebar is on by default. Set `unifiedWorkspaceSidebar` to `false` if you need the
+familiar flat thread list while migrating or troubleshooting. If your server is older than your
+client, the tree renders read-only: you can browse and open, but attaching and moving are disabled
+with a message explaining the server needs an upgrade.
 
 ## What lives in the tree
 

@@ -19,7 +19,7 @@ import * as DesktopWindow from "./DesktopWindow.ts";
 const environmentInput = {
   dirname: "/repo/apps/desktop/dist-electron",
   homeDirectory: "/Users/alice",
-  platform: "linux",
+  platform: "darwin",
   processArch: "arm64",
   appVersion: "1.2.3",
   appPath: "/repo",
@@ -119,12 +119,18 @@ describe("DesktopApplicationMenu", () => {
       );
 
       const template = yield* Deferred.await(applicationMenuTemplate);
+      const applicationMenu = template.find((item) => item.label === "Marcode (Alpha)");
+      assert.isDefined(applicationMenu);
       const fileMenu = template.find((item) => item.label === "File");
       assert.isDefined(fileMenu);
       if (!Array.isArray(fileMenu.submenu)) {
         throw new Error("Expected File menu submenu to be an array.");
       }
-      const settingsItem = fileMenu.submenu.find((item) => item.label === "Settings...");
+      const applicationSettingsItem = Array.isArray(applicationMenu?.submenu)
+        ? applicationMenu.submenu.find((item) => item.label === "Settings...")
+        : undefined;
+      const settingsItem =
+        applicationSettingsItem ?? fileMenu.submenu.find((item) => item.label === "Settings...");
       assert.isDefined(settingsItem);
       const settingsClick = settingsItem.click;
       if (typeof settingsClick !== "function") {

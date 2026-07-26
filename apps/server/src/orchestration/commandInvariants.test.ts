@@ -3,7 +3,10 @@ import {
   MessageId,
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
+  ProjectWorkspaceItemId,
   ThreadId,
   type OrchestrationCommand,
   type OrchestrationReadModel,
@@ -28,6 +31,11 @@ import {
 
 const now = "2026-01-01T00:00:00.000Z";
 
+const PROJECT_WORKSPACE_LAYOUT_DEFAULTS = {
+  workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+} as const;
+
 const readModel: OrchestrationReadModel = {
   snapshotSequence: 2,
   updatedAt: now,
@@ -41,6 +49,7 @@ const readModel: OrchestrationReadModel = {
         model: "gpt-5-codex",
       },
       scripts: [],
+      ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -54,6 +63,7 @@ const readModel: OrchestrationReadModel = {
         model: "gpt-5-codex",
       },
       scripts: [],
+      ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
       createdAt: now,
       updatedAt: now,
       deletedAt: null,
@@ -259,10 +269,34 @@ describe("isLiveWorkspaceResourceItemId", () => {
 
 describe("collectWorkspaceLayoutDescendantIds", () => {
   const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
-    { kind: "folder", id: "a", parentId: null, rank: "a", relativePath: "a" },
-    { kind: "folder", id: "b", parentId: "a", rank: "a", relativePath: "a/b" },
-    { kind: "folder", id: "c", parentId: "b", rank: "a", relativePath: "a/b/c" },
-    { kind: "folder", id: "sibling", parentId: null, rank: "b", relativePath: "sibling" },
+    {
+      kind: "folder",
+      id: ProjectWorkspaceItemId.make("a"),
+      parentId: null,
+      rank: "a",
+      relativePath: "a",
+    },
+    {
+      kind: "folder",
+      id: ProjectWorkspaceItemId.make("b"),
+      parentId: ProjectWorkspaceItemId.make("a"),
+      rank: "a",
+      relativePath: "a/b",
+    },
+    {
+      kind: "folder",
+      id: ProjectWorkspaceItemId.make("c"),
+      parentId: ProjectWorkspaceItemId.make("b"),
+      rank: "a",
+      relativePath: "a/b/c",
+    },
+    {
+      kind: "folder",
+      id: ProjectWorkspaceItemId.make("sibling"),
+      parentId: null,
+      rank: "b",
+      relativePath: "sibling",
+    },
   ];
 
   it("collects all transitive descendants, not just direct children", () => {
@@ -280,9 +314,30 @@ describe("collectWorkspaceLayoutDescendantIds", () => {
 
 describe("computeWorkspaceLayoutPlacementRank", () => {
   const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
-    { kind: "url", id: "first", parentId: null, rank: "a", label: "First", url: "http://a" },
-    { kind: "url", id: "second", parentId: null, rank: "m", label: "Second", url: "http://b" },
-    { kind: "url", id: "last", parentId: null, rank: "z", label: "Last", url: "http://c" },
+    {
+      kind: "url",
+      id: ProjectWorkspaceItemId.make("first"),
+      parentId: null,
+      rank: "a",
+      label: "First",
+      url: "http://a",
+    },
+    {
+      kind: "url",
+      id: ProjectWorkspaceItemId.make("second"),
+      parentId: null,
+      rank: "m",
+      label: "Second",
+      url: "http://b",
+    },
+    {
+      kind: "url",
+      id: ProjectWorkspaceItemId.make("last"),
+      parentId: null,
+      rank: "z",
+      label: "Last",
+      url: "http://c",
+    },
   ];
 
   it("computes a rank after the last sibling when beforeId is null", () => {
@@ -294,14 +349,18 @@ describe("computeWorkspaceLayoutPlacementRank", () => {
     const rank = computeWorkspaceLayoutPlacementRank({
       layout,
       parentId: null,
-      beforeId: "second",
+      beforeId: ProjectWorkspaceItemId.make("second"),
     });
     expect(rank > "a").toBe(true);
     expect(rank < "m").toBe(true);
   });
 
   it("computes a rank before the first sibling when beforeId is the first sibling", () => {
-    const rank = computeWorkspaceLayoutPlacementRank({ layout, parentId: null, beforeId: "first" });
+    const rank = computeWorkspaceLayoutPlacementRank({
+      layout,
+      parentId: null,
+      beforeId: ProjectWorkspaceItemId.make("first"),
+    });
     expect(rank < "a").toBe(true);
   });
 
@@ -311,7 +370,7 @@ describe("computeWorkspaceLayoutPlacementRank", () => {
     const rank = computeWorkspaceLayoutPlacementRank({
       layout,
       parentId: null,
-      beforeId: "last",
+      beforeId: ProjectWorkspaceItemId.make("last"),
       excludeItemId: "second" as never,
     });
     expect(rank > "a").toBe(true);
@@ -322,24 +381,62 @@ describe("computeWorkspaceLayoutPlacementRank", () => {
 describe("removeWorkspaceLayoutEntryById", () => {
   it("is a no-op when the item is not present", () => {
     const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
-      { kind: "url", id: "x", parentId: null, rank: "a", label: "X", url: "http://x" },
+      {
+        kind: "url",
+        id: ProjectWorkspaceItemId.make("x"),
+        parentId: null,
+        rank: "a",
+        label: "X",
+        url: "http://x",
+      },
     ];
     expect(removeWorkspaceLayoutEntryById(layout, "does-not-exist" as never)).toBe(layout);
   });
 
   it("removes a leaf with no children", () => {
     const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
-      { kind: "url", id: "x", parentId: null, rank: "a", label: "X", url: "http://x" },
+      {
+        kind: "url",
+        id: ProjectWorkspaceItemId.make("x"),
+        parentId: null,
+        rank: "a",
+        label: "X",
+        url: "http://x",
+      },
     ];
     expect(removeWorkspaceLayoutEntryById(layout, "x" as never)).toEqual([]);
   });
 
   it("reparents children to the removed node's own parent, preserving their relative order", () => {
     const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
-      { kind: "folder", id: "root-sibling", parentId: null, rank: "a", relativePath: "existing" },
-      { kind: "folder", id: "mid", parentId: null, rank: "b", relativePath: "mid" },
-      { kind: "file", id: "child-1", parentId: "mid", rank: "a", relativePath: "mid/1.ts" },
-      { kind: "file", id: "child-2", parentId: "mid", rank: "b", relativePath: "mid/2.ts" },
+      {
+        kind: "folder",
+        id: ProjectWorkspaceItemId.make("root-sibling"),
+        parentId: null,
+        rank: "a",
+        relativePath: "existing",
+      },
+      {
+        kind: "folder",
+        id: ProjectWorkspaceItemId.make("mid"),
+        parentId: null,
+        rank: "b",
+        relativePath: "mid",
+      },
+      {
+        kind: "file",
+        id: ProjectWorkspaceItemId.make("child-1"),
+        parentId: ProjectWorkspaceItemId.make("mid"),
+        rank: "a",
+        relativePath: "mid/1.ts",
+      },
+      {
+        kind: "file",
+        id: ProjectWorkspaceItemId.make("child-2"),
+        parentId: ProjectWorkspaceItemId.make("mid"),
+        rank: "b",
+        relativePath: "mid/2.ts",
+      },
     ];
     const result = removeWorkspaceLayoutEntryById(layout, "mid" as never);
     expect(result.some((entry) => entry.id === "mid")).toBe(false);
@@ -358,9 +455,17 @@ describe("applyWorkspaceLayoutOperation", () => {
   it("appends new entries for attach-path and add-url", () => {
     const result = applyWorkspaceLayoutOperation([], {
       type: "attach-path",
-      entry: { kind: "file", id: "f", parentId: null, rank: "a", relativePath: "a.ts" },
+      entry: {
+        kind: "file",
+        id: ProjectWorkspaceItemId.make("f"),
+        parentId: null,
+        rank: "a",
+        relativePath: "a.ts",
+      },
     });
-    expect(result).toEqual([{ kind: "file", id: "f", parentId: null, rank: "a", relativePath: "a.ts" }]);
+    expect(result).toEqual([
+      { kind: "file", id: "f", parentId: null, rank: "a", relativePath: "a.ts" },
+    ]);
   });
 
   it("materializes a place-resource entry with a computed rank, then re-places it on a second call", () => {
@@ -385,7 +490,14 @@ describe("applyWorkspaceLayoutOperation", () => {
 
   it("delegates remove to removeWorkspaceLayoutEntryById", () => {
     const layout: ReadonlyArray<ProjectWorkspaceEntry> = [
-      { kind: "url", id: "x", parentId: null, rank: "a", label: "X", url: "http://x" },
+      {
+        kind: "url",
+        id: ProjectWorkspaceItemId.make("x"),
+        parentId: null,
+        rank: "a",
+        label: "X",
+        url: "http://x",
+      },
     ];
     expect(applyWorkspaceLayoutOperation(layout, { type: "remove", itemId: "x" as never })).toEqual(
       [],

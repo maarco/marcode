@@ -9,9 +9,11 @@
  */
 import {
   CommandId,
+  DEFAULT_PROVIDER_INTERACTION_MODE,
   EventId,
   type OrchestrationEvent,
   ProjectId,
+  ProjectWorkspaceItemId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -69,6 +71,7 @@ function threadCreatedEvent(threadId: string, projectId: string): OrchestrationE
       title: "Thread",
       modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5-codex" },
       runtimeMode: "full-access",
+      interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
       branch: null,
       worktreePath: null,
       createdAt: now,
@@ -119,7 +122,13 @@ it("applies attach-path, add-url, and place-resource by appending entries and bu
         "project-1",
         {
           type: "attach-path",
-          entry: { kind: "folder", id: "folder-1", parentId: null, rank: "a", relativePath: "src" },
+          entry: {
+            kind: "folder",
+            id: ProjectWorkspaceItemId.make("folder-1"),
+            parentId: null,
+            rank: "a",
+            relativePath: "src",
+          },
         },
         1,
       ),
@@ -130,7 +139,14 @@ it("applies attach-path, add-url, and place-resource by appending entries and bu
         "project-1",
         {
           type: "add-url",
-          entry: { kind: "url", id: "url-1", parentId: null, rank: "b", label: "Local", url: "http://localhost:3000" },
+          entry: {
+            kind: "url",
+            id: ProjectWorkspaceItemId.make("url-1"),
+            parentId: null,
+            rank: "b",
+            label: "Local",
+            url: "http://localhost:3000",
+          },
         },
         2,
       ),
@@ -142,7 +158,7 @@ it("applies attach-path, add-url, and place-resource by appending entries and bu
         {
           type: "place-resource",
           resource: { kind: "thread", threadId: ThreadId.make("thread-1") },
-          parentId: "folder-1",
+          parentId: ProjectWorkspaceItemId.make("folder-1"),
           beforeId: null,
         },
         3,
@@ -168,7 +184,13 @@ it("applies move, rename, and remove (with child reparenting)", () =>
         "project-1",
         {
           type: "attach-path",
-          entry: { kind: "folder", id: "folder-1", parentId: null, rank: "a", relativePath: "src" },
+          entry: {
+            kind: "folder",
+            id: ProjectWorkspaceItemId.make("folder-1"),
+            parentId: null,
+            rank: "a",
+            relativePath: "src",
+          },
         },
         1,
       ),
@@ -181,8 +203,8 @@ it("applies move, rename, and remove (with child reparenting)", () =>
           type: "attach-path",
           entry: {
             kind: "file",
-            id: "file-1",
-            parentId: "folder-1",
+            id: ProjectWorkspaceItemId.make("file-1"),
+            parentId: ProjectWorkspaceItemId.make("folder-1"),
             rank: "a",
             relativePath: "src/a.ts",
           },
@@ -196,7 +218,12 @@ it("applies move, rename, and remove (with child reparenting)", () =>
       model,
       workspaceLayoutAppliedEvent(
         "project-1",
-        { type: "move", itemId: "file-1", parentId: null, beforeId: null },
+        {
+          type: "move",
+          itemId: ProjectWorkspaceItemId.make("file-1"),
+          parentId: null,
+          beforeId: null,
+        },
         3,
       ),
     );
@@ -207,7 +234,7 @@ it("applies move, rename, and remove (with child reparenting)", () =>
       model,
       workspaceLayoutAppliedEvent(
         "project-1",
-        { type: "rename", itemId: "folder-1", label: "Sources" },
+        { type: "rename", itemId: ProjectWorkspaceItemId.make("folder-1"), label: "Sources" },
         4,
       ),
     );
@@ -220,13 +247,22 @@ it("applies move, rename, and remove (with child reparenting)", () =>
       model,
       workspaceLayoutAppliedEvent(
         "project-1",
-        { type: "move", itemId: "file-1", parentId: "folder-1", beforeId: null },
+        {
+          type: "move",
+          itemId: ProjectWorkspaceItemId.make("file-1"),
+          parentId: ProjectWorkspaceItemId.make("folder-1"),
+          beforeId: null,
+        },
         5,
       ),
     );
     model = yield* projectEvent(
       model,
-      workspaceLayoutAppliedEvent("project-1", { type: "remove", itemId: "folder-1" }, 6),
+      workspaceLayoutAppliedEvent(
+        "project-1",
+        { type: "remove", itemId: ProjectWorkspaceItemId.make("folder-1") },
+        6,
+      ),
     );
     const project = model.projects[0]!;
     expect(project.workspaceLayout.map((entry) => entry.id)).toEqual(["file-1"]);
@@ -291,7 +327,13 @@ it("project.meta-updated dropping a script prunes its placed command entry", () 
       payload: {
         projectId: ProjectId.make("project-1"),
         scripts: [
-          { id: "script-1", name: "Run", command: "pnpm dev", icon: "play", runOnWorktreeCreate: false },
+          {
+            id: "script-1",
+            name: "Run",
+            command: "pnpm dev",
+            icon: "play",
+            runOnWorktreeCreate: false,
+          },
         ],
         updatedAt: now,
       },

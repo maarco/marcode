@@ -31,6 +31,18 @@ describe("ClientSettings word wrap", () => {
   });
 });
 
+describe("ClientSettings unified workspace sidebar", () => {
+  it("defaults the unified sidebar on for legacy settings", () => {
+    expect(decodeClientSettings({}).unifiedWorkspaceSidebar).toBe(true);
+  });
+
+  it("preserves an explicit flat-sidebar opt-out", () => {
+    expect(decodeClientSettings({ unifiedWorkspaceSidebar: false }).unifiedWorkspaceSidebar).toBe(
+      false,
+    );
+  });
+});
+
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   it("defaults to an empty record so legacy configs without the key still decode", () => {
     expect(DEFAULT_SERVER_SETTINGS.providerInstances).toEqual({});

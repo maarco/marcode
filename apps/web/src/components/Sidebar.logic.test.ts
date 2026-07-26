@@ -1211,19 +1211,26 @@ describe("sortScopedProjectsForSidebar", () => {
 });
 
 describe("isUnifiedWorkspaceSidebarEnabled", () => {
-  it("defaults off when the flag is absent (old/unpatched ClientSettings)", () => {
-    expect(isUnifiedWorkspaceSidebarEnabled(DEFAULT_CLIENT_SETTINGS)).toBe(false);
+  it("defaults on when the flag is absent (old/unpatched ClientSettings)", () => {
+    const { unifiedWorkspaceSidebar: _legacyFlag, ...legacySettings } = DEFAULT_CLIENT_SETTINGS;
+    expect(isUnifiedWorkspaceSidebarEnabled(legacySettings)).toBe(true);
   });
 
   it("is off when explicitly false", () => {
     expect(
-      isUnifiedWorkspaceSidebarEnabled({ ...DEFAULT_CLIENT_SETTINGS, unifiedWorkspaceSidebar: false }),
+      isUnifiedWorkspaceSidebarEnabled({
+        ...DEFAULT_CLIENT_SETTINGS,
+        unifiedWorkspaceSidebar: false,
+      }),
     ).toBe(false);
   });
 
   it("is on only when explicitly true", () => {
     expect(
-      isUnifiedWorkspaceSidebarEnabled({ ...DEFAULT_CLIENT_SETTINGS, unifiedWorkspaceSidebar: true }),
+      isUnifiedWorkspaceSidebarEnabled({
+        ...DEFAULT_CLIENT_SETTINGS,
+        unifiedWorkspaceSidebar: true,
+      }),
     ).toBe(true);
   });
 });

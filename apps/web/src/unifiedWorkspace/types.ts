@@ -45,6 +45,18 @@ export type UnifiedWorkspaceNode = {
   depth: number;
   children: readonly UnifiedWorkspaceNode[];
   isLive: boolean;
+  /**
+   * True for file/folder nodes projected live from the on-disk file index with
+   * no persisted `ProjectWorkspaceEntry` behind them — same "synthesized fresh
+   * every render, never written to the layout" contract as a live terminal/
+   * browser node, just sourced from disk instead of a runtime registry (spec
+   * override of §4: the project row and its folders show on-disk children
+   * without requiring attachment). `canMove`/`canRename`/`canRemove` are
+   * always `false` on these — there is no persisted entry to move, relabel,
+   * or remove; attaching the same path creates a separate, real entry that
+   * takes over rendering for that path (see `buildTree.ts`'s dedupe-by-path).
+   */
+  isAmbient: boolean;
   isBroken: boolean;
   canHaveChildren: boolean;
   canMove: boolean;
@@ -56,6 +68,18 @@ export type UnifiedWorkspaceNode = {
   iconUrl?: string;
   /** Full path/URL for tooltips and copy actions. */
   tooltip?: string;
+  /**
+   * Set on a file/folder node whose on-disk parent directory differs from
+   * where it's actually rendered in the tree — e.g. an attached file placed
+   * at the project root while its real path is `.plans/README.md` sits next
+   * to an unrelated ambient root `README.md`. The immediate real parent's
+   * basename (e.g. `.plans`), for a short "· .plans" hint next to the label
+   * so two same-named rows are tellable apart without printing a full path
+   * inline. Never set on an ambient node (it's always exactly where its own
+   * disk path says) or on a node with no disk-path context to compare
+   * against (nested under a thread/command/url).
+   */
+  disambiguator?: string;
 };
 
 export type UnifiedWorkspaceMoveTarget = {
@@ -82,7 +106,13 @@ export type UnifiedWorkspaceCapabilities = {
 };
 
 export type UnifiedWorkspaceDiagnostic = {
-  code: "duplicate-id" | "missing-parent" | "cycle" | "invalid-target" | "stale-entry";
+  code:
+    | "duplicate-id"
+    | "missing-parent"
+    | "cycle"
+    | "invalid-target"
+    | "stale-entry"
+    | "index-truncated";
   nodeId: string;
   detail: string;
 };
@@ -118,5 +148,14 @@ export type UnifiedWorkspaceController = {
   pinBrowserShortcut: (nodeId: string) => Promise<UnifiedWorkspaceMutationResult>;
   /** Closes a live terminal/browser resource. Leaves layout untouched. */
   closeLiveNode: (nodeId: string) => void;
+  /**
+   * Expands/collapses one ambient (disk-projected) folder's on-disk children,
+   * one level deep — the disclosure-arrow click on an `isAmbient` folder node
+   * routes here instead of the tree's local collapse state. Ephemeral UI
+   * state only: never persisted to the layout, same "synthesized fresh every
+   * render" contract as a live terminal/browser node. No-ops for a non-folder
+   * or non-ambient node id.
+   */
+  toggleAmbientFolder: (nodeId: string) => void;
   listAttachCandidates: (kind: "file" | "folder") => readonly UnifiedWorkspaceAttachCandidate[];
 };

@@ -1,5 +1,10 @@
 import type { CSSProperties } from "react";
 
+// Keep the floating nav above every application surface, including future
+// panels that are added to this scale. This is the largest portable CSS
+// z-index value supported by browsers.
+const MAX_Z_INDEX = 2_147_483_647;
+
 export const FLOATING_SURFACE_Z = {
   appDesktop: 10000,
   appPanelBackdrop: 10010,
@@ -7,18 +12,16 @@ export const FLOATING_SURFACE_Z = {
   codeBackdrop: 11990,
   codePanel: 12000,
   terminalPanel: 12100,
-  pillNavGlow: 12990,
-  pillNav: 13000,
-  pillNavMenu: 13010,
+  pillNavGlow: MAX_Z_INDEX - 2,
+  pillNav: MAX_Z_INDEX,
+  pillNavMenu: MAX_Z_INDEX,
   // Portaled overlays — tooltip / popover / menu / select / combobox /
   // autocomplete / dialog / sheet / command palette. They portal to <body>, so
-  // they escape the floating panels' stacking contexts, but they still land at
-  // whatever z-index they carry: anything below `pillNav` renders *underneath*
-  // the floating terminal, code panel and pill. Above every floating surface,
-  // below `toast` so a toast is never covered by a menu.
+  // they escape the floating panels' stacking contexts. Keep them below the
+  // always-on-top nav so the nav remains usable while overlays are open.
   portalOverlay: 13100,
-  // transient toasts sit above the top chrome (pill nav / notifications) so they
-  // are never covered, but below the kollabor assistant surfaces.
+  // transient toasts remain above the regular app chrome, but below the
+  // always-on-top pill nav and kollabor assistant surfaces.
   toast: 19500,
   kollaborBackdrop: 19999,
   kollaborBar: 20000,

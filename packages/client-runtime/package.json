@@ -31,6 +31,10 @@
       "types": "./src/operations/projects.ts",
       "default": "./src/operations/projects.ts"
     },
+    "./operations/project-workspace": {
+      "types": "./src/operations/projectWorkspace.ts",
+      "default": "./src/operations/projectWorkspace.ts"
+    },
     "./platform": {
       "types": "./src/platform/index.ts",
       "default": "./src/platform/index.ts"
@@ -137,12 +141,18 @@
     "test": "vp test run"
   },
   "dependencies": {
+    "@effect/atom-react": "catalog:",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/shared": "workspace:*",
     "effect": "catalog:"
   },
   "devDependencies": {
     "@effect/vitest": "catalog:",
+    "@types/react": "~19.2.14",
+    "react": "19.2.6",
     "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0"
   }
 }

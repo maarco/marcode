@@ -50,6 +50,7 @@ import { ScrollArea } from "./ui/scroll-area";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { useOpenInPreferredEditor } from "../editorPreferences";
+import { openFileInFloatingEditor } from "../editor/open-floating-file";
 import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
 import { fnv1a32 } from "../lib/diffRendering";
 import { LRUCache } from "../lib/lruCache";
@@ -68,7 +69,6 @@ import {
 } from "../markdown-links";
 import { readLocalApi } from "../localApi";
 import { cn } from "../lib/utils";
-import { useRightPanelStore } from "../rightPanelStore";
 import { useActiveEnvironmentId } from "../state/entities";
 import { serverEnvironment } from "../state/server";
 import { assetEnvironment } from "../state/assets";
@@ -737,6 +737,7 @@ interface MarkdownFileLinkProps {
   iconPath: string;
   displayPath: string;
   workspaceRelativePath: string | null;
+  workspacePath: string | undefined;
   line?: number | undefined;
   label: string;
   copyMarkdown: string;
@@ -1016,6 +1017,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
   iconPath,
   displayPath,
   workspaceRelativePath,
+  workspacePath,
   line,
   label,
   copyMarkdown,
@@ -1061,12 +1063,16 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
   }, [onOpen, targetPath]);
 
   const handleOpenInFilePreview = useCallback(() => {
-    if (!threadRef || !workspaceRelativePath) {
+    if (!threadRef || !workspaceRelativePath || !workspacePath) {
       handleOpenInEditor();
       return;
     }
-    useRightPanelStore.getState().openFile(threadRef, workspaceRelativePath, line);
-  }, [handleOpenInEditor, line, threadRef, workspaceRelativePath]);
+    void openFileInFloatingEditor({
+      workspacePath,
+      relativePath: workspaceRelativePath,
+      line,
+    });
+  }, [handleOpenInEditor, line, threadRef, workspacePath, workspaceRelativePath]);
 
   const handleOpenInBrowser = useCallback(() => {
     if (!onOpenInBrowser) {
@@ -1236,6 +1242,7 @@ function areMarkdownFileLinkPropsEqual(
     previous.iconPath === next.iconPath &&
     previous.displayPath === next.displayPath &&
     previous.workspaceRelativePath === next.workspaceRelativePath &&
+    previous.workspacePath === next.workspacePath &&
     previous.line === next.line &&
     previous.label === next.label &&
     previous.copyMarkdown === next.copyMarkdown &&
@@ -1486,6 +1493,7 @@ function ChatMarkdown({
             iconPath={fileLinkMeta.filePath}
             displayPath={fileLinkMeta.displayPath}
             workspaceRelativePath={fileLinkMeta.workspaceRelativePath}
+            workspacePath={cwd}
             line={fileLinkMeta.line}
             label={labelParts.join(" · ")}
             copyMarkdown={`[${fileLinkMeta.basename}](${normalizedHref})`}

@@ -13,38 +13,26 @@ import { isLatestTurnSettled } from "../session-logic";
 import { resolveServerBackedAppStageLabel } from "../branding.logic";
 
 /**
- * Rollout flag for the unified workspace tree (spec §17). Default OFF.
+ * Rollout flag for the unified workspace tree (spec §17). Default ON.
  *
- * `ClientSettingsSchema` (packages/contracts/src/settings.ts) doesn't declare
- * this field yet — adding it is a one-line schema change in `packages/**`,
- * which is out of this lane's owned paths, so it isn't added here. This
- * structural-typing extension reads the flag through the *same*
- * `useClientSettings`/`useUpdateClientSettings` plumbing every other client
- * setting already uses (not a new store) and needs zero changes on this side
- * once the real field lands upstream.
+ * The optional structural extension keeps this helper tolerant of an old
+ * settings snapshot while the schema's decoding default supplies `true` for
+ * new and legacy records that do not contain the field.
  *
- * Known caveat until then: toggling the flag holds for the current tab
- * session (the in-memory settings snapshot updates immediately) but does not
- * survive a reload, because `ClientSettings` persistence
- * (`clientPersistenceStorage.ts`) round-trips every read/write through
- * `Schema.encode`/`Schema.decode` against `ClientSettingsSchema`, which
- * silently drops keys the schema doesn't declare. Verified empirically:
- * `Schema.encodeSync(ClientSettingsSchema)({ ...x, unifiedWorkspaceSidebar: true })`
- * produces JSON without the extra key.
- *
- * The fix is additive and small — add to `ClientSettingsSchema` and
- * `ClientSettingsPatch` in packages/contracts/src/settings.ts:
- *   unifiedWorkspaceSidebar: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false)))
- *   (and the matching `Schema.optionalKey(Schema.Boolean)` on the patch schema)
+ * An explicit `false` remains a supported opt-out for users who want the
+ * familiar flat project → thread list.
  */
-export type ClientSettingsWithUnifiedWorkspaceFlag = ClientSettings & {
+export type ClientSettingsWithUnifiedWorkspaceFlag = Omit<
+  ClientSettings,
+  "unifiedWorkspaceSidebar"
+> & {
   unifiedWorkspaceSidebar?: boolean;
 };
 
 export function isUnifiedWorkspaceSidebarEnabled(
   settings: ClientSettingsWithUnifiedWorkspaceFlag,
 ): boolean {
-  return settings.unifiedWorkspaceSidebar === true;
+  return settings.unifiedWorkspaceSidebar !== false;
 }
 
 /**

@@ -1,6 +1,7 @@
 import {
   DndContext,
   DragOverlay,
+  KeyboardCode,
   KeyboardSensor,
   PointerSensor,
   TouchSensor,
@@ -32,12 +33,13 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import {
+  forwardRef,
   useCallback,
   useEffect,
+  useImperativeHandle,
   useMemo,
   useRef,
   useState,
-  type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
 } from "react";
@@ -58,6 +60,7 @@ import {
   buildUnifiedWorkspaceNodeIndex,
   canDropUnifiedWorkspaceNode,
   canDropUnifiedWorkspaceNodeAtRoot,
+  collectUnifiedWorkspaceAncestorIds,
   flattenVisibleUnifiedWorkspaceNodes,
   isUnifiedWorkspaceNodeCollapsed,
   resolveEdgeMoveTarget,
@@ -70,7 +73,11 @@ import {
   type UnifiedWorkspaceContextMenuActionId,
   type UnifiedWorkspaceDropZone,
 } from "./UnifiedWorkspaceTree.logic";
-import { UW_TREE_ROOT_CLASS, UW_TREE_ROOT_GUTTER_CLASS } from "./UnifiedWorkspaceTree.styles";
+import {
+  UW_TREE_DRAG_OVERLAY_CLASS,
+  UW_TREE_ROOT_CLASS,
+  UW_TREE_ROOT_GUTTER_CLASS,
+} from "./UnifiedWorkspaceTree.styles";
 
 const ROOT_GUTTER_ID = "__unified-workspace-root-gutter__";
 
@@ -80,12 +87,32 @@ const DROP_ANIMATION: DropAnimation = {
   sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.4" } } }),
 };
 
+// §12.6: dnd-kit's drop animation is a JS-supplied duration the reduced-motion
+// CSS rule in index.css (`[data-unified-workspace-tree] * { transition-duration:
+// 0ms }`) cannot reach, so it's zeroed here the same way the rest of the app
+// checks the media query (see ChatView.tsx/draftHeroTransition.ts) — a
+// one-time read at mount, not a live-subscribed listener.
+const REDUCED_MOTION_DROP_ANIMATION: DropAnimation = {
+  duration: 0,
+  easing: "linear",
+};
+
 export type UnifiedWorkspaceTreeThreadAction =
   | "archive"
   | "delete"
   | "mark-unread"
   | "copy-id"
   | "copy-path";
+
+/**
+ * Imperative escape hatch for the project header's Add-item menu (mounted
+ * outside this component — §9), used only for "on duplicate, focus and
+ * reveal the existing node" instead of a toast. Expands whatever collapsed
+ * ancestors are hiding the row, then scrolls/focuses it once rendered.
+ */
+export interface UnifiedWorkspaceTreeHandle {
+  focusAndRevealNode: (nodeId: string) => void;
+}
 
 export interface UnifiedWorkspaceTreeProps {
   readonly controller: UnifiedWorkspaceController;
@@ -101,7 +128,12 @@ export interface UnifiedWorkspaceTreeProps {
   readonly threadRowExtrasByNodeId?: ReadonlyMap<string, UnifiedWorkspaceThreadRowExtras>;
   readonly commandIconByScriptId?: ReadonlyMap<string, ProjectScriptIcon>;
   readonly onThreadAction?: (threadId: string, action: UnifiedWorkspaceTreeThreadAction) => void;
-  readonly onOpenPrLink?: (event: MouseEvent, url: string) => void;
+  // Matches `useOpenPrLink()`'s actual return signature (see
+  // lib/openPullRequestLink.ts and Sidebar.tsx's existing flat-list
+  // `SidebarThreadRowProps.openPrLink`) — narrower than the tree's other
+  // generic `MouseEvent` row-event props because that's the one real
+  // implementation callers pass in.
+  readonly onOpenPrLink?: (event: MouseEvent<HTMLElement>, url: string) => void;
   readonly onAddToChat?: (relativePath: string) => void;
   readonly onOpenInFiles?: (node: UnifiedWorkspaceNode) => void;
 }
@@ -123,6 +155,36 @@ function iconForOverlay(node: UnifiedWorkspaceNode) {
     case "command":
       return PlayIcon;
   }
+}
+
+/**
+ * True for a file/folder node projected live from the on-disk index with no
+ * persisted `ProjectWorkspaceEntry` behind it (`buildTree.ts`'s ambient
+ * projection), as opposed to a real attached/placed workspace item.
+ */
+function isAmbientFolderNode(node: UnifiedWorkspaceNode): boolean {
+  return node.isAmbient && node.kind === "folder";
+}
+
+/**
+ * An ambient folder's `children` are only materialized once its relativePath
+ * is in `expandedAmbientDirs` (`buildTree.ts`'s lazy one-level-deep gate), so
+ * `children.length === 0` means "not expanded yet," never "genuinely empty" —
+ * an ambient folder with nothing to show never gets `canHaveChildren: true`
+ * in the first place (see `buildAmbientNode`). Falling back to `collapsedIds`
+ * for these nodes like every other kind would show an expanded (▼) arrow over
+ * an empty list on first paint, because unknown ids default to "expanded"
+ * there — exactly backwards for a folder that hasn't materialized children
+ * yet. Basing the ambient branch on "has anything actually been materialized"
+ * keeps the arrow honest and self-corrects the moment the controller's
+ * `toggleAmbientFolder` fills `children` in on the next render.
+ */
+function resolveRowCollapsed(
+  node: UnifiedWorkspaceNode,
+  collapsedIds: ReadonlySet<string>,
+): boolean {
+  if (isAmbientFolderNode(node)) return node.canHaveChildren && node.children.length === 0;
+  return isUnifiedWorkspaceNodeCollapsed(node, collapsedIds);
 }
 
 function reportMutationFailure(action: string, result: UnifiedWorkspaceMutationResult) {
@@ -148,7 +210,10 @@ function RootGutter({ isActive }: { isActive: boolean }) {
   );
 }
 
-export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
+export const UnifiedWorkspaceTree = forwardRef<
+  UnifiedWorkspaceTreeHandle,
+  UnifiedWorkspaceTreeProps
+>(function UnifiedWorkspaceTree(props, ref) {
   const {
     controller,
     projectId,
@@ -164,6 +229,11 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     onAddToChat,
     onOpenInFiles,
   } = props;
+
+  // Layout-mutation capability (§17): read-only degrades drag pickup and the
+  // move/attach-adjacent context-menu items, but never the thread-lifecycle
+  // actions (archive/delete/mark-unread), which don't touch project layout.
+  const canMutate = controller.capabilities.canMutate;
 
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
   const [dragState, setDragState] = useState<{
@@ -222,14 +292,71 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     [focusRow],
   );
 
-  const toggleCollapse = useCallback((nodeId: string) => {
-    setCollapsedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
-      return next;
-    });
-  }, []);
+  // Duplicate-attach "focus and reveal" (§9), driven imperatively from the
+  // project header's Add-item menu via `focusAndRevealNode` below. Expanding
+  // a collapsed ancestor doesn't render the target row until the next
+  // commit, so the actual scroll/focus is deferred to an effect keyed on
+  // `flatRows` rather than attempted synchronously here.
+  const pendingRevealNodeIdRef = useRef<string | null>(null);
+
+  const focusAndRevealNode = useCallback(
+    (nodeId: string) => {
+      if (!nodeIndex.byId.has(nodeId)) return;
+      const ancestorIds = collectUnifiedWorkspaceAncestorIds(nodeIndex, nodeId);
+      if (ancestorIds.length > 0) {
+        setCollapsedIds((prev) => {
+          if (!ancestorIds.some((id) => prev.has(id))) return prev;
+          const next = new Set(prev);
+          for (const id of ancestorIds) next.delete(id);
+          return next;
+        });
+      }
+      onFocusedNodeIdChange(nodeId);
+      pendingRevealNodeIdRef.current = nodeId;
+    },
+    [nodeIndex, onFocusedNodeIdChange],
+  );
+
+  // Depends on `focusedNodeId` too, not just `flatRows`: when the target
+  // needs no ancestor expansion (already visible), `collapsedIds` never
+  // changes, so `flatRows` never changes either — without `focusedNodeId`
+  // (which `focusAndRevealNode` always updates) in the dependency list,
+  // this effect would never re-run for that case and the reveal would
+  // silently no-op.
+  useEffect(() => {
+    const pendingNodeId = pendingRevealNodeIdRef.current;
+    if (!pendingNodeId) return;
+    const element = rowElementsRef.current.get(pendingNodeId);
+    if (!element) return; // ancestor expansion hasn't committed/rendered this row yet
+    pendingRevealNodeIdRef.current = null;
+    element.scrollIntoView({ block: "nearest" });
+    element.focus();
+  }, [focusedNodeId, flatRows]);
+
+  useImperativeHandle(ref, () => ({ focusAndRevealNode }), [focusAndRevealNode]);
+
+  const toggleCollapse = useCallback(
+    (nodeId: string) => {
+      const node = nodeIndex.byId.get(nodeId);
+      if (node && isAmbientFolderNode(node)) {
+        // Ambient folders have no persisted entry to locally hide/show —
+        // their disclosure arrow instead asks the controller to
+        // materialize/hide real on-disk children one level deep
+        // (buildTree.ts's `expandedAmbientDirs`). Keeping this out of
+        // `collapsedIds` (used below for every other node kind) is what
+        // keeps `resolveRowCollapsed` consistent — see its docstring.
+        controller.toggleAmbientFolder(nodeId);
+        return;
+      }
+      setCollapsedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(nodeId)) next.delete(nodeId);
+        else next.add(nodeId);
+        return next;
+      });
+    },
+    [nodeIndex, controller],
+  );
 
   const startRename = useCallback((node: UnifiedWorkspaceNode) => {
     setRenamingNodeId(node.id);
@@ -353,12 +480,12 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
     async (node: UnifiedWorkspaceNode, position: { x: number; y: number }) => {
       const api = readLocalApi();
       if (!api) return;
-      const items = buildUnifiedWorkspaceContextMenuItems({ node });
+      const items = buildUnifiedWorkspaceContextMenuItems({ node, canMutate });
       const clicked = await api.contextMenu.show(items, position);
       if (!clicked) return;
       void handleContextMenuAction(node, clicked);
     },
-    [handleContextMenuAction],
+    [canMutate, handleContextMenuAction],
   );
 
   const handleRowContextMenu = useCallback(
@@ -379,7 +506,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
 
   const handleRowKeyDown = useCallback(
     (event: KeyboardEvent<HTMLDivElement>, node: UnifiedWorkspaceNode) => {
-      const isCollapsed = isUnifiedWorkspaceNodeCollapsed(node, collapsedIds);
+      const isCollapsed = resolveRowCollapsed(node, collapsedIds);
       switch (event.key) {
         case "ArrowDown": {
           event.preventDefault();
@@ -402,6 +529,17 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
           return;
         }
         case "ArrowRight": {
+          if (isAmbientFolderNode(node) && node.canHaveChildren && node.children.length === 0) {
+            // `resolveRightKeyAction` (UnifiedWorkspaceTree.logic.ts) gates its
+            // "expand" action on `children.length > 0`, which never holds for
+            // an ambient folder before its first expansion — children
+            // materialize lazily (see `resolveRowCollapsed`). Handle that one
+            // case here instead of asking it to reason about a tree shape it
+            // can't see yet.
+            event.preventDefault();
+            toggleCollapse(node.id);
+            return;
+          }
           const action = resolveRightKeyAction(node, isCollapsed);
           if (action.type === "expand") {
             event.preventDefault();
@@ -490,7 +628,23 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    // dnd-kit's `defaultKeyboardCodes` treats BOTH Space and Enter as
+    // pick-up/drop keys. Left at the default, pressing Enter on any movable
+    // row (the common case — most kinds default `canMove: true`) never
+    // reaches `onRowKeyDown`'s "Enter: activate" case at all: the sensor's
+    // activator handler (`KeyboardSensor.activators[0]`, @dnd-kit/core)
+    // calls `event.preventDefault()` for Enter unconditionally and starts a
+    // keyboard drag instead, per spec §10 that's two distinct keys — Space
+    // picks up for movement, Enter activates — so Enter must NOT double as
+    // a drag key here.
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+      keyboardCodes: {
+        start: [KeyboardCode.Space],
+        cancel: [KeyboardCode.Esc],
+        end: [KeyboardCode.Space],
+      },
+    }),
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -557,7 +711,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
         if (
           rawZone === "inside" &&
           overNode.canHaveChildren &&
-          isUnifiedWorkspaceNodeCollapsed(overNode, collapsedIds)
+          resolveRowCollapsed(overNode, collapsedIds)
         ) {
           autoExpandNodeIdRef.current = overNodeId;
           autoExpandTimeoutRef.current = window.setTimeout(() => {
@@ -679,21 +833,19 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
   const activeDraggedNode = dragState ? nodeIndex.byId.get(dragState.activeId) : null;
   const OverlayIcon = activeDraggedNode ? iconForOverlay(activeDraggedNode) : null;
 
+  // One-time read, same pattern as ChatView.tsx/draftHeroTransition.ts — see
+  // `REDUCED_MOTION_DROP_ANIMATION`'s comment.
+  const prefersReducedMotion = useMemo(
+    () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false,
+    [],
+  );
+
   return (
-    <div
-      data-unified-workspace-tree
-      className="relative min-w-0"
-      style={
-        {
-          "--uw-tree-row-height": "1.75rem",
-          "--uw-tree-row-height-touch": "2.5rem",
-          "--uw-tree-indent": "0.875rem",
-          "--uw-tree-icon-size": "0.875rem",
-          "--uw-tree-guide-color": "color-mix(in srgb, var(--border) 70%, transparent)",
-          "--uw-tree-drop-color": "var(--ring)",
-        } as CSSProperties
-      }
-    >
+    // The six `--uw-tree-*` variables are defined in index.css under this
+    // same `[data-unified-workspace-tree]` attribute (§12.3) — no inline
+    // style here, so the coarse-pointer/mobile and reduced-motion overrides
+    // that live in CSS aren't shadowed by a same-element inline value.
+    <div data-unified-workspace-tree className="relative min-w-0">
       {!controller.capabilities.canMutate && (
         <Alert
           variant="warning"
@@ -726,7 +878,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
               <UnifiedWorkspaceRow
                 key={node.id}
                 node={node}
-                isCollapsed={isUnifiedWorkspaceNodeCollapsed(node, collapsedIds)}
+                isCollapsed={resolveRowCollapsed(node, collapsedIds)}
                 isFocused={
                   focusedNodeId === node.id ||
                   (focusedNodeId === null && flatRows[0]?.node.id === node.id)
@@ -739,6 +891,7 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
                     : null
                 }
                 isMobile={isMobile}
+                canMutate={canMutate}
                 threadExtras={threadRowExtrasByNodeId?.get(node.id) ?? null}
                 commandIcon={
                   node.activation.kind === "command"
@@ -770,9 +923,11 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
 
         <RootGutter isActive={dragState?.overRootGutter === true} />
 
-        <DragOverlay dropAnimation={DROP_ANIMATION}>
+        <DragOverlay
+          dropAnimation={prefersReducedMotion ? REDUCED_MOTION_DROP_ANIMATION : DROP_ANIMATION}
+        >
           {activeDraggedNode && OverlayIcon ? (
-            <div className="flex max-w-64 items-center gap-1.5 rounded-md border border-border/60 bg-popover px-2 py-1.5 text-xs text-popover-foreground shadow-lg">
+            <div className={UW_TREE_DRAG_OVERLAY_CLASS}>
               <OverlayIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate">{activeDraggedNode.label}</span>
             </div>
@@ -795,4 +950,4 @@ export function UnifiedWorkspaceTree(props: UnifiedWorkspaceTreeProps) {
       />
     </div>
   );
-}
+});

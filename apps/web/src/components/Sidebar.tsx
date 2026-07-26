@@ -7,6 +7,7 @@ import {
   FolderPlusIcon,
   Globe2Icon,
   LoaderIcon,
+  PlusIcon,
   SearchIcon,
   SquarePenIcon,
   TerminalIcon,
@@ -24,6 +25,7 @@ import { ProjectFavicon } from "./ProjectFavicon";
 import { useAtomValue } from "@effect/atom-react";
 import { autoAnimate } from "@formkit/auto-animate";
 import React, { useCallback, useEffect, memo, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useShallow } from "zustand/react/shallow";
 import {
   DndContext,
@@ -43,6 +45,8 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   type ContextMenuItem,
   DEFAULT_SERVER_SETTINGS,
+  type EnvironmentId,
+  makeCommandWorkspaceItemId,
   ProjectId,
   type ScopedThreadRef,
   type ResolvedKeybindingsConfig,
@@ -59,6 +63,7 @@ import {
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
 import {
   isAtomCommandInterrupted,
+  mapAtomCommandResult,
   settlePromise,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
@@ -77,6 +82,10 @@ import { APP_STAGE_LABEL } from "../branding";
 import { useOpenPrLink } from "../lib/openPullRequestLink";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { cn, isMacPlatform } from "../lib/utils";
+import * as Cause from "effect/Cause";
+import { AsyncResult } from "effect/unstable/reactivity";
+import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
+import { buildProjectScript, commandForProjectScript, nextProjectScriptId } from "~/projectScripts";
 import {
   readThreadShell,
   useProject,
@@ -184,7 +193,9 @@ import { useOpenAddProjectCommandPalette } from "../commandPaletteContext";
 import {
   archiveSelectedThreadEntries,
   buildMultiSelectThreadContextMenuItems,
+  type ClientSettingsWithUnifiedWorkspaceFlag,
   getSidebarThreadIdsToPrewarm,
+  isUnifiedWorkspaceSidebarEnabled,
   resolveAdjacentThreadId,
   isContextMenuPointerDown,
   isTrailingDoubleClick,
@@ -196,6 +207,7 @@ import {
   resolveThreadStatusPill,
   orderItemsByPreferredIds,
   shouldClearThreadSelectionOnMouseDown,
+  shouldRenderUnifiedWorkspaceTree,
   sortProjectsForSidebar,
   useThreadJumpHintVisibility,
   ThreadStatusPill,
@@ -206,7 +218,11 @@ import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useIsMobile } from "~/hooks/useMediaQuery";
 import { CommandDialogTrigger } from "./ui/command";
 import { useClientSettings, useUpdateClientSettings } from "~/hooks/useSettings";
-import { primaryServerConfigAtom, primaryServerKeybindingsAtom } from "../state/server";
+import {
+  primaryServerConfigAtom,
+  primaryServerKeybindingsAtom,
+  serverEnvironment,
+} from "../state/server";
 import {
   derivePhysicalProjectKey,
   deriveProjectGroupingOverrideKey,
@@ -221,6 +237,20 @@ import {
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
 import { SidebarProviderUpdatePill } from "./sidebar/SidebarProviderUpdatePill";
+import { useUnifiedWorkspaceProject } from "../unifiedWorkspace/useUnifiedWorkspaceProject";
+import { qualifyUnifiedWorkspaceNodeId } from "../unifiedWorkspace/treeOperations";
+import type { UnifiedWorkspaceMutationResult } from "../unifiedWorkspace/types";
+import {
+  UnifiedWorkspaceTree,
+  type UnifiedWorkspaceTreeHandle,
+  type UnifiedWorkspaceTreeThreadAction,
+} from "./unified-workspace/UnifiedWorkspaceTree";
+import { UnifiedWorkspaceAddMenuButton } from "./unified-workspace/UnifiedWorkspaceAddMenu";
+import ProjectScriptsControl, {
+  type NewProjectScriptInput,
+  type ProjectScriptActionResult,
+  type ProjectScriptsControlHandle,
+} from "./ProjectScriptsControl";
 const SIDEBAR_SORT_LABELS: Record<SidebarProjectSortOrder, string> = {
   updated_at: "Last user message",
   created_at: "Created at",
@@ -1063,6 +1093,299 @@ const SidebarProjectThreadList = memo(function SidebarProjectThreadList(
   );
 });
 
+interface SidebarProjectWorkspaceTreeProps {
+  environmentId: EnvironmentId;
+  projectId: ProjectId;
+  isMobile: boolean;
+  activeRouteThreadKey: string | null;
+  workspaceRootFallback: string;
+  appSettingsConfirmThreadDelete: boolean;
+  markThreadUnread: (threadKey: string, latestTurnCompletedAt: string | null | undefined) => void;
+  copyPathToClipboard: (value: string, ctx: { path: string }) => void;
+  copyThreadIdToClipboard: (value: string, ctx: { threadId: ThreadId }) => void;
+  attemptArchiveThread: (threadRef: ScopedThreadRef) => Promise<void>;
+  deleteThread: ReturnType<typeof useThreadActions>["deleteThread"];
+  openPrLink: (event: React.MouseEvent<HTMLElement>, prUrl: string) => void;
+  sidebarThreadByKeyRef: React.RefObject<Map<string, SidebarThreadSummary>>;
+  /** Project title, for the Add-item trigger's accessible label. */
+  projectDisplayName: string;
+  /** Empty header slot `SidebarProjectItem` renders in place of the flag-off
+   * "+" button (§9) — portaled into so the Add-item menu's controller/focus
+   * state stays owned here, next to the tree, instead of a second
+   * `useUnifiedWorkspaceProject` instance living in the header. Null until
+   * the slot div's callback ref fires (see `SidebarProjectItem`). */
+  addMenuSlotElement: HTMLDivElement | null;
+}
+
+/**
+ * Spec §17 render seam: mounted only when `shouldRenderUnifiedWorkspaceTree`
+ * is true for this project (flag on, project expanded, nothing pinned while
+ * collapsed). Owns nothing of its own — `useUnifiedWorkspaceProject` is Agent
+ * 3's controller/projection hook; this component only renders it and bridges
+ * the five `UnifiedWorkspaceTreeThreadAction`s back onto the exact same
+ * archive/delete/mark-unread/copy handlers the flat list already uses, so
+ * enabling the flag doesn't create a second implementation of those flows.
+ *
+ * Thread-row extras (PR badge, worktree badge, jump hint, relative time) are
+ * intentionally not threaded through in this pass — the tree falls back to
+ * the controller's own narrower pending-approval/awaiting-input status. See
+ * the primary agent's finish-line report for that named gap.
+ */
+const SidebarProjectWorkspaceTree = memo(function SidebarProjectWorkspaceTree(
+  props: SidebarProjectWorkspaceTreeProps,
+) {
+  const {
+    environmentId,
+    projectId,
+    isMobile,
+    activeRouteThreadKey,
+    workspaceRootFallback,
+    appSettingsConfirmThreadDelete,
+    markThreadUnread,
+    copyPathToClipboard,
+    copyThreadIdToClipboard,
+    attemptArchiveThread,
+    deleteThread,
+    openPrLink,
+    sidebarThreadByKeyRef,
+    projectDisplayName,
+    addMenuSlotElement,
+  } = props;
+
+  const controller = useUnifiedWorkspaceProject({ environmentId, projectId });
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  const treeHandleRef = useRef<UnifiedWorkspaceTreeHandle>(null);
+
+  const handleFocusExistingNode = useCallback((nodeId: string) => {
+    treeHandleRef.current?.focusAndRevealNode(nodeId);
+  }, []);
+
+  // ── Gap 2: "Add command" (§9) — reuses ProjectScriptsControl's editor and
+  // placement plumbing, mounted headless (see the hidden instance in the
+  // render below) purely because that control has no other externally-
+  // triggerable entry point. ──────────────────────────────────────────────
+  const scripts = useProject(scopeProjectRef(environmentId, projectId))?.scripts ?? [];
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const updateProjectScripts = useAtomCommand(projectEnvironment.update, { reportFailure: false });
+  const upsertScriptKeybinding = useAtomCommand(serverEnvironment.upsertKeybinding, {
+    reportFailure: false,
+  });
+  const scriptsControlRef = useRef<ProjectScriptsControlHandle>(null);
+  const [pendingAddCommandParentId, setPendingAddCommandParentId] = useState<string | null>(null);
+
+  // Mirrors ChatView.tsx's `persistProjectScripts`/`saveProjectScript` — the
+  // same `projectEnvironment.update` (rewrite the `scripts` array) +
+  // keybinding-upsert pair, just scoped to this component instead of the
+  // active-thread chat view. `nextProjectScriptId` is recomputed here from
+  // the same `scripts` array passed to `ProjectScriptsControl` below, so the
+  // id it independently derives for the keybinding command/placement call
+  // matches what's actually persisted.
+  const persistWorkspaceProjectScript = useCallback(
+    async (input: NewProjectScriptInput): Promise<ProjectScriptActionResult> => {
+      const nextId = nextProjectScriptId(
+        input.name,
+        scripts.map((script) => script.id),
+      );
+      const nextScript = buildProjectScript(nextId, input);
+      const nextScripts = input.runOnWorktreeCreate
+        ? [
+            ...scripts.map((script) =>
+              script.runOnWorktreeCreate ? { ...script, runOnWorktreeCreate: false } : script,
+            ),
+            nextScript,
+          ]
+        : [...scripts, nextScript];
+
+      const updateResult = mapAtomCommandResult(
+        await updateProjectScripts({ environmentId, input: { projectId, scripts: nextScripts } }),
+        () => undefined,
+      );
+      if (updateResult._tag === "Failure") return updateResult;
+
+      const keybindingRule = decodeProjectScriptKeybindingRule({
+        keybinding: input.keybinding,
+        command: commandForProjectScript(nextId),
+      });
+      if (isElectron && keybindingRule) {
+        return mapAtomCommandResult(
+          await upsertScriptKeybinding({ environmentId, input: keybindingRule }),
+          () => undefined,
+        );
+      }
+      return updateResult;
+    },
+    [scripts, updateProjectScripts, environmentId, projectId, upsertScriptKeybinding],
+  );
+
+  // Update/delete are unreachable from this headless, add-only mount (its
+  // container is hidden + aria-hidden, and nothing ever opens its edit
+  // dialog) — honest failures rather than a silent no-op, in case that ever
+  // changes.
+  const rejectUnreachableScriptEdit = useCallback(
+    async (): Promise<ProjectScriptActionResult> =>
+      AsyncResult.failure(
+        Cause.fail(new Error("Editing/deleting actions isn't available from the Add-item menu.")),
+      ),
+    [],
+  );
+
+  const handlePlaceNewScript = useCallback(
+    (input: {
+      scriptId: string;
+      parentId: string | null;
+    }): Promise<UnifiedWorkspaceMutationResult> =>
+      controller.moveNode({
+        nodeId: qualifyUnifiedWorkspaceNodeId(
+          environmentId,
+          projectId,
+          makeCommandWorkspaceItemId(input.scriptId),
+        ),
+        parentId: input.parentId,
+        beforeId: null,
+      }),
+    [controller, environmentId, projectId],
+  );
+
+  const handleAddCommand = useCallback((parentId: string | null) => {
+    setPendingAddCommandParentId(parentId);
+    scriptsControlRef.current?.openAddDialog();
+  }, []);
+
+  const activeNodeId = useMemo(() => {
+    if (!activeRouteThreadKey) return null;
+    const activeRef = parseScopedThreadKey(activeRouteThreadKey);
+    if (!activeRef || activeRef.environmentId !== environmentId) return null;
+    // Thread entries always carry the deterministic `thread:<threadId>` item
+    // id (spec §6.1) regardless of where they've been placed in the layout.
+    return qualifyUnifiedWorkspaceNodeId(environmentId, projectId, `thread:${activeRef.threadId}`);
+  }, [activeRouteThreadKey, environmentId, projectId]);
+
+  const handleThreadAction = useCallback(
+    (threadId: string, action: UnifiedWorkspaceTreeThreadAction) => {
+      const threadRef = scopeThreadRef(environmentId, ThreadId.make(threadId));
+      const threadKey = scopedThreadKey(threadRef);
+      const thread = sidebarThreadByKeyRef.current?.get(threadKey) ?? null;
+      switch (action) {
+        case "archive":
+          void attemptArchiveThread(threadRef);
+          return;
+        case "mark-unread":
+          markThreadUnread(threadKey, thread?.latestTurn?.completedAt);
+          return;
+        case "copy-id":
+          copyThreadIdToClipboard(threadId, { threadId: ThreadId.make(threadId) });
+          return;
+        case "copy-path": {
+          const path = thread?.worktreePath ?? workspaceRootFallback;
+          copyPathToClipboard(path, { path });
+          return;
+        }
+        case "delete": {
+          void (async () => {
+            const api = readLocalApi();
+            if (appSettingsConfirmThreadDelete) {
+              const confirmed = api
+                ? await api.dialogs.confirm(
+                    [
+                      `Delete thread "${thread?.title ?? "this thread"}"?`,
+                      "This permanently clears conversation history for this thread.",
+                    ].join("\n"),
+                  )
+                : true;
+              if (!confirmed) return;
+            }
+            const result = await deleteThread(threadRef);
+            if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
+              const error = squashAtomCommandFailure(result);
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Failed to delete thread",
+                  description: error instanceof Error ? error.message : "An error occurred.",
+                }),
+              );
+            }
+          })();
+          return;
+        }
+      }
+    },
+    [
+      environmentId,
+      sidebarThreadByKeyRef,
+      attemptArchiveThread,
+      markThreadUnread,
+      copyThreadIdToClipboard,
+      copyPathToClipboard,
+      workspaceRootFallback,
+      appSettingsConfirmThreadDelete,
+      deleteThread,
+    ],
+  );
+
+  return (
+    <div className="mx-0.5 my-0 w-full px-1 py-0 sm:mx-1 sm:px-1.5">
+      {addMenuSlotElement &&
+        createPortal(
+          <Tooltip>
+            <UnifiedWorkspaceAddMenuButton
+              controller={controller}
+              focusedNodeId={focusedNodeId}
+              onAddCommand={handleAddCommand}
+              onFocusExistingNode={handleFocusExistingNode}
+              trigger={
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label={`Add item in ${projectDisplayName}`}
+                      data-testid="add-item-button"
+                      className={SIDEBAR_ICON_ACTION_BUTTON_CLASS}
+                    />
+                  }
+                >
+                  <PlusIcon className="size-3.5" />
+                </TooltipTrigger>
+              }
+            />
+            <TooltipPopup side="top">Add item</TooltipPopup>
+          </Tooltip>,
+          addMenuSlotElement,
+        )}
+      <UnifiedWorkspaceTree
+        ref={treeHandleRef}
+        controller={controller}
+        projectId={projectId}
+        environmentId={environmentId}
+        isMobile={isMobile}
+        focusedNodeId={focusedNodeId}
+        onFocusedNodeIdChange={setFocusedNodeId}
+        activeNodeId={activeNodeId}
+        onThreadAction={handleThreadAction}
+        onOpenPrLink={openPrLink}
+      />
+      {/* Headless — reuses ProjectScriptsControl's editor/placement plumbing
+          for "Add command" (§9) via `scriptsControlRef.openAddDialog()`
+          rather than a second script-creation form. Hidden from sight and
+          from the accessibility tree; the real, visible script controls
+          still live where they always have (ChatHeader.tsx). */}
+      <div className="hidden" aria-hidden="true">
+        <ProjectScriptsControl
+          ref={scriptsControlRef}
+          scripts={scripts}
+          keybindings={keybindings}
+          onRunScript={() => {}}
+          onAddScript={persistWorkspaceProjectScript}
+          onUpdateScript={rejectUnreachableScriptEdit}
+          onDeleteScript={rejectUnreachableScriptEdit}
+          placement={{ parentId: pendingAddCommandParentId }}
+          onPlaceScript={handlePlaceNewScript}
+        />
+      </div>
+    </div>
+  );
+});
+
 interface SidebarProjectItemProps {
   project: SidebarProjectSnapshot;
   isThreadListExpanded: boolean;
@@ -1109,6 +1432,11 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
   );
   const appSettingsConfirmThreadArchive = useClientSettings<boolean>(
     (settings) => settings.confirmThreadArchive,
+  );
+  // Spec §17 rollout flag. The schema defaults this on for new and legacy
+  // settings records; an explicit false remains the flat-sidebar opt-out.
+  const unifiedWorkspaceSidebarEnabled = useClientSettings((settings) =>
+    isUnifiedWorkspaceSidebarEnabled(settings as ClientSettingsWithUnifiedWorkspaceFlag),
   );
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const serverConfigs = useServerConfigs();
@@ -1292,6 +1620,29 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       ) ?? null
     );
   }, [activeRouteThreadKey, projectExpanded, visibleProjectThreads]);
+
+  // The unified tree is scoped to one physical project/environment
+  // (`useUnifiedWorkspaceProject`), but a *grouped* logical project can span
+  // several physical members (spec §4) each with their own persisted layout.
+  // Rendering one tree per member is a real design surface this pass doesn't
+  // attempt — grouped projects keep the existing flat list unconditionally
+  // until that's designed, named as a gap in the finish-line report rather
+  // than shipped as a half-built multi-tree stack.
+  const soleWorkspaceTreeMember =
+    project.memberProjects.length === 1 ? project.memberProjects[0] : null;
+  const shouldRenderWorkspaceTree =
+    soleWorkspaceTreeMember !== null &&
+    shouldRenderUnifiedWorkspaceTree({
+      featureEnabled: unifiedWorkspaceSidebarEnabled,
+      projectExpanded,
+      hasPinnedCollapsedThread: pinnedCollapsedThread !== null,
+    });
+  // Empty header slot the tree-mode "Add item" trigger portals into (§9) —
+  // see `SidebarProjectWorkspaceTree`'s `addMenuSlotElement` doc comment for
+  // why the controller/focus state stays owned there instead of here. A
+  // callback ref (not a plain `useRef`) because the portal target needs a
+  // render to pick up the freshly-mounted DOM node.
+  const [headerAddMenuSlot, setHeaderAddMenuSlot] = useState<HTMLDivElement | null>(null);
 
   const {
     hasOverflowingThreads,
@@ -2330,64 +2681,96 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             </TooltipPopup>
           </Tooltip>
         )}
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <div className="pointer-events-none absolute top-[calc(50%+1px)] right-0.5 -translate-y-1/2 opacity-0 transition-opacity duration-150 max-sm:pointer-events-auto max-sm:opacity-100 group-hover/project-header:pointer-events-auto group-hover/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto group-focus-within/project-header:opacity-100">
-                <button
-                  type="button"
-                  aria-label={`Create new thread in ${project.displayName}`}
-                  data-testid="new-thread-button"
-                  className={SIDEBAR_ICON_ACTION_BUTTON_CLASS}
-                  onClick={handleCreateThreadClick}
-                >
-                  <SquarePenIcon className="size-3.5" />
-                </button>
-              </div>
-            }
+        {/* Flag off (or a grouped project with no sole member): the original
+            single-purpose "+" — completely unchanged. Flag on with a sole
+            member: an empty slot the tree's Add-item menu portals its own
+            Tooltip+trigger into (§9), so the controller/focus state driving
+            it stays owned next to the tree, not duplicated here. */}
+        {shouldRenderWorkspaceTree && soleWorkspaceTreeMember ? (
+          <div
+            ref={setHeaderAddMenuSlot}
+            className="pointer-events-none absolute top-[calc(50%+1px)] right-0.5 -translate-y-1/2 opacity-0 transition-opacity duration-150 max-sm:pointer-events-auto max-sm:opacity-100 group-hover/project-header:pointer-events-auto group-hover/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto group-focus-within/project-header:opacity-100"
           />
-          <TooltipPopup side="top">
-            {newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"}
-          </TooltipPopup>
-        </Tooltip>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <div className="pointer-events-none absolute top-[calc(50%+1px)] right-0.5 -translate-y-1/2 opacity-0 transition-opacity duration-150 max-sm:pointer-events-auto max-sm:opacity-100 group-hover/project-header:pointer-events-auto group-hover/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto group-focus-within/project-header:opacity-100">
+                  <button
+                    type="button"
+                    aria-label={`Create new thread in ${project.displayName}`}
+                    data-testid="new-thread-button"
+                    className={SIDEBAR_ICON_ACTION_BUTTON_CLASS}
+                    onClick={handleCreateThreadClick}
+                  >
+                    <SquarePenIcon className="size-3.5" />
+                  </button>
+                </div>
+              }
+            />
+            <TooltipPopup side="top">
+              {newThreadShortcutLabel ? `New thread (${newThreadShortcutLabel})` : "New thread"}
+            </TooltipPopup>
+          </Tooltip>
+        )}
       </div>
 
-      <SidebarProjectThreadList
-        projectKey={project.projectKey}
-        projectExpanded={projectExpanded}
-        hasOverflowingThreads={hasOverflowingThreads}
-        hiddenThreadStatus={hiddenThreadStatus}
-        orderedProjectThreadKeys={orderedProjectThreadKeys}
-        renderedThreads={renderedThreads}
-        showEmptyThreadState={showEmptyThreadState}
-        shouldShowThreadPanel={shouldShowThreadPanel}
-        isThreadListExpanded={isThreadListExpanded}
-        projectCwd={project.workspaceRoot}
-        activeRouteThreadKey={activeRouteThreadKey}
-        threadJumpLabelByKey={threadJumpLabelByKey}
-        appSettingsConfirmThreadArchive={appSettingsConfirmThreadArchive}
-        renamingThreadKey={renamingThreadKey}
-        renamingTitle={renamingTitle}
-        setRenamingTitle={setRenamingTitle}
-        startThreadRename={startThreadRename}
-        renamingInputRef={renamingInputRef}
-        renamingCommittedRef={renamingCommittedRef}
-        confirmingArchiveThreadKey={confirmingArchiveThreadKey}
-        setConfirmingArchiveThreadKey={setConfirmingArchiveThreadKey}
-        confirmArchiveButtonRefs={confirmArchiveButtonRefs}
-        attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
-        handleThreadClick={handleThreadClick}
-        navigateToThread={navigateToThread}
-        handleMultiSelectContextMenu={handleMultiSelectContextMenu}
-        handleThreadContextMenu={handleThreadContextMenu}
-        clearSelection={clearSelection}
-        commitRename={commitRename}
-        cancelRename={cancelRename}
-        attemptArchiveThread={attemptArchiveThread}
-        openPrLink={openPrLink}
-        expandThreadListForProject={expandThreadListForProject}
-        collapseThreadListForProject={collapseThreadListForProject}
-      />
+      {shouldRenderWorkspaceTree && soleWorkspaceTreeMember ? (
+        <SidebarProjectWorkspaceTree
+          environmentId={soleWorkspaceTreeMember.environmentId}
+          projectId={soleWorkspaceTreeMember.id}
+          isMobile={isMobile}
+          activeRouteThreadKey={activeRouteThreadKey}
+          workspaceRootFallback={project.workspaceRoot}
+          appSettingsConfirmThreadDelete={appSettingsConfirmThreadDelete}
+          markThreadUnread={markThreadUnread}
+          copyPathToClipboard={copyPathToClipboard}
+          copyThreadIdToClipboard={copyThreadIdToClipboard}
+          attemptArchiveThread={attemptArchiveThread}
+          deleteThread={deleteThread}
+          openPrLink={openPrLink}
+          sidebarThreadByKeyRef={sidebarThreadByKeyRef}
+          projectDisplayName={project.displayName}
+          addMenuSlotElement={headerAddMenuSlot}
+        />
+      ) : (
+        <SidebarProjectThreadList
+          projectKey={project.projectKey}
+          projectExpanded={projectExpanded}
+          hasOverflowingThreads={hasOverflowingThreads}
+          hiddenThreadStatus={hiddenThreadStatus}
+          orderedProjectThreadKeys={orderedProjectThreadKeys}
+          renderedThreads={renderedThreads}
+          showEmptyThreadState={showEmptyThreadState}
+          shouldShowThreadPanel={shouldShowThreadPanel}
+          isThreadListExpanded={isThreadListExpanded}
+          projectCwd={project.workspaceRoot}
+          activeRouteThreadKey={activeRouteThreadKey}
+          threadJumpLabelByKey={threadJumpLabelByKey}
+          appSettingsConfirmThreadArchive={appSettingsConfirmThreadArchive}
+          renamingThreadKey={renamingThreadKey}
+          renamingTitle={renamingTitle}
+          setRenamingTitle={setRenamingTitle}
+          startThreadRename={startThreadRename}
+          renamingInputRef={renamingInputRef}
+          renamingCommittedRef={renamingCommittedRef}
+          confirmingArchiveThreadKey={confirmingArchiveThreadKey}
+          setConfirmingArchiveThreadKey={setConfirmingArchiveThreadKey}
+          confirmArchiveButtonRefs={confirmArchiveButtonRefs}
+          attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
+          handleThreadClick={handleThreadClick}
+          navigateToThread={navigateToThread}
+          handleMultiSelectContextMenu={handleMultiSelectContextMenu}
+          handleThreadContextMenu={handleThreadContextMenu}
+          clearSelection={clearSelection}
+          commitRename={commitRename}
+          cancelRename={cancelRename}
+          attemptArchiveThread={attemptArchiveThread}
+          openPrLink={openPrLink}
+          expandThreadListForProject={expandThreadListForProject}
+          collapseThreadListForProject={collapseThreadListForProject}
+        />
+      )}
 
       <Dialog
         open={projectRenameTarget !== null}

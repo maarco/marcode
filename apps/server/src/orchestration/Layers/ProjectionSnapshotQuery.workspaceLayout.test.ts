@@ -6,7 +6,12 @@
  * layout). Split into its own file rather than appended to the already very
  * large `ProjectionSnapshotQuery.test.ts`.
  */
-import { ProjectId } from "@t3tools/contracts";
+import {
+  ProjectId,
+  type ProjectWorkspaceEntry,
+  ProjectWorkspaceItemId,
+  ThreadId,
+} from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -27,14 +32,20 @@ const projectionSnapshotLayer = it.layer(
   ),
 );
 
-const explicitLayout = [
-  { kind: "folder", id: "folder-1", parentId: null, rank: "a", relativePath: "src" },
+const explicitLayout: ReadonlyArray<ProjectWorkspaceEntry> = [
+  {
+    kind: "folder",
+    id: ProjectWorkspaceItemId.make("folder-1"),
+    parentId: null,
+    rank: "a",
+    relativePath: "src",
+  },
   {
     kind: "thread",
-    id: "thread:thread-1",
-    parentId: "folder-1",
+    id: ProjectWorkspaceItemId.make("thread:thread-1"),
+    parentId: ProjectWorkspaceItemId.make("folder-1"),
     rank: "a",
-    threadId: "thread-1",
+    threadId: ThreadId.make("thread-1"),
   },
 ];
 
@@ -49,6 +60,8 @@ projectionSnapshotLayer("ProjectionSnapshotQuery workspace layout", (it) => {
         yield* sql`DELETE FROM projection_projects`;
         yield* sql`DELETE FROM projection_state`;
 
+        // @effect-diagnostics-next-line preferSchemaOverJson:off - Raw SQL fixture seeds the column directly.
+        const explicitLayoutJson = JSON.stringify(explicitLayout);
         yield* sql`
           INSERT INTO projection_projects (
             project_id, title, workspace_root, default_model_selection_json,
@@ -56,7 +69,7 @@ projectionSnapshotLayer("ProjectionSnapshotQuery workspace layout", (it) => {
             created_at, updated_at, deleted_at
           ) VALUES (
             'project-layout', 'Project with layout', '/tmp/project-layout', NULL,
-            '[]', 4, ${JSON.stringify(explicitLayout)},
+            '[]', 4, ${explicitLayoutJson},
             '2026-05-01T00:00:00.000Z', '2026-05-01T00:00:01.000Z', NULL
           )
         `;

@@ -11,6 +11,7 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   ProjectId,
+  ProjectWorkspaceItemId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -67,7 +68,9 @@ function getProjectLayoutRow(projectId: string) {
     if (!row) {
       return yield* Effect.die(`Expected projection_projects row for '${projectId}' to exist.`);
     }
-    return { version: row.workspaceLayoutVersion, layout: JSON.parse(row.workspaceLayoutJson) };
+    // @effect-diagnostics-next-line preferSchemaOverJson:off - Raw SQL fixture row decoded for assertions only.
+    const layout = JSON.parse(row.workspaceLayoutJson);
+    return { version: row.workspaceLayoutVersion, layout };
   });
 }
 
@@ -86,7 +89,11 @@ function createProject(engine: OrchestrationEngineService["Service"], projectId:
   });
 }
 
-function createThread(engine: OrchestrationEngineService["Service"], threadId: string, projectId: string) {
+function createThread(
+  engine: OrchestrationEngineService["Service"],
+  threadId: string,
+  projectId: string,
+) {
   return engine.dispatch({
     type: "thread.create",
     commandId: CommandId.make(`cmd-create-${threadId}`),
@@ -131,7 +138,7 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
           type: "attach-path",
           entry: {
             kind: "file",
-            id: "file-1",
+            id: ProjectWorkspaceItemId.make("file-1"),
             parentId: null,
             rank: "a",
             relativePath: "./src/../src/auth.ts",
@@ -158,7 +165,13 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
         expectedVersion: 0,
         operation: {
           type: "attach-path",
-          entry: { kind: "file", id: "file-1", parentId: null, rank: "a", relativePath: "a.ts" },
+          entry: {
+            kind: "file",
+            id: ProjectWorkspaceItemId.make("file-1"),
+            parentId: null,
+            rank: "a",
+            relativePath: "a.ts",
+          },
         },
       });
 
@@ -170,11 +183,18 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
           expectedVersion: 1,
           operation: {
             type: "attach-path",
-            entry: { kind: "file", id: "file-2", parentId: null, rank: "b", relativePath: "a.ts" },
+            entry: {
+              kind: "file",
+              id: ProjectWorkspaceItemId.make("file-2"),
+              parentId: null,
+              rank: "b",
+              relativePath: "a.ts",
+            },
           },
         }),
       );
       assert.instanceOf(error, OrchestrationCommandInvariantError);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off - Decoding the invariant error's raw detail for assertions.
       const rejection = JSON.parse((error as OrchestrationCommandInvariantError).detail);
       assert.strictEqual(rejection.tag, "duplicate-path");
     }),
@@ -189,7 +209,17 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
         commandId: CommandId.make("cmd-conflict-1"),
         projectId: ProjectId.make("project-conflict"),
         expectedVersion: 0,
-        operation: { type: "add-url", entry: { kind: "url", id: "url-1", parentId: null, rank: "a", label: "Local", url: "http://localhost:3000" } },
+        operation: {
+          type: "add-url",
+          entry: {
+            kind: "url",
+            id: ProjectWorkspaceItemId.make("url-1"),
+            parentId: null,
+            rank: "a",
+            label: "Local",
+            url: "http://localhost:3000",
+          },
+        },
       });
 
       const error = yield* Effect.flip(
@@ -198,58 +228,61 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
           commandId: CommandId.make("cmd-conflict-2"),
           projectId: ProjectId.make("project-conflict"),
           expectedVersion: 0, // stale — current version is now 1
-          operation: { type: "remove", itemId: "url-1" },
+          operation: { type: "remove", itemId: ProjectWorkspaceItemId.make("url-1") },
         }),
       );
       assert.instanceOf(error, OrchestrationCommandInvariantError);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off - Decoding the invariant error's raw detail for assertions.
       const rejection = JSON.parse((error as OrchestrationCommandInvariantError).detail);
       assert.strictEqual(rejection.tag, "version-conflict");
       assert.strictEqual(rejection.currentVersion, 1);
     }),
   );
 
-  it.effect("place-resource materializes a thread entry with a server-computed rank, and beforeId orders correctly", () =>
-    Effect.gen(function* () {
-      const engine = yield* OrchestrationEngineService;
-      yield* createProject(engine, "project-place");
-      yield* createThread(engine, "thread-a", "project-place");
-      yield* createThread(engine, "thread-b", "project-place");
+  it.effect(
+    "place-resource materializes a thread entry with a server-computed rank, and beforeId orders correctly",
+    () =>
+      Effect.gen(function* () {
+        const engine = yield* OrchestrationEngineService;
+        yield* createProject(engine, "project-place");
+        yield* createThread(engine, "thread-a", "project-place");
+        yield* createThread(engine, "thread-b", "project-place");
 
-      yield* engine.dispatch({
-        type: "project.workspace-layout.apply",
-        commandId: CommandId.make("cmd-place-a"),
-        projectId: ProjectId.make("project-place"),
-        expectedVersion: 0,
-        operation: {
-          type: "place-resource",
-          resource: { kind: "thread", threadId: ThreadId.make("thread-a") },
-          parentId: null,
-          beforeId: null,
-        },
-      });
-      // thread-b is placed *before* thread-a.
-      yield* engine.dispatch({
-        type: "project.workspace-layout.apply",
-        commandId: CommandId.make("cmd-place-b"),
-        projectId: ProjectId.make("project-place"),
-        expectedVersion: 1,
-        operation: {
-          type: "place-resource",
-          resource: { kind: "thread", threadId: ThreadId.make("thread-b") },
-          parentId: null,
-          beforeId: "thread:thread-a",
-        },
-      });
+        yield* engine.dispatch({
+          type: "project.workspace-layout.apply",
+          commandId: CommandId.make("cmd-place-a"),
+          projectId: ProjectId.make("project-place"),
+          expectedVersion: 0,
+          operation: {
+            type: "place-resource",
+            resource: { kind: "thread", threadId: ThreadId.make("thread-a") },
+            parentId: null,
+            beforeId: null,
+          },
+        });
+        // thread-b is placed *before* thread-a.
+        yield* engine.dispatch({
+          type: "project.workspace-layout.apply",
+          commandId: CommandId.make("cmd-place-b"),
+          projectId: ProjectId.make("project-place"),
+          expectedVersion: 1,
+          operation: {
+            type: "place-resource",
+            resource: { kind: "thread", threadId: ThreadId.make("thread-b") },
+            parentId: null,
+            beforeId: ProjectWorkspaceItemId.make("thread:thread-a"),
+          },
+        });
 
-      const row = yield* getProjectLayoutRow("project-place");
-      assert.strictEqual(row.version, 2);
-      assert.strictEqual(row.layout.length, 2);
-      const threadB = row.layout.find((entry: { id: string }) => entry.id === "thread:thread-b");
-      const threadA = row.layout.find((entry: { id: string }) => entry.id === "thread:thread-a");
-      assert.isDefined(threadA);
-      assert.isDefined(threadB);
-      assert.isTrue((threadB.rank as string) < (threadA.rank as string));
-    }),
+        const row = yield* getProjectLayoutRow("project-place");
+        assert.strictEqual(row.version, 2);
+        assert.strictEqual(row.layout.length, 2);
+        const threadB = row.layout.find((entry: { id: string }) => entry.id === "thread:thread-b");
+        const threadA = row.layout.find((entry: { id: string }) => entry.id === "thread:thread-a");
+        assert.isDefined(threadA);
+        assert.isDefined(threadB);
+        assert.isTrue((threadB.rank as string) < (threadA.rank as string));
+      }),
   );
 
   it.effect("move reorders an existing entry and rejects a descendant-cycle move", () =>
@@ -263,7 +296,13 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
         expectedVersion: 0,
         operation: {
           type: "attach-path",
-          entry: { kind: "folder", id: "folder-1", parentId: null, rank: "a", relativePath: "src" },
+          entry: {
+            kind: "folder",
+            id: ProjectWorkspaceItemId.make("folder-1"),
+            parentId: null,
+            rank: "a",
+            relativePath: "src",
+          },
         },
       });
       yield* engine.dispatch({
@@ -275,7 +314,7 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
           type: "attach-path",
           entry: {
             kind: "file",
-            id: "file-1",
+            id: ProjectWorkspaceItemId.make("file-1"),
             parentId: null,
             rank: "b",
             relativePath: "README.md",
@@ -288,7 +327,12 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
         commandId: CommandId.make("cmd-move-1"),
         projectId: ProjectId.make("project-move"),
         expectedVersion: 2,
-        operation: { type: "move", itemId: "file-1", parentId: "folder-1", beforeId: null },
+        operation: {
+          type: "move",
+          itemId: ProjectWorkspaceItemId.make("file-1"),
+          parentId: ProjectWorkspaceItemId.make("folder-1"),
+          beforeId: null,
+        },
       });
       const afterMove = yield* getProjectLayoutRow("project-move");
       const movedFile = afterMove.layout.find((entry: { id: string }) => entry.id === "file-1");
@@ -301,78 +345,92 @@ engineLayer("project.workspace-layout.apply via engine dispatch", (it) => {
           projectId: ProjectId.make("project-move"),
           expectedVersion: 3,
           // folder-1 cannot become a child of its own child file-1.
-          operation: { type: "move", itemId: "folder-1", parentId: "file-1", beforeId: null },
+          operation: {
+            type: "move",
+            itemId: ProjectWorkspaceItemId.make("folder-1"),
+            parentId: ProjectWorkspaceItemId.make("file-1"),
+            beforeId: null,
+          },
         }),
       );
       assert.instanceOf(cycleError, OrchestrationCommandInvariantError);
+      // @effect-diagnostics-next-line preferSchemaOverJson:off - Decoding the invariant error's raw detail for assertions.
       const rejection = JSON.parse((cycleError as OrchestrationCommandInvariantError).detail);
       assert.strictEqual(rejection.tag, "cycle");
     }),
   );
 
-  it.effect("remove reparents children to the removed node's parent and preserves their order", () =>
-    Effect.gen(function* () {
-      const engine = yield* OrchestrationEngineService;
-      yield* createProject(engine, "project-remove");
-      yield* engine.dispatch({
-        type: "project.workspace-layout.apply",
-        commandId: CommandId.make("cmd-remove-attach-folder"),
-        projectId: ProjectId.make("project-remove"),
-        expectedVersion: 0,
-        operation: {
-          type: "attach-path",
-          entry: { kind: "folder", id: "folder-1", parentId: null, rank: "a", relativePath: "src" },
-        },
-      });
-      yield* engine.dispatch({
-        type: "project.workspace-layout.apply",
-        commandId: CommandId.make("cmd-remove-attach-file-1"),
-        projectId: ProjectId.make("project-remove"),
-        expectedVersion: 1,
-        operation: {
-          type: "attach-path",
-          entry: {
-            kind: "file",
-            id: "file-1",
-            parentId: "folder-1",
-            rank: "a",
-            relativePath: "src/a.ts",
+  it.effect(
+    "remove reparents children to the removed node's parent and preserves their order",
+    () =>
+      Effect.gen(function* () {
+        const engine = yield* OrchestrationEngineService;
+        yield* createProject(engine, "project-remove");
+        yield* engine.dispatch({
+          type: "project.workspace-layout.apply",
+          commandId: CommandId.make("cmd-remove-attach-folder"),
+          projectId: ProjectId.make("project-remove"),
+          expectedVersion: 0,
+          operation: {
+            type: "attach-path",
+            entry: {
+              kind: "folder",
+              id: ProjectWorkspaceItemId.make("folder-1"),
+              parentId: null,
+              rank: "a",
+              relativePath: "src",
+            },
           },
-        },
-      });
-      yield* engine.dispatch({
-        type: "project.workspace-layout.apply",
-        commandId: CommandId.make("cmd-remove-attach-file-2"),
-        projectId: ProjectId.make("project-remove"),
-        expectedVersion: 2,
-        operation: {
-          type: "attach-path",
-          entry: {
-            kind: "file",
-            id: "file-2",
-            parentId: "folder-1",
-            rank: "b",
-            relativePath: "src/b.ts",
+        });
+        yield* engine.dispatch({
+          type: "project.workspace-layout.apply",
+          commandId: CommandId.make("cmd-remove-attach-file-1"),
+          projectId: ProjectId.make("project-remove"),
+          expectedVersion: 1,
+          operation: {
+            type: "attach-path",
+            entry: {
+              kind: "file",
+              id: ProjectWorkspaceItemId.make("file-1"),
+              parentId: ProjectWorkspaceItemId.make("folder-1"),
+              rank: "a",
+              relativePath: "src/a.ts",
+            },
           },
-        },
-      });
+        });
+        yield* engine.dispatch({
+          type: "project.workspace-layout.apply",
+          commandId: CommandId.make("cmd-remove-attach-file-2"),
+          projectId: ProjectId.make("project-remove"),
+          expectedVersion: 2,
+          operation: {
+            type: "attach-path",
+            entry: {
+              kind: "file",
+              id: ProjectWorkspaceItemId.make("file-2"),
+              parentId: ProjectWorkspaceItemId.make("folder-1"),
+              rank: "b",
+              relativePath: "src/b.ts",
+            },
+          },
+        });
 
-      yield* engine.dispatch({
-        type: "project.workspace-layout.apply",
-        commandId: CommandId.make("cmd-remove-folder"),
-        projectId: ProjectId.make("project-remove"),
-        expectedVersion: 3,
-        operation: { type: "remove", itemId: "folder-1" },
-      });
+        yield* engine.dispatch({
+          type: "project.workspace-layout.apply",
+          commandId: CommandId.make("cmd-remove-folder"),
+          projectId: ProjectId.make("project-remove"),
+          expectedVersion: 3,
+          operation: { type: "remove", itemId: ProjectWorkspaceItemId.make("folder-1") },
+        });
 
-      const row = yield* getProjectLayoutRow("project-remove");
-      assert.strictEqual(row.layout.length, 2); // folder-1 gone, file-1/file-2 reparented to root
-      const file1 = row.layout.find((entry: { id: string }) => entry.id === "file-1");
-      const file2 = row.layout.find((entry: { id: string }) => entry.id === "file-2");
-      assert.strictEqual(file1.parentId, null);
-      assert.strictEqual(file2.parentId, null);
-      assert.isTrue((file1.rank as string) < (file2.rank as string)); // original relative order preserved
-    }),
+        const row = yield* getProjectLayoutRow("project-remove");
+        assert.strictEqual(row.layout.length, 2); // folder-1 gone, file-1/file-2 reparented to root
+        const file1 = row.layout.find((entry: { id: string }) => entry.id === "file-1");
+        const file2 = row.layout.find((entry: { id: string }) => entry.id === "file-2");
+        assert.strictEqual(file1.parentId, null);
+        assert.strictEqual(file2.parentId, null);
+        assert.isTrue((file1.rank as string) < (file2.rank as string)); // original relative order preserved
+      }),
   );
 
   it.effect("deleting a placed thread prunes its workspace layout entry", () =>

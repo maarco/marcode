@@ -1,4 +1,9 @@
-import { ProjectId, ThreadId, ProviderInstanceId } from "@t3tools/contracts";
+import {
+  ProjectId,
+  ProjectWorkspaceItemId,
+  ThreadId,
+  ProviderInstanceId,
+} from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -80,15 +85,15 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
       const layout = [
         {
           kind: "folder" as const,
-          id: "folder-1",
+          id: ProjectWorkspaceItemId.make("folder-1"),
           parentId: null,
           rank: "a",
           relativePath: "src",
         },
         {
           kind: "file" as const,
-          id: "file-1",
-          parentId: "folder-1",
+          id: ProjectWorkspaceItemId.make("file-1"),
+          parentId: ProjectWorkspaceItemId.make("folder-1"),
           rank: "a",
           relativePath: "src/index.ts",
         },
@@ -134,13 +139,15 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
     }),
   );
 
-  it.effect("defaults workspace layout version to 0 and layout to empty when omitted by an older writer", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
+  it.effect(
+    "defaults workspace layout version to 0 and layout to empty when omitted by an older writer",
+    () =>
+      Effect.gen(function* () {
+        const sql = yield* SqlClient.SqlClient;
 
-      // Simulates a row written before migration 033's DEFAULT-backed
-      // columns existed, by inserting through the legacy column set only.
-      yield* sql`
+        // Simulates a row written before migration 033's DEFAULT-backed
+        // columns existed, by inserting through the legacy column set only.
+        yield* sql`
         INSERT INTO projection_projects (
           project_id, title, workspace_root, default_model_selection_json,
           scripts_json, created_at, updated_at, deleted_at
@@ -150,14 +157,14 @@ projectionRepositoriesLayer("Projection repositories", (it) => {
         )
       `;
 
-      const projects = yield* ProjectionProjectRepository;
-      const persisted = yield* projects.getById({
-        projectId: ProjectId.make("project-legacy-row"),
-      });
-      const persistedProject = Option.getOrNull(persisted);
-      assert.strictEqual(persistedProject?.workspaceLayoutVersion, 0);
-      assert.deepStrictEqual(persistedProject?.workspaceLayout, []);
-    }),
+        const projects = yield* ProjectionProjectRepository;
+        const persisted = yield* projects.getById({
+          projectId: ProjectId.make("project-legacy-row"),
+        });
+        const persistedProject = Option.getOrNull(persisted);
+        assert.strictEqual(persistedProject?.workspaceLayoutVersion, 0);
+        assert.deepStrictEqual(persistedProject?.workspaceLayout, []);
+      }),
   );
 
   it.effect("stores JSON for thread model options", () =>

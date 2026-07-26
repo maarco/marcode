@@ -10,9 +10,11 @@ import {
   AuthTokenExchangeGrantType,
   CommandId,
   DEFAULT_SERVER_SETTINGS,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EnvironmentId,
   EventId,
   GitCommandError,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   KeybindingRule,
   MessageId,
   ExternalLauncherCommandNotFoundError,
@@ -122,6 +124,10 @@ const defaultModelSelection = {
   instanceId: ProviderInstanceId.make("codex"),
   model: "gpt-5-codex",
 } as const;
+const PROJECT_WORKSPACE_LAYOUT_DEFAULTS = {
+  workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+} as const;
 const testEnvironmentDescriptor = {
   environmentId: EnvironmentId.make("environment-test"),
   label: "Test environment",
@@ -146,6 +152,7 @@ const makeDefaultOrchestrationReadModel = () => {
         workspaceRoot: "/tmp/default-project",
         defaultModelSelection,
         scripts: [],
+        ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -5481,6 +5488,7 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
             workspaceRoot: "/tmp/project-a",
             defaultModelSelection,
             scripts: [],
+            ...PROJECT_WORKSPACE_LAYOUT_DEFAULTS,
             createdAt: now,
             updatedAt: now,
             deletedAt: null,
