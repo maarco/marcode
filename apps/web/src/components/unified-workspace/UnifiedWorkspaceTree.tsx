@@ -42,6 +42,7 @@ import {
   useState,
   type KeyboardEvent,
   type MouseEvent,
+  type ReactNode,
 } from "react";
 import { readLocalApi } from "../../localApi";
 import type {
@@ -74,6 +75,8 @@ import {
   type UnifiedWorkspaceDropZone,
 } from "./UnifiedWorkspaceTree.logic";
 import {
+  UW_TREE_ACCORDION_CONTENT_CLASS,
+  UW_TREE_ACCORDION_FOLDER_CLASS,
   UW_TREE_DRAG_OVERLAY_CLASS,
   UW_TREE_ROOT_CLASS,
   UW_TREE_ROOT_GUTTER_CLASS,
@@ -833,6 +836,69 @@ export const UnifiedWorkspaceTree = forwardRef<
   const activeDraggedNode = dragState ? nodeIndex.byId.get(dragState.activeId) : null;
   const OverlayIcon = activeDraggedNode ? iconForOverlay(activeDraggedNode) : null;
 
+  const renderVisibleRows = (nodes: readonly UnifiedWorkspaceNode[]): ReactNode =>
+    nodes.map((node) => {
+      const isCollapsed = resolveRowCollapsed(node, collapsedIds);
+      const hasVisibleChildren = node.canHaveChildren && node.children.length > 0 && !isCollapsed;
+      const row = (
+        <UnifiedWorkspaceRow
+          key={node.id}
+          node={node}
+          isCollapsed={isCollapsed}
+          isFocused={
+            focusedNodeId === node.id ||
+            (focusedNodeId === null && flatRows[0]?.node.id === node.id)
+          }
+          isActive={activeNodeId === node.id}
+          isSelected={false}
+          isDropTarget={
+            dragState?.overNodeId === node.id && dragState.zone ? { zone: dragState.zone } : null
+          }
+          isMobile={isMobile}
+          canMutate={canMutate}
+          threadExtras={threadRowExtrasByNodeId?.get(node.id) ?? null}
+          commandIcon={
+            node.activation.kind === "command"
+              ? (commandIconByScriptId?.get(node.activation.scriptId) ?? null)
+              : null
+          }
+          renamingValue={renamingNodeId === node.id ? renamingValue : null}
+          onToggleCollapse={toggleCollapse}
+          onActivate={handleRowActivate}
+          onFocusRow={focusRow}
+          onRowKeyDown={handleRowKeyDown}
+          onRowContextMenu={handleRowContextMenu}
+          onOpenRowMenu={handleOpenRowMenu}
+          onOpenPrLink={onOpenPrLink ?? (() => {})}
+          onStartRename={startRename}
+          onRenamingValueChange={setRenamingValue}
+          onCommitRename={commitRename}
+          onCancelRename={cancelRename}
+          registerRowElement={registerRowElement}
+        />
+      );
+
+      if (!node.canHaveChildren || node.children.length === 0) return row;
+
+      return (
+        <div
+          key={node.id}
+          data-accordion-folder={node.kind === "folder" || undefined}
+          className={node.kind === "folder" ? UW_TREE_ACCORDION_FOLDER_CLASS : "contents"}
+        >
+          {row}
+          {hasVisibleChildren && (
+            <div
+              data-accordion-content={node.kind === "folder" || undefined}
+              className={node.kind === "folder" ? UW_TREE_ACCORDION_CONTENT_CLASS : "contents"}
+            >
+              {renderVisibleRows(node.children)}
+            </div>
+          )}
+        </div>
+      );
+    });
+
   // One-time read, same pattern as ChatView.tsx/draftHeroTransition.ts — see
   // `REDUCED_MOTION_DROP_ANIMATION`'s comment.
   const prefersReducedMotion = useMemo(
@@ -874,45 +940,7 @@ export const UnifiedWorkspaceTree = forwardRef<
           strategy={verticalListSortingStrategy}
         >
           <div role="tree" aria-label="Project workspace" className={UW_TREE_ROOT_CLASS}>
-            {flatRows.map(({ node }) => (
-              <UnifiedWorkspaceRow
-                key={node.id}
-                node={node}
-                isCollapsed={resolveRowCollapsed(node, collapsedIds)}
-                isFocused={
-                  focusedNodeId === node.id ||
-                  (focusedNodeId === null && flatRows[0]?.node.id === node.id)
-                }
-                isActive={activeNodeId === node.id}
-                isSelected={false}
-                isDropTarget={
-                  dragState?.overNodeId === node.id && dragState.zone
-                    ? { zone: dragState.zone }
-                    : null
-                }
-                isMobile={isMobile}
-                canMutate={canMutate}
-                threadExtras={threadRowExtrasByNodeId?.get(node.id) ?? null}
-                commandIcon={
-                  node.activation.kind === "command"
-                    ? (commandIconByScriptId?.get(node.activation.scriptId) ?? null)
-                    : null
-                }
-                renamingValue={renamingNodeId === node.id ? renamingValue : null}
-                onToggleCollapse={toggleCollapse}
-                onActivate={handleRowActivate}
-                onFocusRow={focusRow}
-                onRowKeyDown={handleRowKeyDown}
-                onRowContextMenu={handleRowContextMenu}
-                onOpenRowMenu={handleOpenRowMenu}
-                onOpenPrLink={onOpenPrLink ?? (() => {})}
-                onStartRename={startRename}
-                onRenamingValueChange={setRenamingValue}
-                onCommitRename={commitRename}
-                onCancelRename={cancelRename}
-                registerRowElement={registerRowElement}
-              />
-            ))}
+            {renderVisibleRows(controller.roots)}
             {flatRows.length === 0 && (
               <p className="px-2 py-3 text-center text-[11px] text-muted-foreground/60">
                 Nothing here yet — use “New thread” to get started.

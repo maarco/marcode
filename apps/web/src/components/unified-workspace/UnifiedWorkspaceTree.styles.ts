@@ -27,6 +27,14 @@ export const UW_TREE_ACTIVE_RAIL_CLASS =
   "data-[active=true]:after:w-0.5 data-[active=true]:after:rounded-r " +
   "data-[active=true]:after:bg-emerald-400/60";
 
+/** Folder header/content wrappers borrowed from the floating editor's
+ * AccordionFolder. The unified tree keeps one owner for scrolling, so the
+ * nested panel gets the editor's inset/overflow treatment without adding a
+ * competing per-folder resize or scroll container. */
+export const UW_TREE_ACCORDION_FOLDER_CLASS = "relative mb-0.5 min-w-0";
+
+export const UW_TREE_ACCORDION_CONTENT_CLASS = "mx-1 mt-0.5 min-w-0 overflow-x-hidden rounded-t-md";
+
 export const UW_TREE_DISCLOSURE_CLASS =
   "inline-flex size-4 shrink-0 items-center justify-center rounded-sm " +
   "text-muted-foreground transition-transform duration-150 " +
