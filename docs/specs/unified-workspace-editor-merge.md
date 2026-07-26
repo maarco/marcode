@@ -12,8 +12,9 @@ unified-workspace suites. Pre-merge branch head is preserved at
 The workspace tree → floating editor path and **all of the git surfaces** are now
 verified live against a throwaway sandbox repo, which turned up two serious bugs
 and four smaller ones — all six fixed, and all pre-existing on `main` rather than
-caused by the merge. See _Live git verification_ below. Still open: chat file
-links, and one path automation cannot reach. See _Remaining_ at the bottom.
+caused by the merge. See _Live git verification_ below. Every one of those six
+fixes is now live-verified, including close-saves — see _Verifying close-saves_.
+Still open: chat file links. See _Remaining_ at the bottom.
 
 The rest of this document is the record of what the merge involved.
 
@@ -175,23 +176,45 @@ Both are `main` bugs that the merge inherited, not merge damage.
 4. **The dirty-tab discard confirm is gone** — both close paths now flush through
    `flushProjectFileRef` instead of offering to discard. `cancelProjectFile` /
    `clearProjectFileQueryData` stay where discarding is correct (file-tree delete
-   and rename). This one is **not live-verified**: reproducing a dirty tab needs a
-   close click inside the 500ms autosave window and automation latency is roughly
-   twice that — the same reason the original prompt was unreachable.
+   and rename). Now live-verified on both paths — see _Verifying close-saves_ below.
+
+## Verifying close-saves
+
+Closing a tab is only interesting while the buffer is genuinely unsaved, and that
+window is 500ms wide (`FILE_AUTOSAVE_DEBOUNCE_MS`) against roughly 1s of
+browser-automation latency. The way through is to widen the window rather than try
+to out-race it: temporarily set the constant to `120000`, **fully reload the page**
+(HMR does not re-run the module-level constant, which is what defeated the first
+attempt at this), and the dirty state then sits still for two minutes.
+
+With that, both close paths were driven against the sandbox repo and checked
+against real disk state in a shell:
+
+- **Tab-bar close button** — typed a line, confirmed the tab showed its dirty
+  affordances (amber dot + Save button) and `git status` was clean, clicked the ×,
+  and `export const CLOSE_SAVES = true;` was on disk. Tab closed, no prompt.
+- **Cmd+W** — same setup, `export const CMD_W_SAVES = true;` on disk, `openPaths`
+  emptied and `dirtyKeys` cleared.
+
+Autosave cannot account for either: the debounce was 120s and under a minute
+elapsed, and disk was confirmed unchanged immediately before each close.
+
+Two things worth knowing for anyone repeating this, because both produced
+confident-but-wrong readings the first time:
+
+- **Check the elapsed time before trusting a "not dirty" reading.** At the stock
+  500ms debounce, several tool round-trips are enough for autosave to fire and
+  legitimately clear the dirty flag. A missing dirty dot then looks like a broken
+  indicator when it just means "already saved."
+- **Confirm the caret is in Monaco before typing.** The status bar's `Ln/Col` is
+  the cheap check. Keystrokes land in the chat composer otherwise, and an edit that
+  never happened is indistinguishable from a feature that silently did nothing.
 
 ## Remaining
 
 - **Chat file links → floating editor** (`ChatMarkdown`) — same bridge, same code
   path as the verified tree click, but not driven end to end (needs a thread with
   a message containing a file path).
-- **Flush-on-close** — see item 4 above: code and unit coverage only.
-- **The autosave debounce may not hold.** While trying to widen the window for
-  that test, edits landed on disk essentially immediately even with the constant
-  raised to 8s and the dev server serving the new value. Unconfirmed, but the
-  shape fits the coordinator being rebuilt on render (its `useMemo` depends on
-  `writeFile` from `useAtomCommand`) and the old one's `dispose()` force-persisting.
-  If real, autosave is effectively write-per-keystroke and the dirty window barely
-  exists — which would also explain why nobody ever saw the discard prompt.
 - **External file changes are not noticed.** The status push covers writes made
   through the app; a shell-side edit still needs Refresh. Not in scope here, and
   no file watcher exists.
@@ -254,6 +277,8 @@ Evidence:
   content search returns hits; clicking a search result in a **not-yet-open** file
   opens it and lands the cursor on the hit (`Ln 2726, Col 19` for the
   `GitVcsDriverCore.ts:2726` result); quick-open pins its tab.
-- Deliberately **not** exercised live: the dirty-tab discard confirm (a
-  `window.confirm` freezes browser automation, and typing would write to real
-  files in the worktree). Covered by `fileSaveCoordinator`'s flush tests instead.
+- The dirty-tab close path was skipped at the time — a `window.confirm` freezes
+  browser automation, and typing would have written to real files in the worktree.
+  Both objections are now moot: the confirm is gone, and a throwaway sandbox repo
+  gives typing somewhere harmless to land. Verified live under _Verifying
+  close-saves_ above.
