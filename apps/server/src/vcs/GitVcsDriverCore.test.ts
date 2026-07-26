@@ -12,7 +12,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
 
 import { GitCommandError } from "@t3tools/contracts";
 import { ServerConfig } from "../config.ts";
-import { splitNullSeparatedGitStdoutPaths } from "./GitVcsDriverCore.ts";
+import { redactArgs, splitNullSeparatedGitStdoutPaths } from "./GitVcsDriverCore.ts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
 
 const ServerConfigLayer = ServerConfig.layerTest(process.cwd(), {
@@ -214,6 +214,25 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
       }),
     );
 
+    it.effect("reports git's own reason when an operation is refused", () =>
+      Effect.gen(function* () {
+        // Git's stderr is the only place that says *why* an operation was
+        // refused. It used to be dropped, leaving the caller's fallback string
+        // ("git checkout failed") as the whole explanation.
+        const cwd = yield* makeTmpDir();
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        yield* driver.initRepo({ cwd });
+
+        const refused = yield* driver
+          .switchRef({ cwd, refName: "definitely-not-a-branch" })
+          .pipe(Effect.flip);
+
+        assert.notMatch(refused.detail, /exited with a non-zero status/);
+        assert.include(refused.detail, "definitely-not-a-branch");
+        assert.notInclude(refused.detail, "[redacted]");
+      }),
+    );
+
     it.effect("recovers a structurally identified missing cwd as a non-repository", () =>
       Effect.gen(function* () {
         const parent = yield* makeTmpDir();
@@ -255,6 +274,48 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
         });
         assert.notProperty(error, "cause");
         assert.notInclude(error.detail, "Git command failed in");
+      }),
+    );
+  });
+
+  describe("stderr redaction", () => {
+    // Git echoes the offending argument back on failure, so putting stderr into
+    // an error message opens a path for an argument's value to reach the UI and
+    // the logs. These pin what may and may not survive that.
+    it.effect("removes a valued argument even when git reformats it", () =>
+      Effect.sync(() => {
+        const secret = "secret-token-value";
+        // git drops the leading dashes when it echoes the option back, so
+        // matching the whole argument is not sufficient
+        const stderr = `error: unknown option \`unknown-option=${secret}'`;
+
+        const redacted = redactArgs(stderr, ["status", `--unknown-option=${secret}`]);
+
+        assert.notInclude(redacted, secret);
+        assert.include(redacted, "[redacted]");
+      }),
+    );
+
+    it.effect("removes the userinfo from a remote URL", () =>
+      Effect.sync(() => {
+        const url = "https://marco:ghp_realtokenvalue@github.com/maarco/marcode.git";
+
+        const redacted = redactArgs(`fatal: could not read from '${url}'`, ["push", url]);
+
+        assert.notInclude(redacted, "ghp_realtokenvalue");
+        assert.notInclude(redacted, "marco:");
+      }),
+    );
+
+    it.effect("leaves plain arguments intact so the reason survives", () =>
+      Effect.sync(() => {
+        // redacting bare tokens would gut the messages this exists to surface
+        const stderr =
+          "error: Your local changes to the following files would be overwritten by checkout:\n\tsrc/math.ts";
+
+        const redacted = redactArgs(stderr, ["checkout", "feature/sandbox-side"]);
+
+        assert.strictEqual(redacted, stderr);
       }),
     );
   });

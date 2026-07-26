@@ -53,6 +53,29 @@ export function flushProjectFile(
 }
 
 /**
+ * Persist a closing tab's pending edits, given a possibly-incomplete file ref.
+ *
+ * Closing a tab used to prompt "Discard unsaved changes to X?" and then cancel
+ * the pending write. With a {@link FILE_AUTOSAVE_DEBOUNCE_MS}ms autosave that
+ * prompt was both misleading and nearly unreachable: the dirty flag it was
+ * gated on is cleared as soon as autosave lands, so the only way to see it was
+ * to click close within half a second of typing — and answering "discard" threw
+ * away work the user had every reason to believe was saved, since every other
+ * edit that session had been.
+ *
+ * Closing now commits instead of discarding. Virtual/diff tabs carry no
+ * environment ref and no-op here.
+ */
+export function flushProjectFileRef(ref: {
+  readonly environmentId: EnvironmentId | null;
+  readonly cwd: string | null;
+  readonly relativePath: string | null;
+}): void {
+  if (!ref.environmentId || !ref.cwd || !ref.relativePath) return;
+  void flushProjectFile(ref.environmentId, ref.cwd, ref.relativePath);
+}
+
+/**
  * Forget a file's pending autosave buffer without persisting it (discard /
  * revert). No-op if no editor for that file is mounted.
  */

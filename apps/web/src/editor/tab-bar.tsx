@@ -2,11 +2,7 @@ import { useState, useRef, useCallback } from "react";
 import { CloseCircleFilled, ArrowRight1Filled, PeopleFilled } from "@aliimam/icons";
 import { useEditorStore, usePane, fileKey } from "./editor-store";
 import { getFileAccentColor } from "./file-tree";
-import {
-  flushProjectFile,
-  cancelProjectFile,
-  clearProjectFileQueryData,
-} from "~/state/projectFileState";
+import { flushProjectFile, flushProjectFileRef } from "~/state/projectFileState";
 
 interface TabBarProps {
   paneId: string;
@@ -187,14 +183,10 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                if (dirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
-                // same discard order as editor-pane's Cmd+W: stop the pending
-                // autosave first, then drop the optimistic overlay — otherwise
-                // an in-flight write resurrects the discarded content.
-                if (dirty && file.environmentId && file.cwd && file.relativePath) {
-                  cancelProjectFile(file.environmentId, file.cwd, file.relativePath);
-                  clearProjectFileQueryData(file.environmentId, file.cwd, file.relativePath);
-                }
+                // commit pending edits rather than prompting to discard them —
+                // see `flushProjectFileRef`. Same behaviour as editor-pane's
+                // Cmd+W.
+                if (dirty) flushProjectFileRef(file);
                 closeFile(paneId, key);
               }}
               className="shrink-0 opacity-0 group-hover:opacity-60 hover:opacity-100 transition-all"

@@ -372,6 +372,75 @@ function isNonRepositoryGitStderr(stderr: string): boolean {
   return stderr.toLowerCase().includes("not a git repository");
 }
 
+/** Longest stderr excerpt allowed into an error message shown in the UI. */
+const STDERR_DETAIL_MAX_CHARS = 400;
+
+/**
+ * Substrings of a git argument that must never reach an error message.
+ *
+ * Git echoes the offending argument back on failure (``error: unknown option
+ * `unknown-option=secret'``), sometimes reformatted — it strips leading dashes,
+ * so matching the whole argument is not enough. Anything shaped like it carries
+ * a value is treated as sensitive: `--opt=value` pairs, and the userinfo in a
+ * `https://user:token@host` remote. Plain tokens (`checkout`, a branch name) are
+ * deliberately left alone, because redacting those would gut the very messages
+ * this exists to surface ("...would be overwritten by checkout").
+ */
+function sensitiveArgFragments(arg: string): readonly string[] {
+  const fragments: string[] = [];
+  const equals = arg.indexOf("=");
+  if (equals >= 0 && equals < arg.length - 1) {
+    fragments.push(arg, arg.slice(equals + 1));
+  }
+  const userinfo = /^[a-z][a-z0-9+.-]*:\/\/([^/@\s]+)@/i.exec(arg);
+  if (userinfo?.[1]) {
+    fragments.push(arg, userinfo[1]);
+  }
+  if (arg.length > 60) fragments.push(arg);
+  // longest first, so redacting a fragment cannot leave a shorter one exposed
+  return [...new Set(fragments)].sort((a, b) => b.length - a.length);
+}
+
+/** Exported for tests: this is a security boundary, so pin it directly. */
+export function redactArgs(text: string, args: readonly string[]): string {
+  let redacted = text;
+  for (const fragment of args.flatMap(sensitiveArgFragments)) {
+    redacted = redacted.split(fragment).join("[redacted]");
+  }
+  return redacted;
+}
+
+/**
+ * Turn git's stderr into the `detail` of a `GitCommandError`, or `null` when
+ * there is nothing usable and the caller's `fallbackErrorDetail` should win.
+ *
+ * Every failing git command used to report only its fallback string ("git
+ * checkout failed"), so the UI could say an operation failed but never why —
+ * git's own explanation ("Your local changes to the following files would be
+ * overwritten by checkout: ...") was collected and then dropped, with just
+ * `stderrLength` kept for telemetry.
+ *
+ * Git writes progress and advice to stderr on success too, so this only runs on
+ * the non-zero-exit path. `hint:` lines are dropped because git appends
+ * multi-line tutorials that bury the actual reason, and the whole thing is
+ * clamped so one pathological command cannot push a wall of text into a toast.
+ *
+ * Commands that stream their output as progress events (commit, push — the ones
+ * that run user hooks) are excluded by the caller; see `executeGit`.
+ */
+function gitStderrDetail(stderr: string, args: readonly string[]): string | null {
+  const meaningful = redactArgs(stderr, args)
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0 && !/^\s*hint:/i.test(line))
+    .join("\n")
+    .trim();
+  if (meaningful.length === 0) return null;
+  return meaningful.length > STDERR_DETAIL_MAX_CHARS
+    ? `${meaningful.slice(0, STDERR_DETAIL_MAX_CHARS)}…`
+    : meaningful;
+}
+
 interface Trace2Monitor {
   readonly env: NodeJS.ProcessEnv;
   readonly flush: Effect.Effect<void, never>;
@@ -823,7 +892,16 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         return Effect.fail(
           new GitCommandError({
             ...gitCommandContext({ operation, cwd, args }),
-            detail: options.fallbackErrorDetail ?? "Git command exited with a non-zero status.",
+            detail:
+              // A progress reporter means this command's output is already
+              // being streamed to the client as `hook_output` events (commit
+              // and push run user hooks). Repeating it here would duplicate a
+              // hook's message into the error string as well, so those keep
+              // their caller-supplied fallback — see the "emits action_failed
+              // when a commit hook rejects" test in GitManager.test.ts.
+              (options.progress ? null : gitStderrDetail(result.stderr, args)) ??
+              options.fallbackErrorDetail ??
+              "Git command exited with a non-zero status.",
             ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
             stdoutLength: result.stdout.length,
             stderrLength: result.stderr.length,

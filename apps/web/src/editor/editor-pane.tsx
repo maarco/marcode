@@ -2,10 +2,9 @@ import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react"
 import { useEditorStore, usePane, fileKey, type FileData } from "./editor-store";
 import {
   flushProjectFile,
-  cancelProjectFile,
+  flushProjectFileRef,
   useProjectFile,
   useProjectFileEditor,
-  clearProjectFileQueryData,
 } from "~/state/projectFileState";
 import { useEnvironmentQuery } from "~/state/query";
 import { vcsEnvironment } from "~/state/vcs";
@@ -157,15 +156,9 @@ export function EditorPane({ paneId, rootPath }: EditorPaneProps) {
       if (mod && e.key === "w") {
         e.preventDefault();
         const key = fileKey(file.environmentId, file.path);
-        const dirty = dirtyKeys.has(key);
-        if (dirty && !window.confirm(`Discard unsaved changes to ${file.name}?`)) return;
-        // stop the pending autosave, then drop the optimistic overlay so the
-        // discard reverts to server content. Order matters: stop writes →
-        // drop overlay → unmount.
-        if (dirty && file.environmentId && file.cwd && file.relativePath) {
-          cancelProjectFile(file.environmentId, file.cwd, file.relativePath);
-          clearProjectFileQueryData(file.environmentId, file.cwd, file.relativePath);
-        }
+        // commit pending edits rather than prompting to discard them — see
+        // `flushProjectFileRef`. Same behaviour as the tab bar's close button.
+        if (dirtyKeys.has(key)) flushProjectFileRef(file);
         closeFileAction(paneId, key);
         return;
       }

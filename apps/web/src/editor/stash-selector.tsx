@@ -151,31 +151,39 @@ function StashRow({
 
   return (
     <div role="listitem" className={stashRowVariants({ loading })}>
-      {/* Stash ID */}
-      <span
-        className="w-20 shrink-0 text-[9px] font-mono text-foreground/40 dark:text-white/40"
-        aria-hidden="true"
-      >
-        {stash.id}
-      </span>
+      {/*
+        Two lines, not five fixed-width columns. This row came from mentiko's
+        full-width panel; in the editor's 240px git sidebar the old
+        w-20 + w-24 + w-24 + actions columns had a ~340px intrinsic minimum, so
+        the row overflowed and the View / Apply / Delete buttons sat outside the
+        visible area — reachable only by horizontally scrolling a sidebar, and
+        never on screen at the same time as the message.
 
-      {/* Branch */}
-      <span className="w-24 shrink-0 text-[10px] text-cyan-400/60 truncate" title={stash.branch}>
-        {stash.branch}
-      </span>
-
-      {/* Message */}
-      <span
-        className="flex-1 text-[10px] text-foreground/70 dark:text-white/70 truncate"
-        title={stash.message}
-      >
-        {stash.message}
-      </span>
-
-      {/* Date */}
-      <span className="w-24 shrink-0 text-[10px] text-foreground/25 dark:text-white/25 text-right">
-        {formatStashDate(stash.date)}
-      </span>
+        Line 1 is the message with the actions pinned right; line 2 carries the
+        id, branch and date. Every field the columns showed is still shown, and
+        `min-w-0` lets both lines ellipsis instead of pushing the row wider.
+      */}
+      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            className="flex-1 min-w-0 text-[10px] text-foreground/70 dark:text-white/70 truncate"
+            title={stash.message}
+          >
+            {stash.message}
+          </span>
+        </div>
+        <div className="flex items-center gap-2 min-w-0 text-[9px]">
+          <span className="shrink-0 font-mono text-foreground/40 dark:text-white/40">
+            {stash.id}
+          </span>
+          <span className="min-w-0 text-cyan-400/60 truncate" title={stash.branch}>
+            {stash.branch}
+          </span>
+          <span className="shrink-0 ml-auto text-foreground/25 dark:text-white/25">
+            {formatStashDate(stash.date)}
+          </span>
+        </div>
+      </div>
 
       {/* Actions — always in DOM; visible on hover or focus-within for keyboard users */}
       <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">

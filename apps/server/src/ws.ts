@@ -1128,6 +1128,23 @@ const makeWsRpcLayer = (
           .refreshStatus(cwd)
           .pipe(Effect.ignoreCause({ log: true }), Effect.forkDetach, Effect.asVoid);
 
+      /**
+       * Local-only sibling of `refreshGitStatus`, for workspace file mutations.
+       *
+       * Writing a file changes the working tree but can never change the
+       * upstream, so this skips the remote/upstream query that `refreshStatus`
+       * also runs — worth it because autosave debounces at 500ms and fires
+       * these far more often than a git command does.
+       *
+       * Both publish to `subscribeVcsStatus`, which is what makes the editor's
+       * git panel (and any other subscriber) update itself after a save instead
+       * of waiting for someone to press Refresh.
+       */
+      const refreshLocalGitStatus = (cwd: string) =>
+        vcsStatusBroadcaster
+          .refreshLocalStatus(cwd)
+          .pipe(Effect.ignoreCause({ log: true }), Effect.forkDetach, Effect.asVoid);
+
       return WsRpcGroup.of({
         [ORCHESTRATION_WS_METHODS.dispatchCommand]: (command) =>
           observeRpcEffect(
@@ -1694,6 +1711,7 @@ const makeWsRpcLayer = (
                     cause,
                   }),
               ),
+              Effect.tap(() => refreshLocalGitStatus(input.cwd)),
             ),
             { "rpc.aggregate": "workspace" },
           ),
@@ -1711,6 +1729,7 @@ const makeWsRpcLayer = (
                     cause,
                   }),
               ),
+              Effect.tap(() => refreshLocalGitStatus(input.cwd)),
             ),
             { "rpc.aggregate": "workspace" },
           ),
@@ -1728,6 +1747,7 @@ const makeWsRpcLayer = (
                     cause,
                   }),
               ),
+              Effect.tap(() => refreshLocalGitStatus(input.cwd)),
             ),
             { "rpc.aggregate": "workspace" },
           ),
@@ -1744,6 +1764,7 @@ const makeWsRpcLayer = (
                     cause,
                   }),
               ),
+              Effect.tap(() => refreshLocalGitStatus(input.cwd)),
             ),
             { "rpc.aggregate": "workspace" },
           ),
