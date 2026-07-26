@@ -10,10 +10,10 @@ unified-workspace suites. Pre-merge branch head is preserved at
 `backup/editor-unify-premerge` (`4ff0c1e3`).
 
 The workspace tree → floating editor path and **all of the git surfaces** are now
-verified live against a throwaway sandbox repo, which turned up two real bugs
-(both fixed, both pre-existing on `main` rather than caused by the merge) — see
-_Live git verification_ below. Still open: chat file links, and one path that
-automation cannot reach. See _Remaining_ at the bottom.
+verified live against a throwaway sandbox repo, which turned up two serious bugs
+and four smaller ones — all six fixed, and all pre-existing on `main` rather than
+caused by the merge. See _Live git verification_ below. Still open: chat file
+links, and one path automation cannot reach. See _Remaining_ at the bottom.
 
 The rest of this document is the record of what the merge involved.
 
@@ -154,31 +154,49 @@ what the panel drew.
 
 Both are `main` bugs that the merge inherited, not merge damage.
 
+### The four smaller findings, all now fixed (`a79b3f13`)
+
+1. **The git panel did not react to an in-editor save** — fixed at the producer.
+   The push path already existed end to end (`subscribeVcsStatus`, a client
+   subscription atom, `refreshLocalStatus` publishing) and every git operation in
+   `ws.ts` already tapped `refreshGitStatus`; the four workspace file mutations
+   were the only mutators never wired in. Verified live: the panel moved from
+   0 changes to `M README.md +1 -1` by itself after a keystroke.
+2. **Driver errors carried no reason** — `executeGit` now prefers git's own
+   stderr. Two exclusions turned out to be deliberate and are preserved: hook
+   output (commit/push, already streamed as `hook_output` events) keeps its
+   fallback, and argument values are redacted because git echoes the offending
+   argument back and an argument can carry a credential. Verified live: a refused
+   switch now quotes "Your local changes to the following files would be
+   overwritten by checkout: src/math.ts".
+3. **Stash rows overflowed the sidebar** — re-laid out as two lines. Verified by
+   measurement: the actions sit at x 232–300 inside a panel spanning 72–312, and
+   the row no longer overflows. The stash message is visible for the first time.
+4. **The dirty-tab discard confirm is gone** — both close paths now flush through
+   `flushProjectFileRef` instead of offering to discard. `cancelProjectFile` /
+   `clearProjectFileQueryData` stay where discarding is correct (file-tree delete
+   and rename). This one is **not live-verified**: reproducing a dirty tab needs a
+   close click inside the 500ms autosave window and automation latency is roughly
+   twice that — the same reason the original prompt was unreachable.
+
 ## Remaining
 
 - **Chat file links → floating editor** (`ChatMarkdown`) — same bridge, same code
   path as the verified tree click, but not driven end to end (needs a thread with
   a message containing a file path).
-- **Dirty-tab discard confirm** — still not driven, and now understood to be
-  close to unreachable rather than merely awkward. Autosave debounces at 500 ms
-  (`FILE_AUTOSAVE_DEBOUNCE_MS`), and the confirm is gated on
-  `dirtyKeys.has(key)`, which autosave clears — so the prompt only appears if the
-  close click lands within half a second of the last keystroke. Attempts to race
-  it from browser automation never produced a prompt while the file was already
-  persisted to disk. Worth deciding whether that confirm should exist at all,
-  rather than testing harder.
-- **Git panel does not react to an in-editor save.** Editing a file writes it to
-  disk, but the panel keeps showing "no changes" until Refresh is clicked; the
-  status did appear correctly on refresh. This is the "cross-surface dirty state"
-  item from the older spec, now pinned down: it is a missing live update, not a
-  wrong value.
-- **Driver errors are not specific.** A refused branch switch reports
-  `GitVcsDriver.switchRef.checkout ... failed` without git's stderr, so the user
-  is told an operation failed but not why.
-- **Stash rows overflow the sidebar.** At the default git-panel width the stash
-  message and the View / Apply / Delete buttons cannot be on screen at the same
-  time; the actions sit outside the 240px panel and need a horizontal scroll to
-  reach.
+- **Flush-on-close** — see item 4 above: code and unit coverage only.
+- **The autosave debounce may not hold.** While trying to widen the window for
+  that test, edits landed on disk essentially immediately even with the constant
+  raised to 8s and the dev server serving the new value. Unconfirmed, but the
+  shape fits the coordinator being rebuilt on render (its `useMemo` depends on
+  `writeFile` from `useAtomCommand`) and the old one's `dispose()` force-persisting.
+  If real, autosave is effectively write-per-keystroke and the dirty window barely
+  exists — which would also explain why nobody ever saw the discard prompt.
+- **External file changes are not noticed.** The status push covers writes made
+  through the app; a shell-side edit still needs Refresh. Not in scope here, and
+  no file watcher exists.
+- **Git surfaces** — nothing else outstanding; the full list is under _Live git
+  verification_ above.
 
 ## Unrelated finding
 
