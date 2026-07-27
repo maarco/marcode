@@ -4,10 +4,10 @@
  * floating editor's file-tree register so both surfaces read as one explorer.
  */
 
-export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0.5 font-mono";
+export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0 font-mono";
 
 // Row/touch-row height read from `--uw-tree-row-height(-touch)` (§12.3) rather
-// than hardcoded `h-7`/`max-sm:h-10` — same computed values (1.75rem/2.5rem),
+// than hardcoded `h-7`/`max-sm:h-10` — tuned here as 1.5rem/2.35rem,
 // but the coarse-pointer/mobile override now flows through the CSS variable
 // defined once in index.css instead of being duplicated as a literal here.
 // Color register mirrors the floating editor's file-tree
@@ -17,7 +17,7 @@ export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0.5 font-m
 // the sidebar lives in light-or-dark chrome while the editor panel is dark-only.
 export const UW_TREE_ROW_CLASS =
   "group/workspace-row relative isolate flex h-[var(--uw-tree-row-height)] min-w-0 cursor-default select-none " +
-  "items-center gap-1.5 rounded-sm pr-1.5 text-[11px] font-mono text-foreground/60 outline-none " +
+  "items-center gap-1.5 rounded-sm pr-1.5 text-[11px] leading-none font-mono text-foreground/60 outline-none " +
   "transition-colors duration-150 hover:bg-foreground/[0.04] " +
   "focus-visible:ring-1 focus-visible:ring-ring " +
   "data-[active=true]:bg-foreground/[0.06] data-[active=true]:font-medium " +
@@ -36,9 +36,9 @@ export const UW_TREE_ACTIVE_RAIL_CLASS =
  * AccordionFolder. The unified tree keeps one owner for scrolling, so the
  * nested panel gets the editor's inset/overflow treatment without adding a
  * competing per-folder resize or scroll container. */
-export const UW_TREE_ACCORDION_FOLDER_CLASS = "relative mb-0.5 min-w-0";
+export const UW_TREE_ACCORDION_FOLDER_CLASS = "relative min-w-0";
 
-export const UW_TREE_ACCORDION_CONTENT_CLASS = "mx-1 mt-0.5 min-w-0 overflow-x-hidden";
+export const UW_TREE_ACCORDION_CONTENT_CLASS = "mx-1 min-w-0 overflow-x-hidden";
 
 /** Top-level folder content only: the editor's `AccordionFolder` rounds the
  * panel (`rounded-t-md`) just for `depth === 0` and lets nested folder content

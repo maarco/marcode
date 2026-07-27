@@ -341,8 +341,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
      indirection colors for the branch guide (§12.5) and drop indicator (§10).
      Scoped to the tree's own root attribute, not the root palette. */
   [data-unified-workspace-tree] {
-    --uw-tree-row-height: 1.75rem;
-    --uw-tree-row-height-touch: 2.5rem;
+    --uw-tree-row-height: 1.35rem;
+    --uw-tree-row-height-touch: 2rem;
     --uw-tree-indent: 0.875rem;
     --uw-tree-icon-size: 0.875rem;
     --uw-tree-guide-color: color-mix(in srgb, var(--border) 70%, transparent);
