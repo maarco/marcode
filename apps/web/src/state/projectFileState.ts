@@ -318,9 +318,8 @@ export function useProjectFileEditor(
   return { update, flush, revert, isSaving };
 }
 
-// re-exported so consumers can read the optimistic overlay without re-deriving
-export {
-  getOptimisticProjectFileQueryData,
-  setProjectFileQueryData,
-  clearProjectFileQueryData,
-} from "~/components/files/projectFilesQueryState";
+// re-exported for the file tree's discard path (rename/delete), which reverts a
+// buffer without persisting it. The sibling overlay helpers were re-exported for
+// the right-panel file surface and went with it — import them from
+// `projectFilesQueryState` directly.
+export { clearProjectFileQueryData } from "~/components/files/projectFilesQueryState";

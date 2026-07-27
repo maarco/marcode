@@ -30,15 +30,19 @@ const SAFE: ProjectReadFileResult = {
   truncated: false,
 };
 /**
- * `confirmed: null` is how an ERRORED read is represented here, alongside a
- * read that hasn't completed yet: `getConfirmedFileResult` extracts via
- * `AsyncResult.value()`, which only ever holds a value from a `Success` —
- * there is no `ProjectReadFileResult` for a failed fetch to attach an
- * "errored but still has data" flag to. So `null` is simultaneously the
- * error case and the not-loaded-yet case, and the gate refuses both the same
- * way. Concretely: a binary file's read fails server-side (`WorkspaceBinaryFileError`),
- * so `confirmed` is `null` here — the exact "one keystroke replaces the
- * binary" case from the audit.
+ * `confirmed: null` covers a read that has never succeeded — whether it failed
+ * or simply hasn't completed — and the gate refuses both the same way.
+ *
+ * Note `AsyncResult.value()` does NOT only surface Success values: a `Failure`
+ * carries `previousSuccess`, so a read that succeeded once and then failed to
+ * refresh still yields the last good result. That is deliberate and correct
+ * here — a transient network blip over a file you already loaded leaves it
+ * editable rather than freezing the editor. `null` therefore means "no
+ * successful read has ever landed", which is the case that must block.
+ *
+ * Concretely: a binary file's read fails server-side
+ * (`WorkspaceBinaryFileError`) with nothing before it, so `confirmed` is null —
+ * the exact "one keystroke replaces the binary" case from the write-path audit.
  */
 const NEVER_CONFIRMED = null;
 

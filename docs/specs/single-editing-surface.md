@@ -1018,14 +1018,18 @@ wrong root.
 
 ### Writes with no preconditions — same root cause, own ticket
 
-The write-path audit surfaced two more instances of "no precondition before
-writing", both pre-existing and both out of scope here:
+The write-path audit surfaced one further instance of "no precondition before
+writing", pre-existing and out of scope here — plus one claim that turned out to
+be false:
 
-- **`createFile` wipes an existing file.** `file-tree.tsx:488-495` → the server's
-  `createFile` calls `writeFileString(path, "")` with no existence check on
-  either side (`WorkspaceFileSystem.ts:434-446`). Naming a new file after one
-  that already exists empties it. A `WorkspacePathAlreadyExistsError` already
-  exists in that module and is not used on this path.
+~~**`createFile` wipes an existing file.**~~ **Retracted — this was wrong.**
+An earlier draft of this section claimed `createFile` had no existence check.
+It does: `statExists` guards it and returns `WorkspacePathAlreadyExistsError`
+(`WorkspaceFileSystem.ts:453-459`, covered by a test at `:388`). The original
+read started mid-function and missed the guard. Recorded rather than quietly
+deleted, because a confident false claim in a spec is worse than the bug it
+described would have been.
+
 - **Plan save can overwrite any path.** `PlanSidebar.tsx:104-116` and
   `ProposedPlanCard.tsx:53`, `:77-78` write generated markdown to a
   user-chosen path with no existence check. Neither can carry a truncated read —
@@ -1033,7 +1037,18 @@ writing", both pre-existing and both out of scope here:
   P0 here.
 
 Deliberately not folded into this migration: mixing an unrelated server-side
-data-loss fix into a UI-surface change makes both harder to review and to revert.
+data-loss fix into a UI-surface change makes both harder to review and to
+revert. Note the >1 MB write refusal added here does now cap the blast radius —
+plan save can still overwrite an existing file, but no longer a large one.
+
+### Write failures do not reach the user
+
+The new oversized-write error explains why it refused, and that text never
+arrives in the UI. `decodedProjectErrorMessage` only preserves a message when
+the constructor props carry one, and none of the six `ProjectFileFailure` kinds
+do — every one collapses to a generic `Failed to write workspace file 'X' in
+'Y'`. Pre-existing and identical for the binary-file error today. Fixing it
+means touching all six kinds, so it is its own change.
 
 ### `fallbackBranchDiffPreview` resolves against the wrong root
 
