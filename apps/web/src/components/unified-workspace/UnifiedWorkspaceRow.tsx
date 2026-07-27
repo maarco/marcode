@@ -153,10 +153,15 @@ function isFolderAccordion(node: UnifiedWorkspaceNode): boolean {
 }
 
 function hasDisclosure(node: UnifiedWorkspaceNode): boolean {
-  // Threads can still expose live terminals, previews, or child threads. Keep
-  // their disclosure control when there is actually something to reveal, but
-  // never show an empty chat row as an expandable container.
-  return node.kind !== "folder" && node.canHaveChildren && node.children.length > 0;
+  if (node.kind === "folder") return false;
+  if (!node.canHaveChildren || node.children.length === 0) return false;
+  // Marco's rule: a thread row only gets the > chevron when it has child
+  // THREADS (sub-chats). A thread whose only children are terminals/previews/
+  // browser/url nodes renders those as inline status meta on the row itself,
+  // not as a nested panel — so there is nothing to expand and no chevron.
+  // Matches the floating editor's file tree, where only folders disclose.
+  if (node.kind === "thread") return node.children.some((c) => c.kind === "thread");
+  return true;
 }
 
 /**
