@@ -609,7 +609,7 @@ export const make = Effect.gen(function* () {
       "never",
       "--max-count",
       String(Math.ceil(limit / 4) || 1),
-      input.regex ? "-e" : "-F",
+      ...(input.regex ? [] : ["-F"]),
       "-e",
       input.query,
       ".",

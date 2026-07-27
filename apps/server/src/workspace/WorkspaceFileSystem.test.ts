@@ -555,5 +555,26 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         expect(result.matches.length).toBe(0);
       }),
     );
+
+    it.effect("uses regular-expression matching only when requested", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+        yield* writeTextFile(cwd, "src/a.ts", "hello\nhallo\nh.llo\n");
+
+        const literal = yield* workspaceFileSystem.searchContent({
+          cwd,
+          query: "h.llo",
+        });
+        const regex = yield* workspaceFileSystem.searchContent({
+          cwd,
+          query: "h.llo",
+          regex: true,
+        });
+
+        expect(literal.matches.map((match) => match.line)).toEqual([3]);
+        expect(regex.matches.map((match) => match.line)).toEqual([1, 2, 3]);
+      }),
+    );
   });
 });

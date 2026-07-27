@@ -29,7 +29,7 @@ const workflow = parseYaml(workflowSource) as {
   jobs: Record<string, { "runs-on": string; steps: Array<Record<string, unknown>> }>;
 };
 const ci = parseYaml(ciSource) as {
-  jobs: Record<string, { name: string; "runs-on": string }>;
+  jobs: Record<string, { name: string; "runs-on": string; steps: Array<Record<string, unknown>> }>;
 };
 const relayDeploy = parseYaml(relayDeploySource) as {
   jobs: Record<string, { if: string; "runs-on": string }>;
@@ -210,6 +210,14 @@ describe("upstream-sync workflow", () => {
       "macos-26",
       "ubuntu-24.04",
     ]);
+  });
+
+  it("installs the workspace search dependency before running tests", () => {
+    const testSteps = ci.jobs.test!.steps;
+    const installStep = testSteps.find(
+      (step) => step.name === "Install workspace search dependency",
+    );
+    expect(installStep?.run).toContain("apt-get install --yes ripgrep");
   });
 
   it("keeps production relay deployment disabled until the fork opts in", () => {

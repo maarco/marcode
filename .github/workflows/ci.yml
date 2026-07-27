@@ -58,6 +58,9 @@ jobs:
       - name: Ensure Electron runtime is installed
         run: vp run --filter @t3tools/desktop ensure:electron
 
+      - name: Install workspace search dependency
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+
       - name: Test
         run: vp run test
 
