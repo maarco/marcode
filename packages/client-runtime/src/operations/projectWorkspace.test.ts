@@ -13,7 +13,7 @@ describe("parseProjectWorkspaceLayoutRejection", () => {
     // `Orchestration command invariant failed (${commandType}): ${detail}`
     // where `detail` is `JSON.stringify({tag, message, currentVersion?})`.
     const message =
-      'Orchestration command invariant failed (project.workspace-layout.apply): ' +
+      "Orchestration command invariant failed (project.workspace-layout.apply): " +
       '{"tag":"version-conflict","message":"Expected workspace layout version 3 but the current version is 5.","currentVersion":5}';
 
     expect(parseProjectWorkspaceLayoutRejection(message)).toEqual({
@@ -25,7 +25,7 @@ describe("parseProjectWorkspaceLayoutRejection", () => {
 
   it("omits currentVersion when the server did not include it", () => {
     const message =
-      'Orchestration command invariant failed (project.workspace-layout.apply): ' +
+      "Orchestration command invariant failed (project.workspace-layout.apply): " +
       '{"tag":"cycle","message":"Item cannot be its own parent."}';
 
     const rejection = parseProjectWorkspaceLayoutRejection(message);
@@ -54,7 +54,9 @@ describe("parseProjectWorkspaceLayoutRejection", () => {
   });
 
   it("falls back to a safe default when the message has no embedded JSON", () => {
-    const rejection = parseProjectWorkspaceLayoutRejection("Failed to dispatch orchestration command");
+    const rejection = parseProjectWorkspaceLayoutRejection(
+      "Failed to dispatch orchestration command",
+    );
     expect(rejection.tag).toBe("missing-target");
     expect(rejection.message).toBe("Failed to dispatch orchestration command");
   });
