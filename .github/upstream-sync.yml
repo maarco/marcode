@@ -32,12 +32,66 @@ pullRequest:
   reviewers: []
 
 hotspots:
+  - path: "apps/server/src/cli/**"
+    owner: server-runtime
+    reason: "Compatibility CLI behavior with user-visible Marcode service identity"
+  - path: "apps/server/src/cloud/**"
+    owner: server-runtime
+    reason: "Background service lifecycle and user-visible Marcode server identity"
+  - path: "apps/server/src/persistence/Migrations.ts"
+    owner: persistence
+    reason: "Shared migration registry; Marcode and upstream migrations must retain unique ordered ids"
+  - path: "apps/web/src/components/AppSidebarLayout.tsx"
+    owner: web-navigation
+    reason: "Marcode floating navigation shell and upstream sidebar selection"
   - path: "apps/web/src/components/Sidebar.tsx"
     owner: web-navigation
-    reason: "Marcode project and thread navigation"
+    reason: "Marcode unified project workspace and thread navigation"
+  - path: "apps/web/src/components/Sidebar.logic*"
+    owner: web-navigation
+    reason: "Shared legacy, unified-workspace, and sidebar-v2 behavior"
+  - path: "apps/web/src/components/sidebar/SidebarChrome.tsx"
+    owner: web-navigation
+    reason: "Marcode keeps brand, settings, and sidebar controls in FloatingPillNav"
   - path: "apps/web/src/components/ChatView.tsx"
     owner: web-runtime
     reason: "Marcode workspace, terminal, and browser integration"
+  - path: "apps/web/src/components/CommandPalette.tsx"
+    owner: web-navigation
+    reason: "Marcode floating-pill entry point plus upstream command-palette intents"
+  - path: "apps/web/src/components/ProjectScriptsControl.tsx"
+    owner: web-runtime
+    reason: "Unified-workspace command placement and checked-in t3.json action imports"
+  - path: "apps/web/src/components/chat/ChatComposer.tsx"
+    owner: web-shell
+    reason: "Marcode floating glass composer"
+  - path: "apps/web/src/components/chat/ChatHeader.tsx"
+    owner: web-shell
+    reason: "Marcode portals thread actions into FloatingPillNav"
+  - path: "apps/web/src/components/clerk/T3ConnectSidebarSignIn.tsx"
+    owner: product-identity
+    reason: "User-visible Marcode Connect identity"
+  - path: "apps/web/src/components/desktopUpdate.logic*"
+    owner: release-branding
+    reason: "User-visible Marcode desktop update copy"
+  - path: "apps/web/src/components/ui/alert-dialog.tsx"
+    owner: web-shell
+    reason: "Shared Marcode portal overlay and backdrop behavior"
+  - path: "apps/web/src/components/ui/command.tsx"
+    owner: web-shell
+    reason: "Shared Marcode portal overlay and backdrop behavior"
+  - path: "apps/web/src/components/ui/dialog*"
+    owner: web-shell
+    reason: "Shared Marcode portal overlay and backdrop behavior"
+  - path: "apps/web/src/components/ui/menu.tsx"
+    owner: web-shell
+    reason: "Shared Marcode portal overlay and floating-layer behavior"
+  - path: "apps/web/src/components/ui/popover.tsx"
+    owner: web-shell
+    reason: "Shared Marcode portal overlay and floating-layer behavior"
+  - path: "apps/web/src/hooks/useHandleNewThread.ts"
+    owner: web-runtime
+    reason: "Unified-workspace placement and upstream draft carry-forward behavior"
   - path: "apps/web/src/rightPanelStore.ts"
     owner: web-runtime
     reason: "Marcode multi-surface state"
@@ -56,6 +110,18 @@ hotspots:
   - path: "apps/web/src/components/files/**"
     owner: editor-runtime
     reason: "Marcode retired the right-panel file surface; the floating editor owns file editing"
+  - path: "apps/web/public/**"
+    owner: release-branding
+    reason: "Marcode web marks and favicon assets"
+  - path: "packages/client-runtime/src/operations/projects*"
+    owner: web-runtime
+    reason: "Project mutation operations shared with Marcode workspace layout"
+  - path: "packages/contracts/src/settings*"
+    owner: web-navigation
+    reason: "Marcode navigation and unified-workspace rollout settings"
+  - path: "docs/architecture/overview.md"
+    owner: architecture
+    reason: "Shared architecture index includes Marcode-owned subsystems"
   - path: "apps/desktop/resources/**"
     owner: release-branding
     reason: "Marcode desktop branding"

@@ -58,6 +58,8 @@ function baseThread(input: {
     createdAt: now,
     updatedAt: now,
     archivedAt: null,
+    settledOverride: null,
+    settledAt: null,
     latestTurn: null,
     messages: [],
     session: null,

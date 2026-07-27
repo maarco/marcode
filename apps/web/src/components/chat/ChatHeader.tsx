@@ -17,12 +17,14 @@ import ProjectScriptsControl, {
 import { OpenInPicker } from "./OpenInPicker";
 import { usePillNavNarrow } from "../FloatingPillNav";
 import { usePrimaryEnvironmentId } from "../../state/environments";
+import { useT3ProjectFileScripts } from "~/hooks/useT3ProjectFileScripts";
 
 interface ThreadActionsClusterProps {
   activeThreadEnvironmentId: EnvironmentId;
   activeThreadId: ThreadId;
   draftId?: DraftId;
   activeProjectName: string | undefined;
+  activeProjectCwd: string | null;
   openInCwd: string | null;
   activeProjectScripts: ReadonlyArray<ProjectScript> | undefined;
   preferredScriptId: string | null;
@@ -60,6 +62,7 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   activeThreadId,
   draftId,
   activeProjectName,
+  activeProjectCwd,
   openInCwd,
   activeProjectScripts,
   preferredScriptId,
@@ -75,6 +78,10 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   // The cluster is portaled into the pill's scroll row, so it collapses on the
   // same signal the pill uses to become a narrow rail.
   const narrow = usePillNavNarrow();
+  const fileScripts = useT3ProjectFileScripts(
+    activeThreadEnvironmentId,
+    activeProjectScripts ? activeProjectCwd : null,
+  );
   const showOpenInPicker = shouldShowOpenInPicker({
     activeProjectName,
     activeThreadEnvironmentId,
@@ -85,6 +92,7 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
       {activeProjectScripts && (
         <ProjectScriptsControl
           scripts={activeProjectScripts}
+          fileScripts={fileScripts}
           keybindings={keybindings}
           preferredScriptId={preferredScriptId}
           onRunScript={onRunProjectScript}

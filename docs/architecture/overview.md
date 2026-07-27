@@ -39,6 +39,8 @@ T3 Code runs as a **Node.js WebSocket server** that wraps `codex app-server` (JS
 
 - **Project workspace layout**: Each physical project carries a persisted sidebar layout on its project shell — placement and shortcuts only, never runtime objects or file content. Mutations go through one project-aggregate command with an expected-version check, so concurrent clients cannot overwrite each other. The sidebar tree is a projection over that layout plus the authoritative live registries for terminals, browser tabs, project scripts, and the file index; it never becomes a second registry for any of them. See `docs/reference/project-workspace-layout.md`.
 
+- **Server updates**: A connected environment advertises whether its server can replace itself. When client and server versions differ, the browser selects an automatic, desktop-managed, or manual update path without changing connection ownership. See [Server Update Architecture](./server-updates.md).
+
 ## Event Lifecycle
 
 ### Startup and client connect

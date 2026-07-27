@@ -146,10 +146,7 @@ describe("add project shared logic", () => {
       title: "repo",
       workspaceRoot: "/work/repo",
       createWorkspaceRootIfMissing: true,
-      defaultModelSelection: {
-        instanceId: "codex",
-        model: DEFAULT_MODEL,
-      },
+      defaultModelSelection: null,
     });
   });
 });

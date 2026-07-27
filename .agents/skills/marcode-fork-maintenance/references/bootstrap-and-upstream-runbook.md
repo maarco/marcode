@@ -444,6 +444,80 @@ Observed strengths:
 This snapshot is evidence, not permanent truth. Re-run every count after a commit, upstream update,
 bootstrap merge, or conflict resolution.
 
+## First local upstream integration
+
+Resolution snapshot on 2026-07-26:
+
+```text
+integration branch: integrate/upstream-89c5a192
+target Marcode commit: bf1d30c11c548768f2c968c34ee37e13a064322e
+source T3 commit: 89c5a192f4d36bcf4201e8b490ab5ad37a4adac7
+initial conflict paths: 25
+remaining conflict paths: 0
+push state: local only
+```
+
+The combined decisions were:
+
+- server service and boot code keeps upstream's new `t3 service` lifecycle, pinned runtime, and
+  self-update behavior while visible service/server copy says Marcode; compatibility command names
+  remain upstream-shaped;
+- Marcode's `033_ProjectWorkspaceLayout` remains migration 033, while upstream settled and snoozed
+  projection migrations move to 034 and 035; a registry test pins unique ordered ids and names;
+- Sidebar V2 remains available behind upstream's opt-in setting, but the floating pill remains the
+  only primary navigation/toggle/settings shell and the unified workspace tree remains the default
+  project navigation model;
+- upstream's extracted `SidebarChrome` is retained as the shared owner, with Marcode's bare Electron
+  drag strip and update-only footer behavior instead of restoring a T3 wordmark or duplicate
+  Settings control;
+- command-palette bus intents and the existing floating-pill toggle entry both open the same palette;
+- checked-in `t3.json` actions can be imported while Marcode's imperative project-action editor,
+  unified-tree placement callback, and placement-failure fallback remain intact;
+- the chat header keeps actions portaled into the floating pill and now projects upstream
+  `t3.json` actions; the glass composer remains Marcode-owned while upstream drag-over behavior is
+  preserved;
+- new-thread creation performs both Marcode pending workspace placement and upstream carried model
+  selection;
+- shared alert, command, dialog, menu, and popover primitives retain upstream backdrop/transition
+  changes plus Marcode's shared portal overlay and floating-layer behavior;
+- the desktop update warning and Connect sign-in retain upstream behavior with Marcode-visible copy;
+- Marcode's compact Inter/blue-250 visual tokens remain authoritative; upstream's new semantic
+  surface and sidebar variables are mapped into that palette rather than replacing it;
+- architecture, client-operation, settings, and sidebar tests retain assertions from both sides;
+- the obsolete root `favicon.svg` deletion is accepted because `t3.json` now declares the project
+  icon and `apps/web/public/favicon.svg` remains the live Marcode browser asset.
+
+Focused proof recorded before the merge commit:
+
+- server service, boot, migration, and prior Marcode migration: 22 tests passed;
+- desktop-update behavior: 26 tests passed;
+- client project operations and settings contracts: 32 tests passed;
+- affected web/sidebar/chat/unified-workspace/right-panel suites: 332 tests passed;
+- unified-workspace contracts, rank, operations, orchestration, projection, and persistence:
+  115 tests passed;
+- upstream policy, `t3.json`, settled, and snoozed behavior: 296 tests passed;
+- mobile archive, filtering, list-v2, repository grouping, and activity behavior: 52 tests passed;
+- Marcode branding assertions: 20 tests passed;
+- web, contracts, shared, client-runtime, and server targeted typechecks passed after installing the
+  lockfile state; mobile typechecking also passed; server emitted only existing Effect style
+  suggestions;
+- an isolated authenticated web runtime verified the Marcode title and floating-pill shell, unified
+  workspace tree counts, explicit-file de-duplication and floating editor routing, `t3.json` action
+  import and execution, command-palette routing, persisted project resources, dark and light theme
+  tokens, and responsive desktop and mobile-sheet layouts without horizontal overflow;
+- the mobile-sheet terminal occupied `calc(100% - 3rem)` by design at the mobile breakpoint; the
+  remaining 3rem backdrop and zero measured overflow confirmed sheet behavior rather than an inline
+  panel regression.
+
+Unverified before the local merge commit:
+
+- no installed iOS Simulator runtime was available, so the mobile app could not receive the required
+  integrated runtime pass; the focused mobile tests and typecheck are static evidence only;
+- `icons:check` could not run because the required compatible Icon Composer 2.x exporter/design
+  generation 26 is not installed; focused branding tests passed;
+- CI has not run because the branch remains local;
+- nothing is published until Marco explicitly authorizes a push.
+
 ## Pre-push defects versus integration debt
 
 Fix before bootstrap PR when cheap and deterministic:
