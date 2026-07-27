@@ -2,9 +2,27 @@
 
 ## Status
 
-**Proposed. Nothing here is implemented.** Every `file:line` below was read on
-`feature/editor-file-state-unification`, re-anchored against `ffd70cd5` plus the
-working tree. Claims that could not be checked against the code are labelled
+**Implemented, not yet driven live.** All four stages landed across seven
+commits (`f756da5f` → `b6242cf8`). The floating pill editor is now the only
+surface that opens a workspace file; `FilePreviewPanel` and `FileBrowserPanel`
+are deleted along with the `file`/`files` right-panel kinds.
+
+Static gates green: web typecheck at the two pre-existing baseline errors
+(`Sidebar.logic.test.ts:870`, `environmentGrouping.test.ts:32`) and nothing
+else, server typecheck clean, 75 web tests and 24 server tests passing across
+the touched suites, `vp lint` exit 0 with three pre-existing warnings on
+untouched lines.
+
+**Nothing here has been verified in a browser.** The claim that matters most —
+that a file over the size cap can no longer be shortened on disk — is currently
+supported by unit tests and a server-side precondition, not by an observation.
+A sandbox with the fixtures for every gate is built and waiting at
+`/private/tmp/marcode-single-surface-verify`; see _Verification_.
+
+Every `file:line` below was read on `feature/editor-file-state-unification`.
+Citations were anchored before the implementation landed, so line numbers in
+the files this change touched have since moved — the symbol names are the
+durable part. Claims that could not be checked against the code are labelled
 _unverified_ inline.
 
 This is a shared checkout — `floating-code-pill.tsx` and `index.css` were being
