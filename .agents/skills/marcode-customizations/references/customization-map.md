@@ -218,6 +218,8 @@ Decision history:
 ## Skill ownership
 
 - General fork boundary: `.agents/skills/marcode-customizations`
+- Fork publication, Git topology, drift audits, and upstream integration:
+  `.agents/skills/marcode-fork-maintenance`
 - Skill drift and upstream re-verification: `.agents/skills/marcode-skill-upkeep`
 - Unified sidebar behavior and testing: `.agents/skills/unified-workspace-sidebar`
 - Web runtime verification: `.agents/skills/test-t3-app`

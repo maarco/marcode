@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marcode Fork Maintenance"
+  short_description: "Publish and update Marcode as a maintained T3 fork"
+  default_prompt: "Use $marcode-fork-maintenance to audit Marcode's Git topology, prepare its first publication, or integrate upstream T3 without losing fork behavior."

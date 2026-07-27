@@ -24,6 +24,8 @@ Before editing:
 5. If the work touches the project tree, also use `$unified-workspace-sidebar`.
 6. If the work changes user-visible web behavior, finish with `$test-t3-app`.
 7. If this skill or another repository skill has drifted, use `$marcode-skill-upkeep`.
+8. If the work concerns first publication, branch topology, fork drift, or an upstream merge, use
+   `$marcode-fork-maintenance`.
 
 Do not infer current behavior from a spec alone. Specs preserve intent and decision history; running
 code, schemas, tests, and the live UI are the oracle.
@@ -104,6 +106,8 @@ runtime fixtures, and visual verification.
 ### Upstream integration is guarded
 
 - `.github/upstream-sync.yml` is the authoritative source/target and hotspot policy.
+- Use `$marcode-fork-maintenance` for bootstrap publication, branch protection, fork-drift audits,
+  unpublished-main limitations, and conflict-resolution evidence.
 - Use `npx vp run upstream:status` and `npx vp run upstream:plan` for read-only inspection.
 - Use `npx vp run upstream:integrate` only when explicitly authorized and from a clean target base.
 - Never replace the guarded workflow with an ad hoc merge into `main`.
