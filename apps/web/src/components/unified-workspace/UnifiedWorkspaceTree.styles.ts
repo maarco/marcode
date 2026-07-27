@@ -38,7 +38,14 @@ export const UW_TREE_ACTIVE_RAIL_CLASS =
  * competing per-folder resize or scroll container. */
 export const UW_TREE_ACCORDION_FOLDER_CLASS = "relative mb-0.5 min-w-0";
 
-export const UW_TREE_ACCORDION_CONTENT_CLASS = "mx-1 mt-0.5 min-w-0 overflow-x-hidden rounded-t-md";
+export const UW_TREE_ACCORDION_CONTENT_CLASS = "mx-1 mt-0.5 min-w-0 overflow-x-hidden";
+
+/** Top-level folder content only: the editor's `AccordionFolder` rounds the
+ * panel (`rounded-t-md`) just for `depth === 0` and lets nested folder content
+ * blend into its parent with only overflow clipping. Applying the rounding at
+ * every depth reopens a rounded panel per nested folder and reads wrong, so
+ * the rounding is opt-in via this companion class. */
+export const UW_TREE_ACCORDION_CONTENT_TOP_CLASS = "rounded-t-md";
 
 export const UW_TREE_DISCLOSURE_CLASS =
   "inline-flex size-4 shrink-0 items-center justify-center rounded-sm " +

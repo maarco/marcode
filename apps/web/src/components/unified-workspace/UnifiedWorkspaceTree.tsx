@@ -76,6 +76,7 @@ import {
 } from "./UnifiedWorkspaceTree.logic";
 import {
   UW_TREE_ACCORDION_CONTENT_CLASS,
+  UW_TREE_ACCORDION_CONTENT_TOP_CLASS,
   UW_TREE_ACCORDION_FOLDER_CLASS,
   UW_TREE_DRAG_OVERLAY_CLASS,
   UW_TREE_ROOT_CLASS,
@@ -890,7 +891,11 @@ export const UnifiedWorkspaceTree = forwardRef<
           {hasVisibleChildren && (
             <div
               data-accordion-content={node.kind === "folder" || undefined}
-              className={node.kind === "folder" ? UW_TREE_ACCORDION_CONTENT_CLASS : "contents"}
+              className={
+                node.kind === "folder"
+                  ? `${UW_TREE_ACCORDION_CONTENT_CLASS}${node.depth === 0 ? ` ${UW_TREE_ACCORDION_CONTENT_TOP_CLASS}` : ""}`
+                  : "contents"
+              }
             >
               {renderVisibleRows(node.children)}
             </div>
