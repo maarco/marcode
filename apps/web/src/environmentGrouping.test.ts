@@ -29,6 +29,7 @@ const defaultGroupingSettings = {
 };
 
 function makeProject(overrides: Partial<Project> = {}): Project {
+  const { workspaceLayoutVersion = 0, workspaceLayout = [], ...rest } = overrides;
   return {
     id: ProjectId.make("project-1"),
     environmentId: primaryEnvironmentId,
@@ -42,7 +43,9 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     scripts: [],
-    ...overrides,
+    workspaceLayoutVersion,
+    workspaceLayout,
+    ...rest,
   };
 }
 

@@ -64,6 +64,8 @@ export type UnifiedWorkspaceNode = {
   canRemove: boolean;
   activation: UnifiedWorkspaceActivation;
   status: UnifiedWorkspaceStatus | null;
+  /** Direct children known from the authoritative layout/index, including lazy folder children. */
+  directChildCount?: number;
   /** Favicon URL for browser/url nodes when the preview snapshot has one. */
   iconUrl?: string;
   /** Full path/URL for tooltips and copy actions. */

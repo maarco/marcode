@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useEditorStore, makeFileRef, fileKey } from "./editor-store";
+import { FileTypeIcon } from "./file-tree-visuals";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
+
+export { FileTypeIcon } from "./file-tree-visuals";
 
 interface FlatFile {
   name: string;
@@ -152,71 +155,5 @@ export function QuickOpen({ open, onClose, workspacePath }: QuickOpenProps) {
         </div>
       </div>
     </div>
-  );
-}
-
-const EXT_COLORS: Record<string, string> = {
-  ".ts": "text-blue-400",
-  ".tsx": "text-blue-400",
-  ".js": "text-yellow-400",
-  ".jsx": "text-yellow-400",
-  ".mjs": "text-yellow-400",
-  ".json": "text-amber-300",
-  ".yaml": "text-rose-300",
-  ".yml": "text-rose-300",
-  ".md": "text-foreground/50",
-  ".mdx": "text-foreground/50",
-  ".css": "text-purple-400",
-  ".scss": "text-pink-400",
-  ".html": "text-orange-400",
-  ".py": "text-green-400",
-  ".go": "text-cyan-400",
-  ".rs": "text-orange-300",
-  ".sh": "text-green-300",
-  ".bash": "text-green-300",
-  ".sql": "text-sky-300",
-  ".svg": "text-amber-400",
-};
-
-const EXT_LABELS: Record<string, string> = {
-  ".ts": "TS",
-  ".tsx": "TX",
-  ".js": "JS",
-  ".jsx": "JX",
-  ".json": "{}",
-  ".yaml": "YM",
-  ".yml": "YM",
-  ".md": "MD",
-  ".css": "CS",
-  ".py": "PY",
-  ".go": "GO",
-  ".rs": "RS",
-  ".sh": "SH",
-  ".html": "<>",
-  ".sql": "SQ",
-};
-
-export function FileTypeIcon({ ext, size = "sm" }: { ext: string; size?: "sm" | "xs" }) {
-  const color = EXT_COLORS[ext] || "text-foreground/30";
-  const label = EXT_LABELS[ext] || "";
-  const dim = size === "sm" ? "w-4 h-4" : "w-3.5 h-3.5";
-  const fontSize = size === "sm" ? "text-[7px]" : "text-[6px]";
-
-  if (label) {
-    return (
-      <span
-        className={`${dim} flex items-center justify-center shrink-0 ${color} ${fontSize} font-bold leading-none`}
-      >
-        {label}
-      </span>
-    );
-  }
-
-  return (
-    <span className={`${dim} flex items-center justify-center shrink-0 ${color}`}>
-      <svg className="w-3 h-3" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M3 1h7l4 4v10H3V1zm7 0v4h4" />
-      </svg>
-    </span>
   );
 }

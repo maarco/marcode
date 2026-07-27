@@ -632,6 +632,12 @@ browser tab, or command.
 
 ## 12. Visual and CSS specification
 
+The implemented tree now has a stricter parity contract with the floating Code editor. For row
+geometry, icon treatment, folder accordion mechanics, counts, and disclosure behavior,
+`docs/specs/unified-workspace-sidebar-editor-parity.md` supersedes the original proposal recipes
+below. The semantic tokens, accessibility requirements, and reduced-motion rules in this section
+still apply.
+
 ### 12.1 Direction
 
 The sidebar must remain Marcode’s current flat, neutral, compact system:

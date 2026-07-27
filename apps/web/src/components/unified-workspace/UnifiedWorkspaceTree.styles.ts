@@ -53,8 +53,6 @@ export const UW_TREE_DISCLOSURE_CLASS =
   "hover:bg-accent hover:text-foreground";
 
 /** Invisible size-4 spacer for leaves so labels still align with containers. */
-export const UW_TREE_DISCLOSURE_SPACER_CLASS = "inline-block size-4 shrink-0";
-
 export const UW_TREE_ICON_CLASS = "size-[var(--uw-tree-icon-size)] shrink-0 text-muted-foreground";
 
 export const UW_TREE_ACTIVE_ICON_CLASS = "group-data-[active=true]/workspace-row:text-foreground";
@@ -101,8 +99,16 @@ export const UW_TREE_DROP_INSIDE_CLASS = "bg-accent ring-1 ring-[var(--uw-tree-d
 export const UW_TREE_GUIDE_CLASS =
   "before:pointer-events-none before:absolute before:inset-y-0 before:w-px before:content-[''] " +
   "before:bg-[var(--uw-tree-guide-color)] before:opacity-0 before:transition-opacity before:duration-150 " +
-  "before:left-[calc(0.375rem+(var(--uw-row-depth)-1)*var(--uw-tree-indent)+0.4375rem)] " +
+  "before:left-[calc(0.5rem+(var(--uw-row-depth)-1)*var(--uw-tree-indent)+0.4375rem)] " +
   "hover:before:opacity-100 focus-visible:before:opacity-100 data-[active=true]:before:opacity-100";
+
+export const UW_TREE_ACCORDION_RESIZE_CLASS =
+  "hidden h-1.5 w-full cursor-row-resize items-center justify-center rounded-b-md " +
+  "transition-colors hover:bg-foreground/[0.06] focus-visible:outline-none " +
+  "focus-visible:ring-1 focus-visible:ring-ring sm:flex pointer-coarse:hidden";
+
+export const UW_TREE_ACCORDION_RESIZE_GRIP_CLASS =
+  "h-px w-8 bg-foreground/15 transition-colors group-hover/accordion-resize:bg-foreground/25";
 
 export const UW_TREE_DRAG_OVERLAY_CLASS =
   "flex max-w-64 items-center gap-1.5 rounded-md border border-border/60 " +

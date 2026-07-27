@@ -263,6 +263,9 @@ function buildAmbientNode(
     canRemove: false,
     activation: isDirectory ? { kind: "folder", relativePath } : { kind: "file", relativePath },
     status: null,
+    ...(isDirectory
+      ? { directChildCount: ctx.ambientChildrenByParent.get(relativePath)?.length ?? 0 }
+      : {}),
     tooltip: relativePath,
   };
 }
@@ -611,6 +614,7 @@ function buildNode(
   let iconUrl: string | undefined;
   let tooltip: string | undefined;
   let disambiguator: string | undefined;
+  let directChildCount: number | undefined;
   let liveChildren: UnifiedWorkspaceNode[] = [];
   let ambientChildren: UnifiedWorkspaceNode[] = [];
 
@@ -636,6 +640,10 @@ function buildNode(
       // disk) has nothing to project.
       if (!isBroken) {
         ambientChildren = buildAmbientChildren(entry.relativePath, qualifiedId, depth + 1, ctx);
+        directChildCount =
+          childEntries.length + (ctx.ambientChildrenByParent.get(entry.relativePath)?.length ?? 0);
+      } else {
+        directChildCount = childEntries.length;
       }
       break;
     }
@@ -687,6 +695,7 @@ function buildNode(
     ...(iconUrl ? { iconUrl } : {}),
     ...(tooltip ? { tooltip } : {}),
     ...(disambiguator ? { disambiguator } : {}),
+    ...(directChildCount !== undefined ? { directChildCount } : {}),
   };
 }
 

@@ -16,7 +16,7 @@ import {
   type DragStartEvent,
   type DropAnimation,
 } from "@dnd-kit/core";
-import { restrictToFirstScrollableAncestor, restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import {
   SortableContext,
   sortableKeyboardCoordinates,
@@ -78,6 +78,8 @@ import {
   UW_TREE_ACCORDION_CONTENT_CLASS,
   UW_TREE_ACCORDION_CONTENT_TOP_CLASS,
   UW_TREE_ACCORDION_FOLDER_CLASS,
+  UW_TREE_ACCORDION_RESIZE_CLASS,
+  UW_TREE_ACCORDION_RESIZE_GRIP_CLASS,
   UW_TREE_DRAG_OVERLAY_CLASS,
   UW_TREE_ROOT_CLASS,
   UW_TREE_ROOT_GUTTER_CLASS,
@@ -214,6 +216,112 @@ function RootGutter({ isActive }: { isActive: boolean }) {
   );
 }
 
+function defaultAccordionHeight(directChildCount: number): number {
+  return Math.min(Math.max(directChildCount * 26, 60), 200);
+}
+
+function RootFolderAccordionPanel(props: {
+  readonly nodeId: string;
+  readonly label: string;
+  readonly directChildCount: number;
+  readonly height: number | undefined;
+  readonly onHeightChange: (nodeId: string, height: number) => void;
+  readonly children: ReactNode;
+}) {
+  const { nodeId, label, directChildCount, height, onHeightChange, children } = props;
+  const resolvedHeight = height ?? defaultAccordionHeight(directChildCount);
+  const dragRef = useRef<{
+    startY: number;
+    startHeight: number;
+    previousCursor: string;
+    previousUserSelect: string;
+  } | null>(null);
+  const moveListenerRef = useRef<((event: globalThis.MouseEvent) => void) | null>(null);
+  const upListenerRef = useRef<(() => void) | null>(null);
+
+  const stopResize = useCallback(() => {
+    if (moveListenerRef.current) {
+      document.removeEventListener("mousemove", moveListenerRef.current);
+      moveListenerRef.current = null;
+    }
+    if (upListenerRef.current) {
+      document.removeEventListener("mouseup", upListenerRef.current);
+      upListenerRef.current = null;
+    }
+    if (dragRef.current) {
+      document.body.style.cursor = dragRef.current.previousCursor;
+      document.body.style.userSelect = dragRef.current.previousUserSelect;
+      dragRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => stopResize, [stopResize]);
+
+  const handleResizeStart = useCallback(
+    (event: MouseEvent<HTMLButtonElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      stopResize();
+
+      dragRef.current = {
+        startY: event.clientY,
+        startHeight: resolvedHeight,
+        previousCursor: document.body.style.cursor,
+        previousUserSelect: document.body.style.userSelect,
+      };
+
+      const handleMove = (moveEvent: globalThis.MouseEvent) => {
+        const drag = dragRef.current;
+        if (!drag) return;
+        onHeightChange(nodeId, Math.max(40, drag.startHeight + moveEvent.clientY - drag.startY));
+      };
+      const handleUp = () => stopResize();
+      moveListenerRef.current = handleMove;
+      upListenerRef.current = handleUp;
+      document.body.style.cursor = "row-resize";
+      document.body.style.userSelect = "none";
+      document.addEventListener("mousemove", handleMove);
+      document.addEventListener("mouseup", handleUp);
+    },
+    [nodeId, onHeightChange, resolvedHeight, stopResize],
+  );
+
+  const handleResizeKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>) => {
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+      event.preventDefault();
+      event.stopPropagation();
+      const delta = event.key === "ArrowUp" ? -10 : 10;
+      onHeightChange(nodeId, Math.max(40, resolvedHeight + delta));
+    },
+    [nodeId, onHeightChange, resolvedHeight],
+  );
+
+  return (
+    <div data-accordion-content className={UW_TREE_ACCORDION_CONTENT_CLASS}>
+      <div
+        className={`${UW_TREE_ACCORDION_CONTENT_TOP_CLASS} overflow-y-auto overflow-x-hidden`}
+        style={{ maxHeight: resolvedHeight }}
+      >
+        {children}
+      </div>
+      <button
+        type="button"
+        role="separator"
+        aria-label={`Resize ${label} folder panel`}
+        aria-orientation="horizontal"
+        aria-valuemin={40}
+        aria-valuenow={Math.round(resolvedHeight)}
+        className={`group/accordion-resize ${UW_TREE_ACCORDION_RESIZE_CLASS}`}
+        onMouseDown={handleResizeStart}
+        onKeyDown={handleResizeKeyDown}
+      >
+        <span className={UW_TREE_ACCORDION_RESIZE_GRIP_CLASS} />
+      </button>
+    </div>
+  );
+}
+
 export const UnifiedWorkspaceTree = forwardRef<
   UnifiedWorkspaceTreeHandle,
   UnifiedWorkspaceTreeProps
@@ -240,6 +348,9 @@ export const UnifiedWorkspaceTree = forwardRef<
   const canMutate = controller.capabilities.canMutate;
 
   const [collapsedIds, setCollapsedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [accordionHeights, setAccordionHeights] = useState<ReadonlyMap<string, number>>(
+    () => new Map(),
+  );
   const [dragState, setDragState] = useState<{
     activeId: string;
     overNodeId: string | null;
@@ -255,6 +366,14 @@ export const UnifiedWorkspaceTree = forwardRef<
   const registerRowElement = useCallback((nodeId: string, element: HTMLElement | null) => {
     if (element) rowElementsRef.current.set(nodeId, element);
     else rowElementsRef.current.delete(nodeId);
+  }, []);
+  const setAccordionHeight = useCallback((nodeId: string, height: number) => {
+    setAccordionHeights((previous) => {
+      if (previous.get(nodeId) === height) return previous;
+      const next = new Map(previous);
+      next.set(nodeId, height);
+      return next;
+    });
   }, []);
 
   // `number`, not `ReturnType<typeof window.setTimeout>` — this repo's tsconfig
@@ -837,7 +956,7 @@ export const UnifiedWorkspaceTree = forwardRef<
   const activeDraggedNode = dragState ? nodeIndex.byId.get(dragState.activeId) : null;
   const OverlayIcon = activeDraggedNode ? iconForOverlay(activeDraggedNode) : null;
 
-  const renderVisibleRows = (nodes: readonly UnifiedWorkspaceNode[]): ReactNode =>
+  const renderVisibleRows = (nodes: readonly UnifiedWorkspaceNode[], visualDepth = 0): ReactNode =>
     nodes.map((node) => {
       const isCollapsed = resolveRowCollapsed(node, collapsedIds);
       const hasVisibleChildren = node.canHaveChildren && node.children.length > 0 && !isCollapsed;
@@ -845,6 +964,7 @@ export const UnifiedWorkspaceTree = forwardRef<
         <UnifiedWorkspaceRow
           key={node.id}
           node={node}
+          visualDepth={visualDepth}
           isCollapsed={isCollapsed}
           isFocused={
             focusedNodeId === node.id ||
@@ -888,18 +1008,28 @@ export const UnifiedWorkspaceTree = forwardRef<
           className={node.kind === "folder" ? UW_TREE_ACCORDION_FOLDER_CLASS : "contents"}
         >
           {row}
-          {hasVisibleChildren && (
-            <div
-              data-accordion-content={node.kind === "folder" || undefined}
-              className={
-                node.kind === "folder"
-                  ? `${UW_TREE_ACCORDION_CONTENT_CLASS}${node.depth === 0 ? ` ${UW_TREE_ACCORDION_CONTENT_TOP_CLASS}` : ""}`
-                  : "contents"
-              }
-            >
-              {renderVisibleRows(node.children)}
-            </div>
-          )}
+          {hasVisibleChildren &&
+            (node.kind === "folder" && node.depth === 0 ? (
+              <RootFolderAccordionPanel
+                nodeId={node.id}
+                label={node.label}
+                directChildCount={node.directChildCount ?? node.children.length}
+                height={accordionHeights.get(node.id)}
+                onHeightChange={setAccordionHeight}
+              >
+                {renderVisibleRows(node.children, visualDepth)}
+              </RootFolderAccordionPanel>
+            ) : (
+              <div
+                data-accordion-content={node.kind === "folder" || undefined}
+                className={node.kind === "folder" ? UW_TREE_ACCORDION_CONTENT_CLASS : "contents"}
+              >
+                {renderVisibleRows(
+                  node.children,
+                  node.kind === "folder" ? visualDepth : visualDepth + 1,
+                )}
+              </div>
+            ))}
         </div>
       );
     });
@@ -934,7 +1064,7 @@ export const UnifiedWorkspaceTree = forwardRef<
         id={`unified-workspace-dnd-${environmentId}-${projectId}`}
         sensors={sensors}
         collisionDetection={closestCenter}
-        modifiers={[restrictToVerticalAxis, restrictToFirstScrollableAncestor]}
+        modifiers={[restrictToVerticalAxis]}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}

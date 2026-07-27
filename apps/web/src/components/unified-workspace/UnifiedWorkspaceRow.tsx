@@ -28,6 +28,7 @@ import {
   type MouseEvent,
 } from "react";
 import type { UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
+import { FileTypeIcon, fileExtension, getFolderColor } from "../../editor/file-tree-visuals";
 import { cn } from "../../lib/utils";
 import { ChangeRequestStatusIcon, ThreadStatusLabel } from "../ThreadStatusIndicators";
 import type { ThreadStatusPill } from "../Sidebar.logic";
@@ -39,7 +40,6 @@ import {
   UW_TREE_ACTIVE_ICON_CLASS,
   UW_TREE_ACTIVE_RAIL_CLASS,
   UW_TREE_DISCLOSURE_CLASS,
-  UW_TREE_DISCLOSURE_SPACER_CLASS,
   UW_TREE_DROP_INSIDE_CLASS,
   UW_TREE_DROP_LINE_CLASS,
   UW_TREE_GUIDE_CLASS,
@@ -90,6 +90,8 @@ export interface UnifiedWorkspaceRowDropIndicator {
 
 export interface UnifiedWorkspaceRowProps {
   readonly node: UnifiedWorkspaceNode;
+  /** Local presentation depth. Folder panel wrappers already supply their own inset. */
+  readonly visualDepth: number;
   readonly isCollapsed: boolean;
   readonly isFocused: boolean;
   readonly isActive: boolean;
@@ -149,19 +151,16 @@ function iconForNode(
 function isFolderAccordion(node: UnifiedWorkspaceNode): boolean {
   // Folders use their filled open/closed glyph as the accordion affordance;
   // the editor tree does not put a second chevron beside it.
-  return node.kind === "folder" && node.canHaveChildren;
+  return (
+    node.kind === "folder" &&
+    node.canHaveChildren &&
+    (node.directChildCount ?? node.children.length) > 0
+  );
 }
 
 function hasDisclosure(node: UnifiedWorkspaceNode): boolean {
   if (node.kind === "folder") return false;
-  if (!node.canHaveChildren || node.children.length === 0) return false;
-  // Marco's rule: a thread row only gets the > chevron when it has child
-  // THREADS (sub-chats). A thread whose only children are terminals/previews/
-  // browser/url nodes renders those as inline status meta on the row itself,
-  // not as a nested panel — so there is nothing to expand and no chevron.
-  // Matches the floating editor's file tree, where only folders disclose.
-  if (node.kind === "thread") return node.children.some((c) => c.kind === "thread");
-  return true;
+  return node.canHaveChildren && node.children.length > 0;
 }
 
 /**
@@ -210,6 +209,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
 ) {
   const {
     node,
+    visualDepth,
     isCollapsed,
     isFocused,
     isActive,
@@ -372,16 +372,17 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
   const folderAccordion = isFolderAccordion(node);
   const disclosure = hasDisclosure(node);
   const isExpandable = folderAccordion || disclosure;
+  const iconIsCollapsed = node.kind === "folder" ? !folderAccordion || isCollapsed : isCollapsed;
   const Icon = useMemo(
-    () => iconForNode(node, commandIcon, isCollapsed),
-    [node, commandIcon, isCollapsed],
+    () => iconForNode(node, commandIcon, iconIsCollapsed),
+    [node, commandIcon, iconIsCollapsed],
   );
   // `unifiedWorkspaceRowIndentStyle` stays React-free (see its docstring), so
   // the `--uw-row-depth` custom property it returns is cast to `CSSProperties`
   // here at the JSX boundary rather than in the pure logic module.
   const indentStyle = useMemo(
-    () => unifiedWorkspaceRowIndentStyle(node.depth) as CSSProperties,
-    [node.depth],
+    () => unifiedWorkspaceRowIndentStyle(visualDepth) as CSSProperties,
+    [visualDepth],
   );
   const statusPill = threadExtras?.statusPill ?? fallbackThreadStatusPill(node);
 
@@ -412,7 +413,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       className={cn(
         UW_TREE_ROW_CLASS,
         isActive && node.kind !== "thread" && UW_TREE_ACTIVE_RAIL_CLASS,
-        node.depth > 0 && UW_TREE_GUIDE_CLASS,
+        visualDepth > 0 && UW_TREE_GUIDE_CLASS,
         isDragging && "opacity-40",
         dropZoneClassName,
       )}
@@ -435,8 +436,6 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
         >
           <ChevronRightIcon className="size-3" />
         </button>
-      ) : node.kind !== "thread" ? (
-        <span aria-hidden="true" className={UW_TREE_DISCLOSURE_SPACER_CLASS} />
       ) : null}
 
       {(node.kind === "browser" || node.kind === "url") && node.iconUrl ? (
@@ -446,6 +445,8 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
           alt=""
           className="size-[var(--uw-tree-icon-size)] shrink-0 rounded-sm"
         />
+      ) : node.kind === "file" && !node.isBroken ? (
+        <FileTypeIcon ext={fileExtension(node.tooltip ?? node.label)} size="xs" />
       ) : (
         <Icon
           className={cn(
@@ -455,6 +456,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
             node.isBroken &&
               "text-warning-foreground group-data-[active=true]/workspace-row:text-warning-foreground",
           )}
+          style={
+            node.kind === "folder" && !node.isBroken
+              ? { color: getFolderColor(node.label) }
+              : undefined
+          }
         />
       )}
 
@@ -493,6 +499,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       )}
 
       <span className={UW_TREE_META_CLASS}>
+        {node.kind === "folder" && (
+          <span aria-label={`${node.directChildCount ?? node.children.length} direct children`}>
+            {node.directChildCount ?? node.children.length}
+          </span>
+        )}
         {node.isBroken && (
           <Tooltip>
             <TooltipTrigger

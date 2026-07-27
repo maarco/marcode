@@ -526,13 +526,13 @@ describe("resolveMoveTargetForDrop", () => {
 });
 
 describe("unifiedWorkspaceRowIndentStyle", () => {
-  it("builds the exact calc() formula from §12.4, plus the --uw-row-depth custom property", () => {
+  it("builds local visual indentation without reapplying absolute node depth", () => {
     expect(unifiedWorkspaceRowIndentStyle(0)).toEqual({
-      paddingInlineStart: "calc(0.375rem + 0 * var(--uw-tree-indent))",
+      paddingInlineStart: "calc(0.5rem + 0 * var(--uw-tree-indent))",
       "--uw-row-depth": 0,
     });
     expect(unifiedWorkspaceRowIndentStyle(3)).toEqual({
-      paddingInlineStart: "calc(0.375rem + 3 * var(--uw-tree-indent))",
+      paddingInlineStart: "calc(0.5rem + 3 * var(--uw-tree-indent))",
       "--uw-row-depth": 3,
     });
   });

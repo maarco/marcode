@@ -608,6 +608,7 @@ describe("buildUnifiedWorkspaceTree — ambient nodes are lazy, one directory le
     expect(roots[0]).toMatchObject({
       activation: { kind: "folder", relativePath: "a" },
       children: [],
+      directChildCount: 2,
       // Known (from the flat index) to have content, even though nothing is
       // materialized yet — the disclosure affordance is honest, not a lie.
       canHaveChildren: true,
@@ -619,6 +620,7 @@ describe("buildUnifiedWorkspaceTree — ambient nodes are lazy, one directory le
       baseInput({ ambientEntries: nestedAmbientEntries, expandedAmbientDirs: new Set(["a"]) }),
     );
     const dirA = roots[0]!;
+    expect(dirA.directChildCount).toBe(2);
     expect(dirA.children.map((n) => n.activation)).toEqual([
       { kind: "folder", relativePath: "a/c" },
       { kind: "file", relativePath: "a/b.txt" },
@@ -626,6 +628,30 @@ describe("buildUnifiedWorkspaceTree — ambient nodes are lazy, one directory le
     const dirC = dirA.children[0]!;
     expect(dirC.canHaveChildren).toBe(true); // known non-empty...
     expect(dirC.children).toEqual([]); // ...but not itself expanded — no cascade
+  });
+
+  it("counts persisted and ambient direct children once before ambient expansion", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          folderEntry({ id: "folder-1", parentId: null, rank: "a0", relativePath: "src" }),
+          threadEntry({
+            id: "thread:t1",
+            parentId: "folder-1",
+            rank: "a0",
+            threadId: "t1",
+          }),
+        ],
+        threads: [thread({ threadId: "t1" })],
+        ambientEntries: [ambientEntry("src/a.ts"), ambientEntry("src/nested", "directory")],
+      }),
+    );
+
+    expect(roots[0]).toMatchObject({
+      kind: "folder",
+      children: [expect.objectContaining({ kind: "thread" })],
+      directChildCount: 3,
+    });
   });
 
   it("expanding a nested directory too reveals its own children, still one level at a time", () => {

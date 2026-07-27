@@ -866,7 +866,12 @@ describe("getVisibleThreadsForProject", () => {
 });
 
 function makeProject(overrides: Partial<Project> = {}): Project {
-  const { defaultModelSelection, ...rest } = overrides;
+  const {
+    defaultModelSelection,
+    workspaceLayoutVersion = 0,
+    workspaceLayout = [],
+    ...rest
+  } = overrides;
   return {
     id: ProjectId.make("project-1"),
     environmentId: localEnvironmentId,
@@ -881,6 +886,8 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     createdAt: "2026-03-09T10:00:00.000Z",
     updatedAt: "2026-03-09T10:00:00.000Z",
     scripts: [],
+    workspaceLayoutVersion,
+    workspaceLayout,
     ...rest,
   };
 }

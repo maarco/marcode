@@ -290,10 +290,12 @@ export interface UnifiedWorkspaceRowIndentStyle {
   readonly "--uw-row-depth": number;
 }
 
-export function unifiedWorkspaceRowIndentStyle(depth: number): UnifiedWorkspaceRowIndentStyle {
+export function unifiedWorkspaceRowIndentStyle(
+  visualDepth: number,
+): UnifiedWorkspaceRowIndentStyle {
   return {
-    paddingInlineStart: `calc(0.375rem + ${depth} * var(--uw-tree-indent))`,
-    "--uw-row-depth": depth,
+    paddingInlineStart: `calc(0.5rem + ${visualDepth} * var(--uw-tree-indent))`,
+    "--uw-row-depth": visualDepth,
   };
 }
 

@@ -16,9 +16,9 @@ import {
   FolderAddFilled,
 } from "@aliimam/icons";
 import { useEditorStore, makeFileRef, fileKey, barePathForEnv } from "./editor-store";
+import { FileTypeIcon, getFolderColor } from "./file-tree-visuals";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { WaveSpinner } from "./wave-spinner";
-import { FileTypeIcon } from "./quick-open";
 import { showToast } from "./toast";
 import { cn } from "~/lib/utils";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
@@ -56,42 +56,7 @@ interface FileTreeProps {
   onFileSelect?: () => void;
 }
 
-// folder color palette - deterministic by name
-const FOLDER_COLORS: Record<string, string> = {
-  bin: "#f59e0b",
-  chains: "#3b82f6",
-  docs: "#22c55e",
-  lib: "#38bdf8",
-  web: "#06b6d4",
-  tests: "#eab308",
-  scripts: "#f97316",
-  public: "#64748b",
-  memory: "#ec4899",
-  namespaces: "#8b5cf6",
-  agents: "#14b8a6",
-  templates: "#f472b6",
-  workspace: "#6366f1",
-  examples: "#84cc16",
-  src: "#06b6d4",
-  components: "#3b82f6",
-  app: "#22c55e",
-  api: "#f59e0b",
-  hooks: "#a855f7",
-  utils: "#64748b",
-  config: "#f97316",
-  node_modules: "#374151",
-};
-
-export function getFolderColor(name: string): string {
-  const lower = name.toLowerCase();
-  return FOLDER_COLORS[lower] || "#64748b";
-}
-
-export function getFileAccentColor(filePath: string, rootPath: string): string {
-  const rel = filePath.startsWith(rootPath) ? filePath.slice(rootPath.length + 1) : filePath;
-  const firstFolder = rel.split("/")[0];
-  return getFolderColor(firstFolder ?? "");
-}
+export { getFileAccentColor, getFolderColor } from "./file-tree-visuals";
 
 /**
  * Build the nested {@link FileNode} tree the floating editor renders from the
