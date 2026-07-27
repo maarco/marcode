@@ -44,12 +44,17 @@ import { useClientSettings } from "./useSettings";
  */
 const pendingWorkspaceThreadPlacements = new Map<string, string | null>();
 
-function registerPendingWorkspaceThreadPlacement(ref: ScopedThreadRef, parentId: string | null): void {
+function registerPendingWorkspaceThreadPlacement(
+  ref: ScopedThreadRef,
+  parentId: string | null,
+): void {
   pendingWorkspaceThreadPlacements.set(scopedThreadKey(ref), parentId);
 }
 
 /** Consumed by `useUnifiedWorkspaceProject.ts`. `undefined` means no placement is pending for this thread. */
-export function takePendingWorkspaceThreadPlacement(ref: ScopedThreadRef): string | null | undefined {
+export function takePendingWorkspaceThreadPlacement(
+  ref: ScopedThreadRef,
+): string | null | undefined {
   const key = scopedThreadKey(ref);
   if (!pendingWorkspaceThreadPlacements.has(key)) return undefined;
   const parentId = pendingWorkspaceThreadPlacements.get(key) ?? null;
@@ -281,7 +286,7 @@ export interface EnsureDraftThreadTargetResult {
  * Synchronous counterpart to `useNewThreadHandler`, for callers (the unified
  * workspace sidebar's node activation and "New thread" placement flows) that
  * need the target draft's identity immediately — e.g. to call
- * `rightPanelStore.openFile` in the same tick — rather than awaiting
+ * `openFileInFloatingEditor` in the same tick — rather than awaiting
  * navigation. Read-only replicates `useNewThreadHandler`'s exact reuse
  * decision (stored draft by logical project key, then same-route active
  * draft) so both agree on which draft is "the" target, then delegates to the
@@ -302,7 +307,8 @@ export function useEnsureDraftThreadTarget() {
     ): EnsureDraftThreadTargetResult => {
       const project = projects.find(
         (candidate) =>
-          candidate.id === projectRef.projectId && candidate.environmentId === projectRef.environmentId,
+          candidate.id === projectRef.projectId &&
+          candidate.environmentId === projectRef.environmentId,
       );
       const logicalProjectKey = project
         ? deriveLogicalProjectKeyFromSettings(project, projectGroupingSettings)

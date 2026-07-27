@@ -213,6 +213,12 @@ function useWorkspaceCategory(): NavCategory | null {
   const activePanelKind = useRightPanelStore((state) =>
     threadRef ? selectActiveRightPanel(state.byThreadKey, threadRef) : null,
   );
+  // "Files" no longer opens a right-panel surface — it opens the floating pill
+  // with its file sidebar showing (see `dispatchWorkspaceAction("files")`'s
+  // handler in ChatView). Drive the item's active state from that, not from
+  // `activePanelKind`, which no longer has a "files" kind to match.
+  const editorOverlayOpen = useEditorStore((state) => state.isOverlayOpen);
+  const editorSidebarView = useEditorStore((state) => state.sidebarView);
 
   // Remember the last thread route so other pages keep a way back to the workspace.
   // Built from the route params, never from `useLocation()`: pathname updates at
@@ -294,7 +300,7 @@ function useWorkspaceCategory(): NavCategory | null {
         icon: <FolderFilled className="h-4 w-4" />,
         meta: "workspace:files",
         onClick: () => dispatchWorkspaceAction("files"),
-        active: activePanelKind === "files",
+        active: editorOverlayOpen && editorSidebarView === "files",
       },
       // preview needs the desktop runtime — hide the child instead of rendering a dead button
       ...(isPreviewSupportedInRuntime()

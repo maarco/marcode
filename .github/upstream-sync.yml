@@ -53,6 +53,9 @@ hotspots:
   - path: "apps/web/src/editor/**"
     owner: editor-runtime
     reason: "Marcode editor integration"
+  - path: "apps/web/src/components/files/**"
+    owner: editor-runtime
+    reason: "Marcode retired the right-panel file surface; the floating editor owns file editing"
   - path: "apps/desktop/resources/**"
     owner: release-branding
     reason: "Marcode desktop branding"
