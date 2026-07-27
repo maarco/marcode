@@ -10,10 +10,15 @@ export const UW_TREE_ROOT_CLASS = "relative flex min-w-0 flex-col gap-0.5 font-m
 // than hardcoded `h-7`/`max-sm:h-10` — same computed values (1.75rem/2.5rem),
 // but the coarse-pointer/mobile override now flows through the CSS variable
 // defined once in index.css instead of being duplicated as a literal here.
+// Color register mirrors the floating editor's file-tree
+// (apps/web/src/editor/file-tree.tsx AccordionFolder): hover `/[0.04]`,
+// active/selected `/[0.06]`, label base `/60` lifted to `/80` on hover and
+// active. Theme-aware `foreground` is used instead of literal `white` because
+// the sidebar lives in light-or-dark chrome while the editor panel is dark-only.
 export const UW_TREE_ROW_CLASS =
   "group/workspace-row relative isolate flex h-[var(--uw-tree-row-height)] min-w-0 cursor-default select-none " +
-  "items-center gap-1.5 rounded-sm pr-1.5 text-[11px] font-mono text-foreground/70 outline-none " +
-  "transition-colors duration-150 hover:bg-foreground/[0.03] " +
+  "items-center gap-1.5 rounded-sm pr-1.5 text-[11px] font-mono text-foreground/60 outline-none " +
+  "transition-colors duration-150 hover:bg-foreground/[0.04] " +
   "focus-visible:ring-1 focus-visible:ring-ring " +
   "data-[active=true]:bg-foreground/[0.06] data-[active=true]:font-medium " +
   "data-[active=true]:text-foreground/80 " +
@@ -47,10 +52,19 @@ export const UW_TREE_ICON_CLASS = "size-[var(--uw-tree-icon-size)] shrink-0 text
 
 export const UW_TREE_ACTIVE_ICON_CLASS = "group-data-[active=true]/workspace-row:text-foreground";
 
-export const UW_TREE_LABEL_CLASS = "min-w-0 flex-1 truncate text-left font-mono text-[11px]";
+// Label lifts to `/80` on hover to mirror the editor's
+// `text-white/60 group-hover:text-white/80` pattern. The active-state lift
+// lives on the row (`data-[active=true]:text-foreground/80`) and is inherited.
+export const UW_TREE_LABEL_CLASS =
+  "min-w-0 flex-1 truncate text-left font-mono text-[11px] " +
+  "group-hover/workspace-row:text-foreground/80";
 
+// Meta opacity matches the editor's `text-white/15` muted tier (child counts
+// read as auxiliary). `foreground/40` is the theme-aware equivalent: literal
+// `/15` disappears on the light-mode glass where the editor (dark-only) never
+// has to render it.
 export const UW_TREE_META_CLASS =
-  "ml-auto flex shrink-0 items-center gap-1 font-mono text-[9px] text-muted-foreground";
+  "ml-auto flex shrink-0 items-center gap-1 font-mono text-[9px] text-foreground/40";
 
 export const UW_TREE_HOVER_ACTIONS_CLASS =
   "pointer-events-none absolute right-1 flex items-center gap-0.5 opacity-0 " +
