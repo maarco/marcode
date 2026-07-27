@@ -8,15 +8,18 @@ description: Keep .agents/skills/** accurate as upstream T3 Code changes and as 
 Marcode forks T3 Code and keeps adding to it. `.agents/skills/**` has two kinds of skill as a result:
 skills that document **upstream T3 behavior** (`test-t3-app`, `test-t3-mobile`, `ios-debugger-agent`,
 `ios-simulator-browser`), and skills that document **Marcode-only additions**
-(`unified-workspace-sidebar`, and whatever gets added after it). Upstream moves on its own schedule;
-nothing regenerates a skill when it does. This skill is how you notice and fix that without wrecking
-the next merge. It complements [`docs/operations/upstream-sync.md`](../../../docs/operations/upstream-sync.md)
-and `scripts/upstream-sync*.ts` — those detect and merge upstream _code_; this is about re-verifying
-_skills_ afterward. Don't duplicate the merge-conflict-resolution workflow described there; link to it.
+(`unified-workspace-sidebar`, `marcode-customizations`, and whatever gets added after them). Upstream
+moves on its own schedule; nothing regenerates a skill when it does. This skill is how you notice and
+fix that without wrecking the next merge. It complements
+[`docs/operations/upstream-sync.md`](../../../docs/operations/upstream-sync.md) and
+`scripts/upstream-sync*.ts` — those detect and merge upstream _code_; this is about re-verifying
+_skills_ afterward. Don't duplicate the merge-conflict-resolution workflow described there; link to
+it.
 
-All four T3-derived skills and both Marcode-only skills were re-verified line-by-line against the live
-repo at commit `50471316` (2026-07-22) while writing this skill. Treat that as the last known-good
-checkpoint, not a permanent guarantee — check what changed since, not everything from scratch.
+The four T3-derived skills and the original two Marcode-only skills were re-verified line-by-line
+against the live repo at commit `50471316` (2026-07-22). `marcode-customizations` was audited against
+local `main` at `54a1cba9` (2026-07-26). Treat those as last-known-good checkpoints, not permanent
+guarantees — check what changed since the relevant checkpoint, not everything from scratch.
 
 ## Two kinds of claim, one owner each
 
@@ -62,7 +65,7 @@ Concrete, checkable triggers — not vibes:
 
 ## Re-verifying a skill against the live repo
 
-The checklist actually used to verify all six skills currently in this repo:
+The checklist used to verify the original six skills and every Marcode-owned skill added since:
 
 1. **Extract every concrete claim** from the skill: file paths, command names, port numbers, version
    pins, identifiers (bundle id, scheme, app name), and behavioral assertions ("X decodes with default

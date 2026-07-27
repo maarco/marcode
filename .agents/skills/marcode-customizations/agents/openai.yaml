@@ -1,0 +1,4 @@
+interface:
+  display_name: "Marcode Customizations"
+  short_description: "Preserve Marcode's intentional differences from upstream T3"
+  default_prompt: "Use $marcode-customizations to identify and preserve Marcode's fork-specific product behavior before changing or syncing T3-derived code."
