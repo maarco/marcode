@@ -1,8 +1,8 @@
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 
 import { resolvePathLinkTarget } from "~/terminal-links";
 
-import { fileKey, makeFileRef, useEditorStore } from "./editor-store";
+import { makeFileRef, useEditorStore } from "./editor-store";
 
 export interface OpenFloatingFileInput {
   /**
@@ -15,6 +15,8 @@ export interface OpenFloatingFileInput {
   readonly environmentId: EnvironmentId;
   readonly workspacePath: string;
   readonly relativePath: string;
+  /** A verified thread/worktree scope for asset-backed previews of this file. */
+  readonly assetThreadId?: ThreadId | undefined;
   readonly line?: number | undefined;
   readonly column?: number | undefined;
 }
@@ -60,15 +62,20 @@ export function openFileInFloatingEditor(input: OpenFloatingFileInput): void {
 
   store.openOverlay();
 
-  const key = fileKey(environmentId, target.absolutePath);
-  if (pane.openPaths.includes(key)) {
-    store.setActiveFile(pane.id, key);
-  } else {
-    store.openFile(
-      pane.id,
-      makeFileRef(environmentId, input.workspacePath, target.absolutePath, target.name, target.ext),
-    );
-  }
+  // Always flow through openFile, including when this tab is already open:
+  // a later entry point can provide a verified asset scope for the same
+  // file, and the cache must retain it for image/browser previews.
+  store.openFile(
+    pane.id,
+    makeFileRef(
+      environmentId,
+      input.workspacePath,
+      target.absolutePath,
+      target.name,
+      target.ext,
+      input.assetThreadId,
+    ),
+  );
 
   if (input.line !== undefined) {
     store.setPendingReveal({

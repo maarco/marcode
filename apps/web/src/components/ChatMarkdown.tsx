@@ -1072,6 +1072,7 @@ const MarkdownFileLink = memo(function MarkdownFileLink({
       workspacePath,
       relativePath: workspaceRelativePath,
       line,
+      assetThreadId: threadRef.threadId,
     });
   }, [handleOpenInEditor, line, threadRef, workspacePath, workspaceRelativePath]);
 

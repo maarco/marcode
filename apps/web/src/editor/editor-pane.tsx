@@ -1,5 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "@tanstack/react-router";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 import {
@@ -369,10 +370,13 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
   const routeParams = useParams({ strict: false });
   const routeTarget = resolveThreadRouteTarget(routeParams);
   const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
+  const assetThreadRef = file.assetThreadId
+    ? scopeThreadRef(file.environmentId, file.assetThreadId)
+    : routeThreadRef;
   const canScopeAssetsToRoute =
-    routeThreadRef !== null &&
-    file.environmentId === routeThreadRef.environmentId &&
-    file.cwd === rootPath;
+    assetThreadRef !== null &&
+    file.environmentId === assetThreadRef.environmentId &&
+    (file.assetThreadId !== undefined || file.cwd === rootPath);
 
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorColumn, setCursorColumn] = useState(1);
@@ -460,7 +464,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
   // browser-preview handoff (.html/.pdf) — same route-thread scoping as the
   // image preview above. Hooks stay unconditional every render; only the
   // button's visibility (and the handler's own no-op guard) are gated.
-  const environmentHttpBaseUrl = useEnvironmentHttpBaseUrl(routeThreadRef?.environmentId ?? null);
+  const environmentHttpBaseUrl = useEnvironmentHttpBaseUrl(assetThreadRef?.environmentId ?? null);
   const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, { reportFailure: false });
   const openPreviewMutation = useAtomCommand(previewEnvironment.open, { reportFailure: false });
   const showBrowserPreviewAction =
@@ -468,8 +472,8 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
     canScopeAssetsToRoute &&
     isPreviewSupportedInRuntime();
   const handleOpenInBrowser = useCallback(() => {
-    if (!routeThreadRef || !environmentHttpBaseUrl) return;
-    const threadRef = routeThreadRef;
+    if (!assetThreadRef || !environmentHttpBaseUrl) return;
+    const threadRef = assetThreadRef;
     const httpBaseUrl = environmentHttpBaseUrl;
     void (async () => {
       const result = await openFileInPreview({
@@ -487,7 +491,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         message: error instanceof Error ? error.message : "An error occurred.",
       });
     })();
-  }, [routeThreadRef, environmentHttpBaseUrl, createAssetUrl, openPreviewMutation, file.path]);
+  }, [assetThreadRef, environmentHttpBaseUrl, createAssetUrl, openPreviewMutation, file.path]);
 
   if (fileState.isPending && fileState.contents === null) {
     return (
@@ -536,11 +540,11 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         {surface.kind === "error" ? (
           <EditorErrorMessage message={surface.message} />
         ) : surface.kind === "image" ? (
-          routeThreadRef ? (
+          assetThreadRef ? (
             <WorkspaceImagePreview
               key={file.path}
-              environmentId={routeThreadRef.environmentId}
-              threadId={routeThreadRef.threadId}
+              environmentId={assetThreadRef.environmentId}
+              threadId={assetThreadRef.threadId}
               absolutePath={file.path}
               alt={file.name}
             />

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 
 // a non-file editor tab that renders a React view instead of Monaco.
 // keeps Git surfaces (peer review, etc.) inside the editor's own stacking
@@ -32,6 +32,12 @@ export interface FileRef {
   readonly relativePath: string;
   readonly name: string;
   readonly ext: string;
+  /**
+   * Thread whose workspace safely owns this file asset. Present only when an
+   * entry point resolved the file from a known thread/worktree; generic file
+   * browsing deliberately leaves it absent.
+   */
+  readonly assetThreadId?: ThreadId | undefined;
 }
 
 export interface FileData extends FileRef {
@@ -53,11 +59,12 @@ export function makeFileRef(
   absPath: string,
   name: string,
   ext: string,
+  assetThreadId?: ThreadId,
 ): FileRef {
   const relativePath = absPath.startsWith(cwd)
     ? absPath.slice(cwd.length).replace(/^\/+/, "")
     : absPath;
-  return { path: absPath, environmentId, cwd, relativePath, name, ext };
+  return { path: absPath, environmentId, cwd, relativePath, name, ext, assetThreadId };
 }
 
 /**

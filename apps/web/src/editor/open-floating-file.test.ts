@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
-import type { EnvironmentId } from "@t3tools/contracts";
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 
 import { fileKey, useEditorStore } from "./editor-store";
 import { openFileInFloatingEditor, resolveFloatingFileTarget } from "./open-floating-file";
@@ -85,6 +85,24 @@ describe("openFileInFloatingEditor", () => {
     const key = fileKey(ENV_A, "/repo/src/main.ts");
     expect(useEditorStore.getState().panes[0]!.openPaths).toEqual([key]);
     expect(useEditorStore.getState().panes[0]!.activePath).toBe(key);
+  });
+
+  it("retains a verified asset scope when reopening an existing file", () => {
+    openFileInFloatingEditor({
+      environmentId: ENV_A,
+      workspacePath: "/repo",
+      relativePath: "images/logo.png",
+    });
+    openFileInFloatingEditor({
+      environmentId: ENV_A,
+      workspacePath: "/repo",
+      relativePath: "images/logo.png",
+      assetThreadId: "thread-origin" as ThreadId,
+    });
+
+    expect(
+      useEditorStore.getState().fileCache.get(fileKey(ENV_A, "/repo/images/logo.png")),
+    ).toMatchObject({ assetThreadId: "thread-origin" });
   });
 
   it("keeps two environments' identical paths as separate tabs", () => {

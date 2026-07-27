@@ -507,7 +507,12 @@ export function useUnifiedWorkspaceProject(input: {
           );
           return;
         }
-        openFileInFloatingEditor({ environmentId, workspacePath, relativePath });
+        openFileInFloatingEditor({
+          environmentId,
+          workspacePath,
+          relativePath,
+          assetThreadId: ThreadId.make(threadId),
+        });
       },
       // `threadId` is unused: folder activation just opens the pill's file
       // sidebar, not a per-thread surface. Kept in the op's own call site

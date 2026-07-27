@@ -64,7 +64,7 @@ export { getFileAccentColor, getFolderColor } from "./file-tree-visuals";
  * `projects.listEntries` RPC. Paths are absolute (rooted at `cwd`) to match the
  * editor's identity model.
  */
-function entriesToTree(entries: readonly ProjectEntry[], cwd: string): FileNode[] {
+export function entriesToTree(entries: readonly ProjectEntry[], cwd: string): FileNode[] {
   const root: FileNode[] = [];
   const dirs = new Map<string, FileNode>();
 
@@ -122,7 +122,7 @@ function saveExpanded(workspace: string, expanded: Set<string>) {
 }
 
 // collect all ancestor folder paths for a file path within a tree
-function getAncestorPaths(filePath: string, tree: FileNode[]): string[] {
+export function getAncestorPaths(filePath: string, tree: FileNode[]): string[] {
   const result: string[] = [];
   function walk(nodes: FileNode[], path: string[]): boolean {
     for (const node of nodes) {
@@ -239,6 +239,14 @@ export function FileTree({
       el?.scrollIntoView({ block: "center", behavior: "smooth" });
     });
   }, [activeBarePath, tree]);
+
+  // Opening a file from a chat link, the workspace tree, quick open, or a
+  // diff changes the editor tab outside this component. Mirror the manual
+  // Reveal action for every such activation so the Files sidebar expands the
+  // real ancestor folders and brings the opened file into view.
+  useEffect(() => {
+    revealActiveFile();
+  }, [revealActiveFile]);
 
   const handleFileClick = useCallback(
     (node: FileNode) => {
