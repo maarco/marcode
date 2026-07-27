@@ -29,6 +29,18 @@ const SAFE: ProjectReadFileResult = {
   byteLength: 5,
   truncated: false,
 };
+/**
+ * `confirmed: null` is how an ERRORED read is represented here, alongside a
+ * read that hasn't completed yet: `getConfirmedFileResult` extracts via
+ * `AsyncResult.value()`, which only ever holds a value from a `Success` —
+ * there is no `ProjectReadFileResult` for a failed fetch to attach an
+ * "errored but still has data" flag to. So `null` is simultaneously the
+ * error case and the not-loaded-yet case, and the gate refuses both the same
+ * way. Concretely: a binary file's read fails server-side (`WorkspaceBinaryFileError`),
+ * so `confirmed` is `null` here — the exact "one keystroke replaces the
+ * binary" case from the audit.
+ */
+const NEVER_CONFIRMED = null;
 
 describe("write gate (P0: a truncated/failed confirmed read must block writes at the choke point)", () => {
   afterEach(() => {
@@ -37,8 +49,8 @@ describe("write gate (P0: a truncated/failed confirmed read must block writes at
   });
 
   describe("isConfirmedReadWritable", () => {
-    it("is false with no confirmed read at all (never succeeded, e.g. binary rejection)", () => {
-      expect(isConfirmedReadWritable(null)).toBe(false);
+    it("is false with no confirmed read at all — covers both an errored read and one that hasn't loaded yet", () => {
+      expect(isConfirmedReadWritable(NEVER_CONFIRMED)).toBe(false);
     });
 
     it("is false for a truncated confirmed read", () => {
@@ -72,7 +84,7 @@ describe("write gate (P0: a truncated/failed confirmed read must block writes at
       expect(getOptimisticProjectFileQueryData(environmentId, cwd, relativePath)).toBeNull();
     });
 
-    it("P0: refuses to apply an edit when the file never had a successful read", () => {
+    it("P0: refuses to apply an edit when the read errored — the binary-file case: read fails, write must not", () => {
       vi.stubGlobal("window", {});
       const change = vi.fn();
 
@@ -81,13 +93,30 @@ describe("write gate (P0: a truncated/failed confirmed read must block writes at
         cwd,
         relativePath,
         "typed into a blank buffer",
-        null,
+        NEVER_CONFIRMED,
         { change },
       );
 
       expect(applied).toBe(false);
       expect(change).not.toHaveBeenCalled();
       expect(getOptimisticProjectFileQueryData(environmentId, cwd, relativePath)).toBeNull();
+    });
+
+    it("P0: refuses to apply an edit when the read hasn't completed yet", () => {
+      vi.stubGlobal("window", {});
+      const change = vi.fn();
+
+      const applied = applyProjectFileEdit(
+        environmentId,
+        cwd,
+        relativePath,
+        "typed before the read resolved",
+        NEVER_CONFIRMED,
+        { change },
+      );
+
+      expect(applied).toBe(false);
+      expect(change).not.toHaveBeenCalled();
     });
 
     it("applies the edit normally once the confirmed read is a safe, non-truncated success", () => {
@@ -114,8 +143,8 @@ describe("write gate (P0: a truncated/failed confirmed read must block writes at
       expect(result?._tag).toBe("Failure");
     });
 
-    it("returns a settled Failure when the file never had a successful read", () => {
-      const result = blockedWriteResult(cwd, relativePath, null);
+    it("returns a settled Failure when the read errored, without calling through to writeFile", () => {
+      const result = blockedWriteResult(cwd, relativePath, NEVER_CONFIRMED);
 
       expect(result).not.toBeNull();
       expect(result?._tag).toBe("Failure");
