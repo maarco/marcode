@@ -14,6 +14,7 @@ function read(relativePath: string): string {
 const manifestSource = read(".github/upstream-sync.yml");
 const workflowSource = read(".github/workflows/upstream-sync.yml");
 const ciSource = read(".github/workflows/ci.yml");
+const relayDeploySource = read(".github/workflows/deploy-relay.yml");
 
 const manifest = parseYaml(manifestSource) as {
   schedule: { enabled: boolean; cron: string };
@@ -27,7 +28,12 @@ const workflow = parseYaml(workflowSource) as {
   concurrency: { group: string; "cancel-in-progress": boolean };
   jobs: Record<string, { "runs-on": string; steps: Array<Record<string, unknown>> }>;
 };
-const ci = parseYaml(ciSource) as { jobs: Record<string, { name: string }> };
+const ci = parseYaml(ciSource) as {
+  jobs: Record<string, { name: string; "runs-on": string }>;
+};
+const relayDeploy = parseYaml(relayDeploySource) as {
+  jobs: Record<string, { if: string; "runs-on": string }>;
+};
 
 const steps = workflow.jobs.prepare!.steps;
 
@@ -195,5 +201,21 @@ describe("upstream-sync workflow", () => {
     for (const check of requiredChecks) {
       expect(ciJobNames).toContain(check);
     }
+  });
+
+  it("uses runners available to the public fork for default CI", () => {
+    expect(Object.values(ci.jobs).map((job) => job["runs-on"])).toEqual([
+      "ubuntu-24.04",
+      "ubuntu-24.04",
+      "macos-26",
+      "ubuntu-24.04",
+    ]);
+  });
+
+  it("keeps production relay deployment disabled until the fork opts in", () => {
+    expect(relayDeploy.jobs.deploy_relay).toMatchObject({
+      if: "vars.RELAY_DEPLOY_ENABLED == 'true'",
+      "runs-on": "ubuntu-24.04",
+    });
   });
 });

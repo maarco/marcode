@@ -138,6 +138,23 @@ Recommended `main` rules:
 GitHub Actions must be allowed to create pull requests before the upstream workflow can open its
 draft PR.
 
+## Fork CI and relay publication
+
+The first push to Marcode `main` proved that upstream's default CI and relay workflows referenced
+Blacksmith-specific runner labels while the fork had no Blacksmith installation or registered
+runners. Default fork CI therefore uses GitHub-hosted `ubuntu-24.04` and `macos-26` runners.
+
+Production relay deployment is opt-in. The `Deploy T3 Connect relay` job runs only when the
+repository variable `RELAY_DEPLOY_ENABLED` is exactly `true`. Do not enable it until every relay
+variable and secret named in `.github/workflows/deploy-relay.yml` is configured and the target
+infrastructure has been verified. An unset variable deliberately skips the job before assigning a
+runner.
+
+Release, EAS, and mobile-showcase workflows still contain upstream Blacksmith labels. Before using
+one, either install and configure Blacksmith for Marcode or audit that workflow's CPU, architecture,
+KVM, signing, and timeout requirements before moving it to a standard GitHub-hosted runner. Do not
+blindly replace every label: those workflows have different platform requirements.
+
 ## Normal Marcode change flow
 
 ```text
