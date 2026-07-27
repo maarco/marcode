@@ -706,6 +706,18 @@ export function FileTree({
             <LocationCrossFilled className="h-3 w-3" />
           </button>
         )}
+        {/* the index itself can be truncated (more entries than were listed),
+            distinct from a single file's 1MB read cap. A silently-partial
+            tree looks like a complete listing — this is the only signal for
+            it, since the pill is the only file surface now. */}
+        {entriesQuery.data?.truncated && (
+          <span
+            className="ml-auto shrink-0 px-1 text-[10px] font-mono text-amber-400/70"
+            title="This workspace has more files than the tree is showing."
+          >
+            partial
+          </span>
+        )}
       </div>
 
       {/* accordion folders */}
