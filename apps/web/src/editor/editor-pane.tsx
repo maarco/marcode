@@ -1,4 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { useParams } from "@tanstack/react-router";
+import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
+import {
+  isAtomCommandInterrupted,
+  squashAtomCommandFailure,
+} from "@t3tools/client-runtime/state/runtime";
+
 import { useEditorStore, usePane, fileKey, type FileData } from "./editor-store";
 import {
   flushProjectFile,
@@ -12,6 +20,17 @@ import { WaveSpinner } from "./wave-spinner";
 import { StatusBar } from "./status-bar";
 import { getFileAccentColor } from "./file-tree";
 import { Markdown } from "./markdown";
+import { resolveEditorSurface } from "./editor-surface";
+import { showToast } from "./toast";
+import { useAssetUrlState } from "~/assets/assetUrls";
+import { isBrowserPreviewFile, openFileInPreview } from "~/browser/openFileInPreview";
+import { isPreviewSupportedInRuntime } from "~/previewStateStore";
+import { resolveThreadRouteTarget } from "~/threadRoutes";
+import { useEnvironmentHttpBaseUrl } from "~/state/environments";
+import { assetEnvironment } from "~/state/assets";
+import { previewEnvironment } from "~/state/preview";
+import { useAtomCommand } from "~/state/use-atom-command";
+import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 import type { editor } from "monaco-editor";
 
 const MonacoEditor = lazy(() => import("./monaco-editor-lazy"));
@@ -244,6 +263,56 @@ interface ChildProps {
   rootPath: string;
 }
 
+/** Legible, non-editable message — used for read errors, binary files, and
+ * an image whose asset can't be safely scoped to the route thread. */
+function EditorErrorMessage({ message }: { message: string }) {
+  return (
+    <div className="flex items-center justify-center h-full px-6">
+      <p className="text-[11px] font-mono text-red-400/70 text-center leading-relaxed max-w-sm">
+        {message}
+      </p>
+    </div>
+  );
+}
+
+function WorkspaceImagePreview({
+  environmentId,
+  threadId,
+  absolutePath,
+  alt,
+}: {
+  environmentId: EnvironmentId;
+  threadId: ThreadId;
+  absolutePath: string;
+  alt: string;
+}) {
+  const assetUrl = useAssetUrlState(environmentId, {
+    _tag: "workspace-file",
+    threadId,
+    path: absolutePath,
+  });
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
+
+  if (assetUrl._tag === "Failure" || (assetUrl._tag === "Success" && failedUrl === assetUrl.url)) {
+    return <EditorErrorMessage message="Unable to load workspace image." />;
+  }
+
+  return assetUrl._tag === "Success" ? (
+    <div className="flex items-center justify-center h-full overflow-auto p-4">
+      <img
+        className="max-h-full max-w-full object-contain"
+        src={assetUrl.url}
+        alt={alt}
+        onError={() => setFailedUrl(assetUrl.url)}
+      />
+    </div>
+  ) : (
+    <div className="flex items-center justify-center h-full">
+      <WaveSpinner size="sm" color="primary" animation="ripple" />
+    </div>
+  );
+}
+
 function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown: boolean }) {
   const pendingReveal = useEditorStore((s) => s.pendingReveal);
   const setPendingReveal = useEditorStore((s) => s.setPendingReveal);
@@ -256,7 +325,13 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
   // share an absolute path never get treated as the same open tab.
   const fileIdentityKey = fileKey(file.environmentId, file.path);
 
-  const fileState = useProjectFile(file.environmentId, file.cwd, file.relativePath);
+  // images never go through the text-read path — the server would just
+  // reject them as binary. Skipping the read (via `enabled: false`) also
+  // means `fileState.error`/`truncated` are never a stray artifact of that
+  // doomed read for an image tab.
+  const isImagePath = isWorkspaceImagePreviewPath(file.relativePath);
+
+  const fileState = useProjectFile(file.environmentId, file.cwd, file.relativePath, !isImagePath);
   // stable per open file so useProjectFileEditor's coordinator useMemo (keyed
   // in part on this callback) isn't rebuilt on every render — see
   // FileSaveCoordinator's dispose()-forces-persist semantics.
@@ -280,6 +355,24 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         })
       : null,
   );
+
+  // Route thread — scopes the image preview and the browser-preview handoff
+  // to the correct worktree. A tab can belong to a different worktree than
+  // the pill's current root (see docs/specs/single-editing-surface.md,
+  // "Scope mismatch — the tab is scoped, the chrome is not"); resolving the
+  // workspace-file asset against the wrong root would silently show/open the
+  // WRONG repo's file under the same relative path. `rootPath` is the pill's
+  // own root (`useWorkspace().workspacePath`), computed from the same route
+  // params one level up — comparing the tab's `cwd` against it is therefore
+  // equivalent to comparing against "the route thread's resolved workspace
+  // root" without re-deriving that resolution here.
+  const routeParams = useParams({ strict: false });
+  const routeTarget = resolveThreadRouteTarget(routeParams);
+  const routeThreadRef = routeTarget?.kind === "server" ? routeTarget.threadRef : null;
+  const canScopeAssetsToRoute =
+    routeThreadRef !== null &&
+    file.environmentId === routeThreadRef.environmentId &&
+    file.cwd === rootPath;
 
   const [cursorLine, setCursorLine] = useState(1);
   const [cursorColumn, setCursorColumn] = useState(1);
@@ -364,6 +457,38 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
     setPendingReveal(null);
   }, [file.environmentId, file.path, pendingReveal, setPendingReveal]);
 
+  // browser-preview handoff (.html/.pdf) — same route-thread scoping as the
+  // image preview above. Hooks stay unconditional every render; only the
+  // button's visibility (and the handler's own no-op guard) are gated.
+  const environmentHttpBaseUrl = useEnvironmentHttpBaseUrl(routeThreadRef?.environmentId ?? null);
+  const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, { reportFailure: false });
+  const openPreviewMutation = useAtomCommand(previewEnvironment.open, { reportFailure: false });
+  const showBrowserPreviewAction =
+    isBrowserPreviewFile(file.relativePath) &&
+    canScopeAssetsToRoute &&
+    isPreviewSupportedInRuntime();
+  const handleOpenInBrowser = useCallback(() => {
+    if (!routeThreadRef || !environmentHttpBaseUrl) return;
+    const threadRef = routeThreadRef;
+    const httpBaseUrl = environmentHttpBaseUrl;
+    void (async () => {
+      const result = await openFileInPreview({
+        threadRef,
+        filePath: file.path,
+        httpBaseUrl,
+        createAssetUrl,
+        openPreview: openPreviewMutation,
+      });
+      if (result._tag === "Success" || isAtomCommandInterrupted(result)) return;
+      const error = squashAtomCommandFailure(result);
+      showToast({
+        type: "error",
+        title: "Unable to open file in browser",
+        message: error instanceof Error ? error.message : "An error occurred.",
+      });
+    })();
+  }, [routeThreadRef, environmentHttpBaseUrl, createAssetUrl, openPreviewMutation, file.path]);
+
   if (fileState.isPending && fileState.contents === null) {
     return (
       <div className="flex flex-col h-full">
@@ -376,19 +501,63 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
 
   const language = EXT_TO_LANG[file.ext] ?? "plaintext";
   const contents = fileState.contents ?? "";
-  const showMarkdownPreview = isMarkdown && mdPreview;
   const diffOriginal = isDiff ? (headQuery.data?.contents ?? "") : undefined;
+  const surface = resolveEditorSurface({
+    isImagePath,
+    canPreviewImage: canScopeAssetsToRoute,
+    error: fileState.error,
+    contents: fileState.contents,
+    truncated: fileState.truncated,
+    byteLength: fileState.byteLength,
+    isMarkdown,
+    showMarkdownPreview: mdPreview,
+    isDiff,
+  });
+  const hasTopRightAction = isMarkdown || showBrowserPreviewAction;
+
+  // P0 guard, belt-and-braces: a read-only Monaco shouldn't fire onChange at
+  // all, but this is the data-loss path (autosave silently truncating the
+  // file on disk), so the update path is also gated here directly — nothing
+  // can reach `editor.update()` while truncated.
+  const handleChange = (val: string | undefined) => {
+    if (surface.kind === "truncated") return;
+    editor.update(val ?? "");
+  };
 
   return (
     <div className="flex flex-col h-full">
+      {surface.kind === "truncated" && (
+        <div className="shrink-0 px-3 py-1 text-[10px] font-mono text-amber-400/80 bg-amber-500/10 shadow-[0_1px_0_0_rgba(245,158,11,0.15)]">
+          Read-only — showing the first 1 MB of a {surface.byteLength.toLocaleString()} byte file.
+          Edits are disabled to avoid truncating it on save.
+        </div>
+      )}
       <div className="flex-1 relative overflow-hidden">
-        {showMarkdownPreview ? (
+        {surface.kind === "error" ? (
+          <EditorErrorMessage message={surface.message} />
+        ) : surface.kind === "image" ? (
+          routeThreadRef ? (
+            <WorkspaceImagePreview
+              key={file.path}
+              environmentId={routeThreadRef.environmentId}
+              threadId={routeThreadRef.threadId}
+              absolutePath={file.path}
+              alt={file.name}
+            />
+          ) : (
+            // Unreachable in practice: resolveEditorSurface only returns
+            // "image" when canPreviewImage is true, which requires
+            // routeThreadRef !== null. Fail safe instead of falling through
+            // to an editable Monaco on an empty buffer.
+            <EditorErrorMessage message="Preview unavailable for this file." />
+          )
+        ) : surface.kind === "markdown" ? (
           <div className="overflow-y-auto h-full">
             <div className="max-w-3xl mx-auto px-8 py-8">
               <Markdown content={contents} />
             </div>
           </div>
-        ) : isDiff ? (
+        ) : surface.kind === "diff" ? (
           <Suspense fallback={<MonacoLoading />}>
             <MonacoDiffEditor
               height="100%"
@@ -414,14 +583,14 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
               }}
             />
           </Suspense>
-        ) : (
+        ) : surface.kind === "code" || surface.kind === "truncated" ? (
           <Suspense fallback={<MonacoLoading />}>
             <MonacoEditor
               height="100%"
               path={fileIdentityKey}
               language={language}
               value={contents}
-              onChange={(val) => editor.update(val ?? "")}
+              onChange={handleChange}
               onMount={handleEditorMount}
               beforeMount={handleBeforeMount}
               theme="mentiko-void"
@@ -448,10 +617,11 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
                 lineNumbers: editorConfig.lineNumbers,
                 overviewRulerBorder: false,
                 hideCursorInOverviewRuler: true,
+                readOnly: surface.kind === "truncated",
               }}
             />
           </Suspense>
-        )}
+        ) : null}
 
         {/* markdown mode toggle */}
         {isMarkdown && (
@@ -463,10 +633,22 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
           </button>
         )}
 
-        {/* floating save indicator - offset right when md toggle is present */}
+        {/* browser-preview handoff — .html/.pdf only, mutually exclusive with
+            the markdown toggle above, so they never contend for the slot. */}
+        {showBrowserPreviewAction && (
+          <button
+            onClick={handleOpenInBrowser}
+            title="Open in browser preview"
+            className="absolute top-2 right-4 z-10 px-2 py-0.5 rounded-md bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] text-[9px] font-mono text-white/40 hover:text-white/60 hover:bg-white/8 transition-all cursor-pointer select-none"
+          >
+            open ↗
+          </button>
+        )}
+
+        {/* floating save indicator - offset right when a top-right action button is present */}
         {fileState.isDirty && (
           <div
-            className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.15)] text-[9px] font-mono text-amber-400/60 animate-in fade-in duration-300 ${isMarkdown ? "right-[72px]" : "right-4"}`}
+            className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-500/10 shadow-[0_0_0_1px_rgba(245,158,11,0.15)] text-[9px] font-mono text-amber-400/60 animate-in fade-in duration-300 ${hasTopRightAction ? "right-[72px]" : "right-4"}`}
           >
             <span className="w-1 h-1 rounded-full bg-amber-400/60 animate-pulse" />
             unsaved
@@ -474,7 +656,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         )}
         {editor.isSaving && (
           <div
-            className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] text-[9px] font-mono text-white/40 ${isMarkdown ? "right-[72px]" : "right-4"}`}
+            className={`absolute top-2 z-10 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] text-[9px] font-mono text-white/40 ${hasTopRightAction ? "right-[72px]" : "right-4"}`}
           >
             saving...
           </div>

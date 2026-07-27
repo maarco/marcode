@@ -58,7 +58,6 @@ export function openFileInFloatingEditor(input: OpenFloatingFileInput): void {
 
   if (!pane) return;
 
-  store.setTreeWorkspacePath(input.workspacePath);
   store.openOverlay();
 
   const key = fileKey(environmentId, target.absolutePath);

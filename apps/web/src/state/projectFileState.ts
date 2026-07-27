@@ -1,11 +1,16 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
+import * as Cause from "effect/Cause";
+import * as Option from "effect/Option";
+import { AsyncResult } from "effect/unstable/reactivity";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { FileSaveCoordinator } from "~/components/files/fileSaveCoordinator";
 import {
   clearProjectFileQueryData,
   confirmProjectFileQueryData,
+  getProjectFileQueryAtom,
   setProjectFileQueryData,
   useProjectFileQuery,
 } from "~/components/files/projectFilesQueryState";
@@ -104,13 +109,18 @@ export interface ProjectFileState {
 /**
  * Read a project file reactively. `environmentId`/`cwd` must be non-null; pass
  * `relativePath: null` to signal "no file selected" (returns an empty state).
+ * Pass `enabled: false` to skip the read entirely — e.g. a known image path,
+ * where the text read would only round-trip a binary-rejection error.
+ * Mirrors `useProjectFileQuery`'s own `enabled` parameter; defaults to `true`
+ * so every existing caller is unaffected.
  */
 export function useProjectFile(
   environmentId: EnvironmentId,
   cwd: string,
   relativePath: string | null,
+  enabled = true,
 ): ProjectFileState {
-  const query = useProjectFileQuery(environmentId, cwd, relativePath);
+  const query = useProjectFileQuery(environmentId, cwd, relativePath, enabled);
 
   // the optimistic overlay's presence is the source of truth for "dirty"
   const optimistic = useAtomValue(
@@ -145,6 +155,84 @@ export interface ProjectFileEditor {
 }
 
 /**
+ * True when the file's last CONFIRMED (server-read, non-optimistic) result
+ * was a successful, non-truncated read — i.e. it is safe to base a new
+ * write on it.
+ *
+ * Deliberately reads the raw query atom via the registry rather than the
+ * `useProjectFile`/`useProjectFileQuery` hooks' merged view. That view
+ * prefers the optimistic overlay, and a write is exactly what stamps
+ * `truncated: false` into the overlay ({@link setProjectFileQueryData}) — so
+ * checking the merged view here would be circular: the write would erase
+ * the very signal meant to block it. The confirmed atom only changes on a
+ * real server response, so it can't be corrupted by the write it's gating.
+ *
+ * This is the data-layer backstop, not the primary UX: `editor-pane.tsx`'s
+ * `resolveEditorSurface` already blocks Monaco's only `onChange` path today.
+ * This exists for every write path that isn't that one render — present
+ * (an already-armed autosave timer whose file flips to truncated mid-flight)
+ * or future (a second `update()` caller that doesn't go through the pane).
+ */
+export function isConfirmedReadWritable(
+  environmentId: EnvironmentId,
+  cwd: string,
+  relativePath: string,
+): boolean {
+  const confirmed = Option.getOrNull(
+    AsyncResult.value(
+      appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath)),
+    ),
+  );
+  return confirmed !== null && !confirmed.truncated;
+}
+
+/**
+ * Apply a local edit — optimistic overlay + debounced autosave — unless the
+ * file's last confirmed read was truncated, failed, or hasn't loaded yet.
+ * Returns whether the edit was applied. This is the exact function
+ * `useProjectFileEditor`'s `update()` calls, not a parallel
+ * reimplementation, so it's the one to test directly for the guard.
+ */
+export function applyProjectFileEdit(
+  environmentId: EnvironmentId,
+  cwd: string,
+  relativePath: string,
+  contents: string,
+  coordinator: { readonly change: (contents: string) => void },
+): boolean {
+  if (!isConfirmedReadWritable(environmentId, cwd, relativePath)) {
+    console.warn(
+      `[useProjectFileEditor] blocked an edit to ${cwd}/${relativePath}: last confirmed read was truncated, failed, or hasn't loaded yet.`,
+    );
+    return false;
+  }
+  setProjectFileQueryData(environmentId, cwd, relativePath, contents);
+  coordinator.change(contents);
+  return true;
+}
+
+/**
+ * `null` when it's safe to persist; otherwise a settled failure result ready
+ * to hand back from `FileSaveCoordinator`'s `persist` — for the one case the
+ * render-layer guard and `applyProjectFileEdit` can't reach: a `change()`
+ * already queued in the coordinator before the file's confirmed state flips
+ * to truncated/failed, whose armed debounce timer fires anyway. `Cause.die`
+ * (not `Cause.fail`) because this is a defect — a write that should have
+ * been unreachable — not a modeled `writeFile` failure, and it sidesteps
+ * matching `writeFile`'s actual error type.
+ */
+export function blockedWriteResult(
+  environmentId: EnvironmentId,
+  cwd: string,
+  relativePath: string,
+): AsyncResult.Failure<never, never> | null {
+  if (isConfirmedReadWritable(environmentId, cwd, relativePath)) return null;
+  const message = `Blocked write to ${cwd}/${relativePath}: last confirmed read was truncated, failed, or hasn't loaded yet.`;
+  console.warn(`[useProjectFileEditor] ${message}`);
+  return AsyncResult.failure(Cause.die(new Error(message)));
+}
+
+/**
  * Edit handle for a project file. Pairs with {@link useProjectFile}.
  * `environmentId`/`cwd`/`relativePath` must all be non-null.
  */
@@ -163,6 +251,8 @@ export function useProjectFileEditor(
       new FileSaveCoordinator({
         debounceMs: FILE_AUTOSAVE_DEBOUNCE_MS,
         persist: async (contents) => {
+          const blocked = blockedWriteResult(environmentId, cwd, relativePath);
+          if (blocked) return blocked;
           setIsSaving(true);
           try {
             return await writeFile({ environmentId, input: { cwd, relativePath, contents } });
@@ -197,8 +287,7 @@ export function useProjectFileEditor(
 
   const update = useCallback(
     (contents: string) => {
-      setProjectFileQueryData(environmentId, cwd, relativePath, contents);
-      coordinator.change(contents);
+      applyProjectFileEdit(environmentId, cwd, relativePath, contents, coordinator);
     },
     [coordinator, cwd, environmentId, relativePath],
   );
