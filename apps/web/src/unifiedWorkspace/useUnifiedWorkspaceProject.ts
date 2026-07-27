@@ -44,6 +44,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { openUrlInPreview as openUrlInPreviewSession } from "~/browser/openFileInPreview";
 import { useProjectEntriesQuery } from "~/components/files/projectFilesQueryState";
 import { closePreviewSession } from "~/components/preview/closePreviewSession";
+import { useEditorStore } from "~/editor/editor-store";
 import { openFileInFloatingEditor } from "~/editor/open-floating-file";
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import {
@@ -278,7 +279,8 @@ export function useUnifiedWorkspaceProject(input: {
     return result;
   }, [activePreviewSessions, environmentId, projectThreadIdSet]);
 
-  // `useProjectEntriesQuery` is the exact file-index source `FileBrowserPanel.tsx` reads
+  // `useProjectEntriesQuery` is the exact file-index source the floating
+  // editor's file tree reads
   // (`apps/web/src/components/files/projectFilesQueryState.ts:123`).
   const entriesQuery = useProjectEntriesQuery(environmentId, project?.workspaceRoot ?? "");
   const knownPaths = useMemo(() => {
@@ -488,18 +490,37 @@ export function useUnifiedWorkspaceProject(input: {
       openFile: (threadId: string, relativePath: string) => {
         const targetThread = projectThreadShells.find((thread) => thread.id === threadId);
         const workspacePath = targetThread?.worktreePath ?? project?.workspaceRoot;
-        if (workspacePath) {
-          openFileInFloatingEditor({ environmentId, workspacePath, relativePath });
+        // No right-panel fallback here: the right panel needs
+        // `activeProject && activeWorkspaceRoot` to render at all
+        // (ChatView.tsx), and `activeWorkspaceRoot` is derived the same way
+        // (`activeThreadWorktreePath ?? activeProjectCwd`) — so a null
+        // `workspacePath` here is exactly the condition under which the
+        // panel would render nothing anyway. Surface a toast instead of
+        // silently swallowing the click.
+        if (!workspacePath) {
+          toastManager.add(
+            stackedThreadToast({
+              type: "error",
+              title: "Couldn't open the file",
+              description: "This project has no workspace.",
+            }),
+          );
           return;
         }
-        useRightPanelStore
-          .getState()
-          .openFile(scopeThreadRef(environmentId, ThreadId.make(threadId)), relativePath);
+        openFileInFloatingEditor({ environmentId, workspacePath, relativePath });
       },
-      openFilesSurface: (threadId: string) => {
-        useRightPanelStore
-          .getState()
-          .open(scopeThreadRef(environmentId, ThreadId.make(threadId)), "files");
+      // `threadId` is unused: folder activation just opens the pill's file
+      // sidebar, not a per-thread surface. Kept in the op's own call site
+      // (activateNode.ts) because it's part of the shared
+      // UnifiedWorkspaceActivationOps interface.
+      openFilesSurface: () => {
+        // Known and accepted loss: the folder itself is not expanded or
+        // scrolled to. The pill's tree keeps `expanded` in component-local
+        // `useState` (editor/file-tree.tsx), so there is no cross-component
+        // reveal API, and building one is out of scope for this migration
+        // (docs/specs/single-editing-surface.md, migration site B).
+        useEditorStore.getState().openOverlay();
+        useEditorStore.getState().setSidebarView("files");
       },
       openTerminal: (threadId: string, terminalId: string) => {
         // Right-panel surface only — the PTY session is already running server-side

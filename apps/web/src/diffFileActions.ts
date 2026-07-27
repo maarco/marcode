@@ -1,6 +1,6 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
-import { useRightPanelStore } from "./rightPanelStore";
+import { openFileInFloatingEditor } from "./editor/open-floating-file";
 import { resolvePathLinkTarget } from "./terminal-links";
 
 interface OpenDiffFilePrimaryActionInput {
@@ -10,14 +10,28 @@ interface OpenDiffFilePrimaryActionInput {
   readonly openInEditor: (targetPath: string) => void;
 }
 
+// Opens the diff's *working* file in the floating editor — the same thing
+// the right panel used to open. This is deliberately not `openDiffFile`
+// (editor-store.ts): that renders a diff view, a different feature.
+//
+// `filePath` comes from `resolveFileDiffPath` (lib/diffRendering.ts), which
+// reads `FileDiffMetadata.name`/`prevName` — a patch-header path from
+// `@pierre/diffs`. Unlike terminal-link text, a unified-diff filename has no
+// `:line:col` suffix convention (position lives in hunk headers), so it
+// cannot collide with `resolvePathLinkTarget`'s line-suffix encoding and
+// needs no splitting before reaching the bridge.
 export function openDiffFilePrimaryAction({
   threadRef,
   filePath,
   activeCwd,
   openInEditor,
 }: OpenDiffFilePrimaryActionInput): void {
-  if (threadRef) {
-    useRightPanelStore.getState().openFile(threadRef, filePath);
+  if (threadRef && activeCwd) {
+    openFileInFloatingEditor({
+      environmentId: threadRef.environmentId,
+      workspacePath: activeCwd,
+      relativePath: filePath,
+    });
     return;
   }
 
