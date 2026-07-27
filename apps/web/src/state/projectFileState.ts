@@ -155,34 +155,46 @@ export interface ProjectFileEditor {
 }
 
 /**
- * True when the file's last CONFIRMED (server-read, non-optimistic) result
- * was a successful, non-truncated read — i.e. it is safe to base a new
- * write on it.
+ * Non-reactive lookup of the file's last CONFIRMED (server-read, not
+ * optimistic-merged) result.
  *
  * Deliberately reads the raw query atom via the registry rather than the
  * `useProjectFile`/`useProjectFileQuery` hooks' merged view. That view
  * prefers the optimistic overlay, and a write is exactly what stamps
  * `truncated: false` into the overlay ({@link setProjectFileQueryData}) — so
- * checking the merged view here would be circular: the write would erase
- * the very signal meant to block it. The confirmed atom only changes on a
- * real server response, so it can't be corrupted by the write it's gating.
+ * a write gate that read the merged view would be circular: the write would
+ * erase the very signal meant to block it. The confirmed atom only changes
+ * on a real server response, so it can't be corrupted by the write it gates.
  *
- * This is the data-layer backstop, not the primary UX: `editor-pane.tsx`'s
- * `resolveEditorSurface` already blocks Monaco's only `onChange` path today.
- * This exists for every write path that isn't that one render — present
- * (an already-armed autosave timer whose file flips to truncated mid-flight)
- * or future (a second `update()` caller that doesn't go through the pane).
+ * Kept separate from {@link isConfirmedReadWritable} (which takes the result
+ * of this, not the ids) so the actual gating decision is a pure function,
+ * testable without an atom registry: query atoms in this reactivity system
+ * are computed/read-only and can't be seeded with `.set()` the way the
+ * optimistic overlay atom can.
  */
-export function isConfirmedReadWritable(
+function getConfirmedFileResult(
   environmentId: EnvironmentId,
   cwd: string,
   relativePath: string,
-): boolean {
-  const confirmed = Option.getOrNull(
+): ProjectReadFileResult | null {
+  return Option.getOrNull(
     AsyncResult.value(
       appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath)),
     ),
   );
+}
+
+/**
+ * True when a confirmed read makes it safe to base a new write on it: it
+ * succeeded, and it wasn't truncated.
+ *
+ * This is the data-layer backstop, not the primary UX: `editor-pane.tsx`'s
+ * `resolveEditorSurface` already blocks Monaco's only `onChange` path today.
+ * This exists for every write path that isn't that one render — present (an
+ * already-armed autosave timer whose file flips to truncated mid-flight) or
+ * future (a second `update()` caller that doesn't go through the pane).
+ */
+export function isConfirmedReadWritable(confirmed: ProjectReadFileResult | null): boolean {
   return confirmed !== null && !confirmed.truncated;
 }
 
@@ -198,9 +210,10 @@ export function applyProjectFileEdit(
   cwd: string,
   relativePath: string,
   contents: string,
+  confirmed: ProjectReadFileResult | null,
   coordinator: { readonly change: (contents: string) => void },
 ): boolean {
-  if (!isConfirmedReadWritable(environmentId, cwd, relativePath)) {
+  if (!isConfirmedReadWritable(confirmed)) {
     console.warn(
       `[useProjectFileEditor] blocked an edit to ${cwd}/${relativePath}: last confirmed read was truncated, failed, or hasn't loaded yet.`,
     );
@@ -222,11 +235,11 @@ export function applyProjectFileEdit(
  * matching `writeFile`'s actual error type.
  */
 export function blockedWriteResult(
-  environmentId: EnvironmentId,
   cwd: string,
   relativePath: string,
+  confirmed: ProjectReadFileResult | null,
 ): AsyncResult.Failure<never, never> | null {
-  if (isConfirmedReadWritable(environmentId, cwd, relativePath)) return null;
+  if (isConfirmedReadWritable(confirmed)) return null;
   const message = `Blocked write to ${cwd}/${relativePath}: last confirmed read was truncated, failed, or hasn't loaded yet.`;
   console.warn(`[useProjectFileEditor] ${message}`);
   return AsyncResult.failure(Cause.die(new Error(message)));
@@ -251,7 +264,8 @@ export function useProjectFileEditor(
       new FileSaveCoordinator({
         debounceMs: FILE_AUTOSAVE_DEBOUNCE_MS,
         persist: async (contents) => {
-          const blocked = blockedWriteResult(environmentId, cwd, relativePath);
+          const confirmed = getConfirmedFileResult(environmentId, cwd, relativePath);
+          const blocked = blockedWriteResult(cwd, relativePath, confirmed);
           if (blocked) return blocked;
           setIsSaving(true);
           try {
@@ -287,7 +301,8 @@ export function useProjectFileEditor(
 
   const update = useCallback(
     (contents: string) => {
-      applyProjectFileEdit(environmentId, cwd, relativePath, contents, coordinator);
+      const confirmed = getConfirmedFileResult(environmentId, cwd, relativePath);
+      applyProjectFileEdit(environmentId, cwd, relativePath, contents, confirmed, coordinator);
     },
     [coordinator, cwd, environmentId, relativePath],
   );
