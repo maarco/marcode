@@ -2,22 +2,48 @@
 
 ## Status
 
-**Implemented, not yet driven live.** All four stages landed across seven
-commits (`f756da5f` → `b6242cf8`). The floating pill editor is now the only
+**Implemented. Partially verified live.** All four stages landed across twelve
+commits (`f756da5f` → `33c39170`). The floating pill editor is now the only
 surface that opens a workspace file; `FilePreviewPanel` and `FileBrowserPanel`
-are deleted along with the `file`/`files` right-panel kinds.
+are deleted along with the `file`/`files` right-panel kinds. Net −899 lines of
+source.
 
-Static gates green: web typecheck at the two pre-existing baseline errors
-(`Sidebar.logic.test.ts:870`, `environmentGrouping.test.ts:32`) and nothing
-else, server typecheck clean, 75 web tests and 24 server tests passing across
-the touched suites, `vp lint` exit 0 with three pre-existing warnings on
-untouched lines.
+Static gates green: web typecheck **clean** (the two long-standing baseline
+errors were fixed independently while this landed), server typecheck clean, 99
+tests passing across the touched suites, `vp lint` exit 0, production build
+succeeds. An adversarial review of the full diff returned zero blocking and zero
+material findings.
 
-**Nothing here has been verified in a browser.** The claim that matters most —
-that a file over the size cap can no longer be shortened on disk — is currently
-supported by unit tests and a server-side precondition, not by an observation.
-A sandbox with the fixtures for every gate is built and waiting at
-`/private/tmp/marcode-single-surface-verify`; see _Verification_.
+**Driven live and passing (4):**
+
+- **The truncation guard.** `assets/large.log`, 1,500,000 bytes. Banner shown,
+  editor read-only, keystroke refused; **1500000 bytes before and after**,
+  re-checked independently after the run. Before this change the same sequence
+  left the file at 1,048,576.
+- **Binary/error path.** A real PNG renders a legible message instead of the
+  blank _editable_ buffer it used to, where one keystroke would have replaced the
+  binary.
+- **Cross-workspace isolation.** Two repos holding the same relative path: edited
+  one, the other stayed byte-for-byte identical, verified with `git status` in
+  both rather than from the UI's own claims.
+- **The v7→v8 migration.** A persisted v7 `file` surface was injected and
+  dropped cleanly on reload, with no empty panel or orphan tab.
+
+**Not verified, and deliberately not pursued (4):** the right panel's Files card,
+a diff-panel file click, the plan/diff/browser/terminal regression sweep, and the
+390px/820px viewports. The first three need a real thread with turns, which the
+sandbox cannot produce without running a full-access agent against it.
+
+That verification run also triggered an incident — a misclick registered an
+unrelated real repository as a project and started an agent turn inside it.
+Nothing was modified, but the conclusion stands: **this app should not be driven
+by browser automation on a machine holding real work.** The Command Palette
+browses and registers any directory the server can read, and a project's empty
+state is one click from a full-access turn. Full writeup and preserved evidence:
+`/private/tmp/marcode-single-surface-verify/ISOLATION-INCIDENT.md`.
+
+The remaining gates are a minute of clicking in a real workspace. That is the
+right way to close them.
 
 Every `file:line` below was read on `feature/editor-file-state-unification`.
 Citations were anchored before the implementation landed, so line numbers in
