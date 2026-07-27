@@ -35,7 +35,7 @@ import * as Schema from "effect/Schema";
 import * as WorkspaceEntries from "./WorkspaceEntries.ts";
 import * as WorkspacePaths from "./WorkspacePaths.ts";
 
-const PROJECT_READ_FILE_MAX_BYTES = 1024 * 1024;
+export const PROJECT_READ_FILE_MAX_BYTES = 1024 * 1024;
 
 export class WorkspaceFileSystemOperationError extends Schema.TaggedErrorClass<WorkspaceFileSystemOperationError>()(
   "WorkspaceFileSystemOperationError",
@@ -106,6 +106,21 @@ export class WorkspaceBinaryFileError extends Schema.TaggedErrorClass<WorkspaceB
   }
 }
 
+export class WorkspaceFileTooLargeToWriteError extends Schema.TaggedErrorClass<WorkspaceFileTooLargeToWriteError>()(
+  "WorkspaceFileTooLargeToWriteError",
+  {
+    workspaceRoot: Schema.String,
+    relativePath: Schema.String,
+    resolvedPath: Schema.String,
+    observedBytes: Schema.Number,
+    maxBytes: Schema.Number,
+  },
+) {
+  override get message(): string {
+    return `Workspace file '${this.relativePath}' in '${this.workspaceRoot}' is ${this.observedBytes} bytes, over the ${this.maxBytes}-byte cap this transport can read (${this.resolvedPath}). No client of this transport can ever hold the full contents of a file this large, so writing it back can only produce a truncated copy; refusing the write instead of silently corrupting the file on disk.`;
+  }
+}
+
 export class WorkspacePathAlreadyExistsError extends Schema.TaggedErrorClass<WorkspacePathAlreadyExistsError>()(
   "WorkspacePathAlreadyExistsError",
   {
@@ -137,6 +152,7 @@ export const WorkspaceFileSystemError = Schema.Union([
   WorkspaceFilePathEscapeError,
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
+  WorkspaceFileTooLargeToWriteError,
   WorkspacePathAlreadyExistsError,
   WorkspacePathNotFoundError,
 ]);
@@ -336,6 +352,45 @@ export const make = Effect.gen(function* () {
       workspaceRoot: input.cwd,
       relativePath: input.relativePath,
     });
+
+    // No client of this transport can ever hold the full contents of a file
+    // larger than PROJECT_READ_FILE_MAX_BYTES (readFile caps reads at that
+    // size). So a write targeting an existing file above that size can only
+    // be a partial, truncated copy of it — refuse it outright rather than
+    // silently corrupting the file on disk. A target that doesn't exist yet
+    // is always fine (creation), and a target that is a directory is left to
+    // fail naturally at the write-file step below, as before.
+    const existingStat = yield* fileSystem.stat(target.absolutePath).pipe(
+      Effect.matchEffect({
+        onFailure: (cause) =>
+          cause.reason._tag === "NotFound"
+            ? Effect.succeed(null)
+            : Effect.fail(
+                new WorkspaceFileSystemOperationError({
+                  workspaceRoot: input.cwd,
+                  relativePath: input.relativePath,
+                  resolvedPath: target.absolutePath,
+                  operationPath: target.absolutePath,
+                  operation: "stat",
+                  cause,
+                }),
+              ),
+        onSuccess: Effect.succeed,
+      }),
+    );
+
+    if (existingStat !== null && existingStat.type === "File") {
+      const observedBytes = Number(existingStat.size);
+      if (observedBytes > PROJECT_READ_FILE_MAX_BYTES) {
+        return yield* new WorkspaceFileTooLargeToWriteError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+          resolvedPath: target.absolutePath,
+          observedBytes,
+          maxBytes: PROJECT_READ_FILE_MAX_BYTES,
+        });
+      }
+    }
 
     yield* fileSystem.makeDirectory(path.dirname(target.absolutePath), { recursive: true }).pipe(
       Effect.mapError(

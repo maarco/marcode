@@ -238,6 +238,8 @@ function projectFileFailureContext(
       return { failure: "path_not_file", resolvedPath: error.resolvedPath };
     case "WorkspaceBinaryFileError":
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
+    case "WorkspaceFileTooLargeToWriteError":
+      return { failure: "file_too_large_to_write", resolvedPath: error.resolvedPath };
     case "WorkspacePathAlreadyExistsError":
       return { failure: "path_already_exists", resolvedPath: error.resolvedPath };
     case "WorkspacePathNotFoundError":

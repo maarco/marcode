@@ -138,6 +138,7 @@ export const ProjectFileFailure = Schema.Literals([
   "path_already_exists",
   "path_not_found",
   "binary_file",
+  "file_too_large_to_write",
   "operation_failed",
 ]);
 export type ProjectFileFailure = typeof ProjectFileFailure.Type;

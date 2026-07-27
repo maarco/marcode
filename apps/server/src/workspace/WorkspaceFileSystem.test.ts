@@ -264,6 +264,85 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         expect(escapedStat).toBeNull();
       }),
     );
+
+    it.effect(
+      "rejects writing to an existing file larger than the read cap, leaving it unchanged on disk",
+      () =>
+        Effect.gen(function* () {
+          const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const cwd = yield* makeTempDir;
+          const absolutePath = path.join(cwd, "big.txt");
+          const oversized = "a".repeat(WorkspaceFileSystem.PROJECT_READ_FILE_MAX_BYTES + 1);
+          yield* fileSystem.writeFileString(absolutePath, oversized).pipe(Effect.orDie);
+
+          const error = yield* workspaceFileSystem
+            .writeFile({ cwd, relativePath: "big.txt", contents: "truncated replacement" })
+            .pipe(Effect.flip);
+
+          expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFileTooLargeToWriteError);
+          expect(error).toMatchObject({
+            workspaceRoot: cwd,
+            relativePath: "big.txt",
+            resolvedPath: absolutePath,
+            observedBytes: oversized.length,
+            maxBytes: WorkspaceFileSystem.PROJECT_READ_FILE_MAX_BYTES,
+          });
+
+          const onDiskStat = yield* fileSystem.stat(absolutePath).pipe(Effect.orDie);
+          expect(Number(onDiskStat.size)).toBe(oversized.length);
+          const onDiskContents = yield* fileSystem.readFileString(absolutePath).pipe(Effect.orDie);
+          expect(onDiskContents).toBe(oversized);
+        }),
+    );
+
+    it.effect("writes to an existing file at exactly the read cap", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const absolutePath = path.join(cwd, "at-cap.txt");
+        yield* fileSystem
+          .writeFileString(
+            absolutePath,
+            "a".repeat(WorkspaceFileSystem.PROJECT_READ_FILE_MAX_BYTES),
+          )
+          .pipe(Effect.orDie);
+
+        const result = yield* workspaceFileSystem.writeFile({
+          cwd,
+          relativePath: "at-cap.txt",
+          contents: "replaced",
+        });
+        const saved = yield* fileSystem.readFileString(absolutePath).pipe(Effect.orDie);
+
+        expect(result).toEqual({ relativePath: "at-cap.txt" });
+        expect(saved).toBe("replaced");
+      }),
+    );
+
+    it.effect("writes to a path that does not exist yet (creation still works)", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+
+        const result = yield* workspaceFileSystem.writeFile({
+          cwd,
+          relativePath: "fresh/new-file.txt",
+          contents: "hello",
+        });
+        const saved = yield* fileSystem
+          .readFileString(path.join(cwd, "fresh/new-file.txt"))
+          .pipe(Effect.orDie);
+
+        expect(result).toEqual({ relativePath: "fresh/new-file.txt" });
+        expect(saved).toBe("hello");
+      }),
+    );
   });
 
   describe("createFile", () => {
