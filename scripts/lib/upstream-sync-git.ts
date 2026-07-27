@@ -267,6 +267,13 @@ const configuredRemoteUrl = Effect.fn("configuredRemoteUrl")(function* (
   return result.exitCode === 0 ? result.stdout.trim() : undefined;
 });
 
+function normalizeRemoteUrlForComparison(url: string): string {
+  const withoutTrailingSlashes = url.trim().replace(/\/+$/, "");
+  return withoutTrailingSlashes.endsWith(".git")
+    ? withoutTrailingSlashes.slice(0, -".git".length)
+    : withoutTrailingSlashes;
+}
+
 export const upstreamSyncStatus = Effect.fn("upstreamSyncStatus")(function* (
   options: UpstreamSyncOptions,
 ) {
@@ -286,7 +293,10 @@ export const upstreamSyncStatus = Effect.fn("upstreamSyncStatus")(function* (
     ["source", sourceRemoteUrl, manifest.source.url],
     ["target", targetRemoteUrl, manifest.target.url],
   ] as const) {
-    if (configured !== undefined && configured !== expected) {
+    if (
+      configured !== undefined &&
+      normalizeRemoteUrlForComparison(configured) !== normalizeRemoteUrlForComparison(expected)
+    ) {
       return yield* new UpstreamSyncStateError({
         rule: "remote-url-mismatch",
         detail: `${label} remote points at ${redactRemoteUrl(configured)} but the manifest declares ${redactRemoteUrl(expected)}.`,

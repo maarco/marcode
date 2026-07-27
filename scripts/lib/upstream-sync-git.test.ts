@@ -220,6 +220,39 @@ it.layer(NodeServices.layer)("upstream-sync-git", (it) => {
     }),
   );
 
+  it.effect("status treats an optional trailing .git suffix as the same remote", () =>
+    Effect.gen(function* () {
+      const fixture = yield* makeFixture("clean");
+      yield* fixtureGit(fixture.caller, [
+        "remote",
+        "set-url",
+        "origin",
+        `file://${fixture.targetRepo.slice(0, -".git".length)}/`,
+      ]);
+
+      const report = yield* upstreamSyncStatus({ rootDir: fixture.caller });
+
+      assert.equal(report.remotesMatchManifest, true);
+    }),
+  );
+
+  it.effect("status still rejects a genuinely different configured remote", () =>
+    Effect.gen(function* () {
+      const fixture = yield* makeFixture("clean");
+      yield* fixtureGit(fixture.caller, [
+        "remote",
+        "set-url",
+        "origin",
+        `file://${fixture.root}/different.git`,
+      ]);
+
+      const error = yield* upstreamSyncStatus({ rootDir: fixture.caller }).pipe(Effect.flip);
+
+      assert.equal((error as { rule: string }).rule, "remote-url-mismatch");
+      assert.ok((error as { detail: string }).detail.includes("target remote points at"));
+    }),
+  );
+
   it.effect("plan handles paths with spaces and unicode exactly", () =>
     Effect.gen(function* () {
       const fixture = yield* makeFixture("none");
