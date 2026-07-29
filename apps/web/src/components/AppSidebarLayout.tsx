@@ -74,12 +74,9 @@ function SidebarControl() {
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const sidebarV2Enabled = useClientSettings((settings) => settings.sidebarV2Enabled);
-  // Settings routes render the settings nav, which lives in the v1 component
-  // and is identical for both sidebars — so v1 stays mounted there.
   const pathname = useLocation({ select: (location) => location.pathname });
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  const useSidebarV2 = sidebarV2Enabled && !isOnSettings;
-  const useSidebarV2Theme = useSidebarV2 || isOnSettings;
+  const useSidebarV2 = sidebarV2Enabled;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(window.innerWidth);
@@ -135,28 +132,30 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider className="h-dvh! min-h-0!" defaultOpen style={sidebarProviderStyle}>
-      <Sidebar
-        side="left"
-        variant="floating"
-        collapsible="offcanvas"
-        data-app-sidebar=""
-        data-sidebar-version={useSidebarV2Theme ? "v2" : "v1"}
-        className="text-foreground"
-        resizable={{
-          maxWidth: sidebarMaximumWidth,
-          minWidth: THREAD_SIDEBAR_MIN_WIDTH,
-          shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
-            nextWidth <= currentWidth ||
-            wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
-          storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-          onResize: setSidebarWidth,
-        }}
-      >
-        {useSidebarV2 ? <ThreadSidebarV2 /> : <ThreadSidebar />}
-        <SidebarRail />
-      </Sidebar>
+      {!isOnSettings && (
+        <Sidebar
+          side="left"
+          variant="floating"
+          collapsible="offcanvas"
+          data-app-sidebar=""
+          data-sidebar-version={useSidebarV2 ? "v2" : "v1"}
+          className="text-foreground"
+          resizable={{
+            maxWidth: sidebarMaximumWidth,
+            minWidth: THREAD_SIDEBAR_MIN_WIDTH,
+            shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
+              nextWidth <= currentWidth ||
+              wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
+            storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
+            onResize: setSidebarWidth,
+          }}
+        >
+          {useSidebarV2 ? <ThreadSidebarV2 /> : <ThreadSidebar />}
+          <SidebarRail />
+        </Sidebar>
+      )}
       {children}
-      <SidebarControl />
+      {!isOnSettings && <SidebarControl />}
     </SidebarProvider>
   );
 }

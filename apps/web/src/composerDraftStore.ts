@@ -342,6 +342,8 @@ interface ComposerDraftStoreState {
   /** Resolves a server-thread ref back to a matching draft session when one exists. */
   getDraftSessionByRef: (threadRef: ScopedThreadRef) => DraftSessionState | null;
   getDraftThreadByRef: (threadRef: ScopedThreadRef) => DraftThreadState | null;
+  /** Returns the draftId for a given thread ref, or null if no draft exists. */
+  findDraftIdByThreadRef: (threadRef: ScopedThreadRef) => DraftId | null;
   getDraftThread: (threadRef: ComposerThreadTarget) => DraftThreadState | null;
   listDraftThreadKeys: () => string[];
   hasDraftThreadsInEnvironment: (environmentId: EnvironmentId) => boolean;
@@ -2243,6 +2245,17 @@ const composerDraftStore = create<ComposerDraftStoreState>()(
         },
         getDraftThreadByRef: (threadRef) => {
           return get().getDraftSessionByRef(threadRef);
+        },
+        findDraftIdByThreadRef: (threadRef) => {
+          for (const [draftId, draftThread] of Object.entries(get().draftThreadsByThreadKey)) {
+            if (
+              draftThread.environmentId === threadRef.environmentId &&
+              draftThread.threadId === threadRef.threadId
+            ) {
+              return DraftId.make(draftId);
+            }
+          }
+          return null;
         },
         listDraftThreadKeys: () =>
           Object.values(get().draftThreadsByThreadKey).map((draftThread) =>

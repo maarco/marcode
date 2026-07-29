@@ -1,9 +1,13 @@
 import { useSortable } from "@dnd-kit/sortable";
 import type { ProjectScriptIcon } from "@t3tools/contracts";
-import { FolderFilled, FolderOpenFilled, MessageCircleFilled } from "@aliimam/icons";
+import {
+  ArrowRightFilled,
+  FolderFilled,
+  FolderOpenFilled,
+  MessageCircleFilled,
+} from "@aliimam/icons";
 import {
   BugIcon,
-  ChevronRightIcon,
   ClipboardCheckIcon,
   EllipsisIcon,
   FileIcon,
@@ -43,6 +47,7 @@ import {
   UW_TREE_DROP_INSIDE_CLASS,
   UW_TREE_DROP_LINE_CLASS,
   UW_TREE_GUIDE_CLASS,
+  UW_TREE_COUNT_SLOT_CLASS,
   UW_TREE_HOVER_ACTIONS_CLASS,
   UW_TREE_ICON_CLASS,
   UW_TREE_LABEL_CLASS,
@@ -204,6 +209,45 @@ function fallbackThreadStatusPill(node: UnifiedWorkspaceNode): ThreadStatusPill 
   return null;
 }
 
+function UnifiedWorkspaceRowMenuAction({
+  node,
+  onOpenRowMenu,
+  className,
+}: {
+  readonly node: UnifiedWorkspaceNode;
+  readonly onOpenRowMenu: UnifiedWorkspaceRowProps["onOpenRowMenu"];
+  readonly className?: string;
+}) {
+  const handleClick = (event: MouseEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const rect = event.currentTarget.getBoundingClientRect();
+    onOpenRowMenu(node, { x: rect.left, y: rect.bottom + 2 });
+  };
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`More actions for ${node.label}`}
+            data-testid={`uw-row-menu-${node.id}`}
+            className={cn(
+              "inline-flex size-5 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring",
+              className,
+            )}
+            onClick={handleClick}
+          />
+        }
+      >
+        <EllipsisIcon className="size-3.5" />
+      </TooltipTrigger>
+      <TooltipPopup side="top">More actions</TooltipPopup>
+    </Tooltip>
+  );
+}
+
 export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
   props: UnifiedWorkspaceRowProps,
 ) {
@@ -312,16 +356,6 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
 
   const handleFocus = useCallback(() => onFocusRow(node.id), [node.id, onFocusRow]);
 
-  const handleMenuButtonClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const rect = event.currentTarget.getBoundingClientRect();
-      onOpenRowMenu(node, { x: rect.left, y: rect.bottom + 2 });
-    },
-    [node, onOpenRowMenu],
-  );
-
   const handlePrClick = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
       if (!threadExtras?.prStatus) return;
@@ -385,6 +419,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
     [visualDepth],
   );
   const statusPill = threadExtras?.statusPill ?? fallbackThreadStatusPill(node);
+  const directChildCount = node.directChildCount ?? node.children.length;
 
   const dropZoneClassName =
     isDropTarget?.zone === "inside"
@@ -416,6 +451,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
         visualDepth > 0 && UW_TREE_GUIDE_CLASS,
         isDragging && "opacity-40",
         dropZoneClassName,
+        node.kind !== "folder" && "pr-8",
       )}
       style={indentStyle}
       {...dndAttributesWithoutRoleOrTabIndex}
@@ -434,7 +470,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
           className={cn(UW_TREE_DISCLOSURE_CLASS, !isCollapsed && "rotate-90")}
           onClick={handleDisclosureClick}
         >
-          <ChevronRightIcon className="size-3" />
+          <ArrowRightFilled className="size-3.5" />
         </button>
       ) : null}
 
@@ -500,8 +536,18 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
 
       <span className={UW_TREE_META_CLASS}>
         {node.kind === "folder" && (
-          <span aria-label={`${node.directChildCount ?? node.children.length} direct children`}>
-            {node.directChildCount ?? node.children.length}
+          <span
+            aria-label={`${directChildCount} direct children`}
+            className={UW_TREE_COUNT_SLOT_CLASS}
+          >
+            <span className="transition-opacity duration-150 group-hover/workspace-row:opacity-0 group-focus-within/workspace-row:opacity-0">
+              {directChildCount}
+            </span>
+            <UnifiedWorkspaceRowMenuAction
+              node={node}
+              onOpenRowMenu={onOpenRowMenu}
+              className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-150 group-hover/workspace-row:pointer-events-auto group-hover/workspace-row:opacity-100 group-focus-within/workspace-row:pointer-events-auto group-focus-within/workspace-row:opacity-100 max-sm:pointer-events-auto max-sm:opacity-100"
+            />
           </span>
         )}
         {node.isBroken && (
@@ -608,24 +654,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
         ) : null}
       </span>
 
-      <span className={UW_TREE_HOVER_ACTIONS_CLASS}>
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                aria-label={`More actions for ${node.label}`}
-                data-testid={`uw-row-menu-${node.id}`}
-                className="inline-flex size-5 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-                onClick={handleMenuButtonClick}
-              />
-            }
-          >
-            <EllipsisIcon className="size-3.5" />
-          </TooltipTrigger>
-          <TooltipPopup side="top">More actions</TooltipPopup>
-        </Tooltip>
-      </span>
+      {node.kind !== "folder" && (
+        <span className={UW_TREE_HOVER_ACTIONS_CLASS}>
+          <UnifiedWorkspaceRowMenuAction node={node} onOpenRowMenu={onOpenRowMenu} />
+        </span>
+      )}
     </div>
   );
 });

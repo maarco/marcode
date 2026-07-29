@@ -1429,6 +1429,7 @@ describe("shouldRenderUnifiedWorkspaceTree", () => {
         featureEnabled: false,
         projectExpanded: true,
         hasPinnedCollapsedThread: false,
+        projectMemberCount: 1,
       }),
     ).toBe(false);
   });
@@ -1439,6 +1440,7 @@ describe("shouldRenderUnifiedWorkspaceTree", () => {
         featureEnabled: true,
         projectExpanded: false,
         hasPinnedCollapsedThread: false,
+        projectMemberCount: 1,
       }),
     ).toBe(false);
   });
@@ -1449,6 +1451,7 @@ describe("shouldRenderUnifiedWorkspaceTree", () => {
         featureEnabled: true,
         projectExpanded: false,
         hasPinnedCollapsedThread: true,
+        projectMemberCount: 1,
       }),
     ).toBe(false);
   });
@@ -1459,8 +1462,31 @@ describe("shouldRenderUnifiedWorkspaceTree", () => {
         featureEnabled: true,
         projectExpanded: true,
         hasPinnedCollapsedThread: false,
+        projectMemberCount: 1,
       }),
     ).toBe(true);
+  });
+
+  it("renders for grouped projects so every physical member can expose its workspace tree", () => {
+    expect(
+      shouldRenderUnifiedWorkspaceTree({
+        featureEnabled: true,
+        projectExpanded: true,
+        hasPinnedCollapsedThread: false,
+        projectMemberCount: 3,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not render without a physical project member", () => {
+    expect(
+      shouldRenderUnifiedWorkspaceTree({
+        featureEnabled: true,
+        projectExpanded: true,
+        hasPinnedCollapsedThread: false,
+        projectMemberCount: 0,
+      }),
+    ).toBe(false);
   });
 });
 

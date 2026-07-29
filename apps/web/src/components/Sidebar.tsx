@@ -1,7 +1,6 @@
 import {
   ArchiveIcon,
   ArrowUpDownIcon,
-  ChevronRightIcon,
   CloudIcon,
   ContainerIcon,
   FolderPlusIcon,
@@ -68,7 +67,8 @@ import {
   settlePromise,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { useLocation, useNavigate, useParams, useRouter } from "@tanstack/react-router";
+import { useNavigate, useParams, useRouter } from "@tanstack/react-router";
+import { ArrowRightFilled } from "@aliimam/icons";
 import {
   MAX_SIDEBAR_THREAD_PREVIEW_COUNT,
   MIN_SIDEBAR_THREAD_PREVIEW_COUNT,
@@ -127,13 +127,13 @@ import { threadEnvironment, useEnvironmentThread } from "../state/threads";
 import { vcsEnvironment } from "../state/vcs";
 import { useEnvironment, useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
 import {
+  buildDraftThreadRouteParams,
   buildThreadRouteParams,
   resolveActiveThreadRouteRef,
   resolveThreadRouteTarget,
 } from "../threadRoutes";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { formatRelativeTimeLabel } from "../timestampFormat";
-import { SettingsSidebarNav } from "./settings/SettingsSidebarNav";
 import {
   getArm64IntelBuildWarningDescription,
   getDesktopUpdateActionError,
@@ -1545,6 +1545,40 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       ),
     [project.memberProjects],
   );
+  const activeWorkspaceTreeMember = useMemo(() => {
+    if (!activeRouteThreadKey) return null;
+    const activeThread = sidebarThreadByKey.get(activeRouteThreadKey);
+    if (!activeThread) return null;
+    return (
+      memberProjectByScopedKey.get(
+        scopedProjectKey(scopeProjectRef(activeThread.environmentId, activeThread.projectId)),
+      ) ?? null
+    );
+  }, [activeRouteThreadKey, memberProjectByScopedKey, sidebarThreadByKey]);
+  const activeWorkspaceTreeMemberKey = activeWorkspaceTreeMember?.physicalProjectKey ?? null;
+  const representativeWorkspaceTreeMember = useMemo(
+    () =>
+      project.memberProjects.find(
+        (member) => member.environmentId === project.environmentId && member.id === project.id,
+      ) ??
+      project.memberProjects[0] ??
+      null,
+    [project.environmentId, project.id, project.memberProjects],
+  );
+  const [selectedWorkspaceTreeMemberKey, setSelectedWorkspaceTreeMemberKey] = useState<
+    string | null
+  >(null);
+  useEffect(() => {
+    if (activeWorkspaceTreeMemberKey) {
+      setSelectedWorkspaceTreeMemberKey(activeWorkspaceTreeMemberKey);
+    }
+  }, [activeWorkspaceTreeMemberKey]);
+  const selectedWorkspaceTreeMember =
+    project.memberProjects.find(
+      (member) => member.physicalProjectKey === selectedWorkspaceTreeMemberKey,
+    ) ??
+    activeWorkspaceTreeMember ??
+    representativeWorkspaceTreeMember;
   const memberThreadCountByPhysicalKey = useMemo(() => {
     const counts = new Map<string, number>(
       project.memberProjects.map((member) => [member.physicalProjectKey, 0] as const),
@@ -1607,22 +1641,17 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     );
   }, [activeRouteThreadKey, projectExpanded, visibleProjectThreads]);
 
-  // The unified tree is scoped to one physical project/environment
-  // (`useUnifiedWorkspaceProject`), but a *grouped* logical project can span
-  // several physical members (spec §4) each with their own persisted layout.
-  // Rendering one tree per member is a real design surface this pass doesn't
-  // attempt — grouped projects keep the existing flat list unconditionally
-  // until that's designed, named as a gap in the finish-line report rather
-  // than shipped as a half-built multi-tree stack.
-  const soleWorkspaceTreeMember =
-    project.memberProjects.length === 1 ? project.memberProjects[0] : null;
-  const shouldRenderWorkspaceTree =
-    soleWorkspaceTreeMember !== null &&
-    shouldRenderUnifiedWorkspaceTree({
-      featureEnabled: unifiedWorkspaceSidebarEnabled,
-      projectExpanded,
-      hasPinnedCollapsedThread: pinnedCollapsedThread !== null,
-    });
+  // Layout and file indexes are owned by physical project members. A grouped
+  // logical project therefore keeps one tree per member and exposes exactly
+  // one at a time. The active thread's member wins automatically; the member
+  // buttons let the user inspect another checkout without flattening several
+  // near-identical filesystem roots into one ambiguous list.
+  const shouldRenderWorkspaceTree = shouldRenderUnifiedWorkspaceTree({
+    featureEnabled: unifiedWorkspaceSidebarEnabled,
+    projectExpanded,
+    hasPinnedCollapsedThread: pinnedCollapsedThread !== null,
+    projectMemberCount: project.memberProjects.length,
+  });
   // Empty header slot the tree-mode "Add item" trigger portals into (§9) —
   // see `SidebarProjectWorkspaceTree`'s `addMenuSlotElement` doc comment for
   // why the controller/focus state stays owned there instead of here. A
@@ -2033,6 +2062,29 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
     ],
   );
 
+  // When a thread exists only as an unpromoted draft (user created it but
+  // never sent a message), the server route can't load it. Redirect to the
+  // draft route instead so the composer and draft state render correctly.
+  const resolveDraftRouteIfUnpromoted = useCallback(
+    (threadRef: ScopedThreadRef): { to: string; params: Record<string, string> } | null => {
+      const draftStore = useComposerDraftStore.getState();
+      const draftThread = draftStore.getDraftThreadByRef(threadRef);
+      if (draftThread && draftThread.promotedTo == null) {
+        // draftThreadsByThreadKey maps draftId -> DraftThreadState; find the
+        // draftId whose thread matches this ref.
+        const draftId = draftStore.findDraftIdByThreadRef(threadRef);
+        if (draftId) {
+          return {
+            to: "/draft/$draftId",
+            params: buildDraftThreadRouteParams(draftId),
+          };
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
   const navigateToThread = useCallback(
     (threadRef: ScopedThreadRef) => {
       if (useThreadSelectionStore.getState().selectedThreadKeys.size > 0) {
@@ -2042,12 +2094,22 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       if (isMobile) {
         setOpenMobile(false);
       }
-      void router.navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(threadRef),
-      });
+      const draftRoute = resolveDraftRouteIfUnpromoted(threadRef);
+      void router.navigate(
+        draftRoute ?? {
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(threadRef),
+        },
+      );
     },
-    [clearSelection, isMobile, router, setOpenMobile, setSelectionAnchor],
+    [
+      clearSelection,
+      isMobile,
+      resolveDraftRouteIfUnpromoted,
+      router,
+      setOpenMobile,
+      setSelectionAnchor,
+    ],
   );
 
   const handleThreadClick = useCallback(
@@ -2088,15 +2150,19 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
       if (isMobile) {
         setOpenMobile(false);
       }
-      void router.navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(threadRef),
-      });
+      const draftRoute = resolveDraftRouteIfUnpromoted(threadRef);
+      void router.navigate(
+        draftRoute ?? {
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(threadRef),
+        },
+      );
     },
     [
       clearSelection,
       isMobile,
       rangeSelectTo,
+      resolveDraftRouteIfUnpromoted,
       router,
       setOpenMobile,
       setSelectionAnchor,
@@ -2595,12 +2661,12 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
                     }`}
                   />
                 </span>
-                <ChevronRightIcon className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100" />
+                <ArrowRightFilled className="absolute inset-0 m-auto size-3.5 text-muted-foreground/70 opacity-0 transition-opacity duration-150 group-hover/project-header:opacity-100" />
               </TooltipTrigger>
               <TooltipPopup side="top">{projectStatus.label}</TooltipPopup>
             </Tooltip>
           ) : (
-            <ChevronRightIcon
+            <ArrowRightFilled
               className={`-ml-0.5 size-3.5 shrink-0 text-muted-foreground/70 transition-transform duration-150 ${
                 projectExpanded ? "rotate-90" : ""
               }`}
@@ -2608,7 +2674,7 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
           )}
           <ProjectFavicon environmentId={project.environmentId} cwd={project.workspaceRoot} />
           <span className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="truncate text-sm font-medium text-sidebar-foreground/90">
+            <span className="truncate font-mono text-[11px] font-medium text-sidebar-foreground/90">
               {project.displayName}
             </span>
             {project.groupedProjectCount > 1 ? (
@@ -2648,12 +2714,11 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
             </TooltipPopup>
           </Tooltip>
         )}
-        {/* Flag off (or a grouped project with no sole member): the original
-            single-purpose "+" — completely unchanged. Flag on with a sole
-            member: an empty slot the tree's Add-item menu portals its own
+        {/* Flag off: the original single-purpose "+" — completely unchanged.
+            Flag on: an empty slot the selected physical member's tree portals its own
             Tooltip+trigger into (§9), so the controller/focus state driving
             it stays owned next to the tree, not duplicated here. */}
-        {shouldRenderWorkspaceTree && soleWorkspaceTreeMember ? (
+        {shouldRenderWorkspaceTree && selectedWorkspaceTreeMember ? (
           <div
             ref={setHeaderAddMenuSlot}
             className="pointer-events-none absolute top-[calc(50%+1px)] right-0.5 -translate-y-1/2 opacity-0 transition-opacity duration-150 max-sm:pointer-events-auto max-sm:opacity-100 group-hover/project-header:pointer-events-auto group-hover/project-header:opacity-100 group-focus-within/project-header:pointer-events-auto group-focus-within/project-header:opacity-100"
@@ -2682,24 +2747,91 @@ const SidebarProjectItem = memo(function SidebarProjectItem(props: SidebarProjec
         )}
       </div>
 
-      {shouldRenderWorkspaceTree && soleWorkspaceTreeMember ? (
-        <SidebarProjectWorkspaceTree
-          environmentId={soleWorkspaceTreeMember.environmentId}
-          projectId={soleWorkspaceTreeMember.id}
-          isMobile={isMobile}
-          activeRouteThreadKey={activeRouteThreadKey}
-          workspaceRootFallback={project.workspaceRoot}
-          appSettingsConfirmThreadDelete={appSettingsConfirmThreadDelete}
-          markThreadUnread={markThreadUnread}
-          copyPathToClipboard={copyPathToClipboard}
-          copyThreadIdToClipboard={copyThreadIdToClipboard}
-          attemptArchiveThread={attemptArchiveThread}
-          deleteThread={deleteThread}
-          openPrLink={openPrLink}
-          sidebarThreadByKeyRef={sidebarThreadByKeyRef}
-          projectDisplayName={project.displayName}
-          addMenuSlotElement={headerAddMenuSlot}
-        />
+      {shouldRenderWorkspaceTree && selectedWorkspaceTreeMember ? (
+        project.memberProjects.length > 1 ? (
+          <div
+            role="group"
+            aria-label={`${project.displayName} workspaces`}
+            className="flex min-w-0 flex-col gap-px"
+          >
+            {project.memberProjects.map((member) => {
+              const isSelected =
+                member.physicalProjectKey === selectedWorkspaceTreeMember.physicalProjectKey;
+              return (
+                <React.Fragment key={member.physicalProjectKey}>
+                  <button
+                    type="button"
+                    aria-expanded={isSelected}
+                    data-active={isSelected}
+                    data-testid="workspace-tree-member-button"
+                    title={member.workspaceRoot}
+                    className="mx-1 flex h-7 min-w-0 items-center gap-1.5 rounded-md px-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground data-[active=true]:bg-accent/60 data-[active=true]:text-foreground"
+                    onClick={() => {
+                      setSelectedWorkspaceTreeMemberKey(member.physicalProjectKey);
+                    }}
+                  >
+                    <ArrowRightFilled
+                      className={cn(
+                        "size-3 shrink-0 transition-transform duration-150",
+                        isSelected && "rotate-90",
+                      )}
+                    />
+                    <ProjectFavicon
+                      environmentId={member.environmentId}
+                      cwd={member.workspaceRoot}
+                      className="size-3.5 shrink-0"
+                    />
+                    <span className="min-w-0 flex-1 truncate text-left">{member.title}</span>
+                    {member.environmentLabel ? (
+                      <span className="shrink-0 truncate text-[9px] text-muted-foreground/55">
+                        {member.environmentLabel}
+                      </span>
+                    ) : null}
+                  </button>
+                  {isSelected ? (
+                    <div className="ml-2 min-w-0">
+                      <SidebarProjectWorkspaceTree
+                        environmentId={member.environmentId}
+                        projectId={member.id}
+                        isMobile={isMobile}
+                        activeRouteThreadKey={activeRouteThreadKey}
+                        workspaceRootFallback={member.workspaceRoot}
+                        appSettingsConfirmThreadDelete={appSettingsConfirmThreadDelete}
+                        markThreadUnread={markThreadUnread}
+                        copyPathToClipboard={copyPathToClipboard}
+                        copyThreadIdToClipboard={copyThreadIdToClipboard}
+                        attemptArchiveThread={attemptArchiveThread}
+                        deleteThread={deleteThread}
+                        openPrLink={openPrLink}
+                        sidebarThreadByKeyRef={sidebarThreadByKeyRef}
+                        projectDisplayName={`${project.displayName} / ${member.title}`}
+                        addMenuSlotElement={headerAddMenuSlot}
+                      />
+                    </div>
+                  ) : null}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        ) : (
+          <SidebarProjectWorkspaceTree
+            environmentId={selectedWorkspaceTreeMember.environmentId}
+            projectId={selectedWorkspaceTreeMember.id}
+            isMobile={isMobile}
+            activeRouteThreadKey={activeRouteThreadKey}
+            workspaceRootFallback={selectedWorkspaceTreeMember.workspaceRoot}
+            appSettingsConfirmThreadDelete={appSettingsConfirmThreadDelete}
+            markThreadUnread={markThreadUnread}
+            copyPathToClipboard={copyPathToClipboard}
+            copyThreadIdToClipboard={copyThreadIdToClipboard}
+            attemptArchiveThread={attemptArchiveThread}
+            deleteThread={deleteThread}
+            openPrLink={openPrLink}
+            sidebarThreadByKeyRef={sidebarThreadByKeyRef}
+            projectDisplayName={project.displayName}
+            addMenuSlotElement={headerAddMenuSlot}
+          />
+        )
       ) : (
         <SidebarProjectThreadList
           projectKey={project.projectKey}
@@ -3372,8 +3504,6 @@ export default function Sidebar() {
   const projectOrder = useUiStateStore((store) => store.projectOrder);
   const reorderProjects = useUiStateStore((store) => store.reorderProjects);
   const navigate = useNavigate();
-  const pathname = useLocation({ select: (loc) => loc.pathname });
-  const isOnSettings = pathname.startsWith("/settings");
   const sidebarThreadSortOrder = useClientSettings((s) => s.sidebarThreadSortOrder);
   const sidebarProjectSortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
@@ -3553,6 +3683,27 @@ export default function Sidebar() {
     shortcutLabelForCommand(keybindings, "chat.newLocal", newThreadShortcutLabelOptions) ??
     shortcutLabelForCommand(keybindings, "chat.new", newThreadShortcutLabelOptions);
 
+  // When a thread exists only as an unpromoted draft (user created it but
+  // never sent a message), the server route can't load it. Redirect to the
+  // draft route instead so the composer and draft state render correctly.
+  const resolveDraftRouteIfUnpromoted = useCallback(
+    (threadRef: ScopedThreadRef): { to: string; params: Record<string, string> } | null => {
+      const draftStore = useComposerDraftStore.getState();
+      const draftThread = draftStore.getDraftThreadByRef(threadRef);
+      if (draftThread && draftThread.promotedTo == null) {
+        const draftId = draftStore.findDraftIdByThreadRef(threadRef);
+        if (draftId) {
+          return {
+            to: "/draft/$draftId",
+            params: buildDraftThreadRouteParams(draftId),
+          };
+        }
+      }
+      return null;
+    },
+    [],
+  );
+
   const navigateToThread = useCallback(
     (threadRef: ScopedThreadRef) => {
       if (useThreadSelectionStore.getState().selectedThreadKeys.size > 0) {
@@ -3562,12 +3713,22 @@ export default function Sidebar() {
       if (isMobile) {
         setOpenMobile(false);
       }
-      void navigate({
-        to: "/$environmentId/$threadId",
-        params: buildThreadRouteParams(threadRef),
-      });
+      const draftRoute = resolveDraftRouteIfUnpromoted(threadRef);
+      void navigate(
+        draftRoute ?? {
+          to: "/$environmentId/$threadId",
+          params: buildThreadRouteParams(threadRef),
+        },
+      );
     },
-    [clearSelection, isMobile, navigate, setOpenMobile, setSelectionAnchor],
+    [
+      clearSelection,
+      isMobile,
+      navigate,
+      resolveDraftRouteIfUnpromoted,
+      setOpenMobile,
+      setSelectionAnchor,
+    ],
   );
 
   const projectDnDSensors = useSensors(
@@ -3979,51 +4140,45 @@ export default function Sidebar() {
       ))}
       <SidebarChromeHeader isElectron={isElectron} />
 
-      {isOnSettings ? (
-        <SettingsSidebarNav pathname={pathname} />
-      ) : (
-        <>
-          <SidebarProjectsContent
-            showArm64IntelBuildWarning={showArm64IntelBuildWarning}
-            arm64IntelBuildWarningDescription={arm64IntelBuildWarningDescription}
-            desktopUpdateButtonAction={desktopUpdateButtonAction}
-            desktopUpdateButtonDisabled={desktopUpdateButtonDisabled}
-            handleDesktopUpdateButtonClick={handleDesktopUpdateButtonClick}
-            projectSortOrder={sidebarProjectSortOrder}
-            threadSortOrder={sidebarThreadSortOrder}
-            threadPreviewCount={sidebarThreadPreviewCount}
-            updateSettings={updateSettings}
-            openAddProject={openAddProjectCommandPalette}
-            isManualProjectSorting={isManualProjectSorting}
-            projectDnDSensors={projectDnDSensors}
-            projectCollisionDetection={projectCollisionDetection}
-            handleProjectDragStart={handleProjectDragStart}
-            handleProjectDragEnd={handleProjectDragEnd}
-            handleProjectDragCancel={handleProjectDragCancel}
-            handleNewThread={handleNewThread}
-            archiveThread={archiveThread}
-            deleteThread={deleteThread}
-            sortedProjects={sortedProjects}
-            expandedThreadListsByProject={expandedThreadListsByProject}
-            activeRouteProjectKey={activeRouteProjectKey}
-            routeThreadKey={routeThreadKey}
-            newThreadShortcutLabel={newThreadShortcutLabel}
-            commandPaletteShortcutLabel={commandPaletteShortcutLabel}
-            threadJumpLabelByKey={visibleThreadJumpLabelByKey}
-            attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
-            expandThreadListForProject={expandThreadListForProject}
-            collapseThreadListForProject={collapseThreadListForProject}
-            dragInProgressRef={dragInProgressRef}
-            suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
-            suppressProjectClickForContextMenuRef={suppressProjectClickForContextMenuRef}
-            attachProjectListAutoAnimateRef={attachProjectListAutoAnimateRef}
-            projectsLength={projects.length}
-          />
+      <SidebarProjectsContent
+        showArm64IntelBuildWarning={showArm64IntelBuildWarning}
+        arm64IntelBuildWarningDescription={arm64IntelBuildWarningDescription}
+        desktopUpdateButtonAction={desktopUpdateButtonAction}
+        desktopUpdateButtonDisabled={desktopUpdateButtonDisabled}
+        handleDesktopUpdateButtonClick={handleDesktopUpdateButtonClick}
+        projectSortOrder={sidebarProjectSortOrder}
+        threadSortOrder={sidebarThreadSortOrder}
+        threadPreviewCount={sidebarThreadPreviewCount}
+        updateSettings={updateSettings}
+        openAddProject={openAddProjectCommandPalette}
+        isManualProjectSorting={isManualProjectSorting}
+        projectDnDSensors={projectDnDSensors}
+        projectCollisionDetection={projectCollisionDetection}
+        handleProjectDragStart={handleProjectDragStart}
+        handleProjectDragEnd={handleProjectDragEnd}
+        handleProjectDragCancel={handleProjectDragCancel}
+        handleNewThread={handleNewThread}
+        archiveThread={archiveThread}
+        deleteThread={deleteThread}
+        sortedProjects={sortedProjects}
+        expandedThreadListsByProject={expandedThreadListsByProject}
+        activeRouteProjectKey={activeRouteProjectKey}
+        routeThreadKey={routeThreadKey}
+        newThreadShortcutLabel={newThreadShortcutLabel}
+        commandPaletteShortcutLabel={commandPaletteShortcutLabel}
+        threadJumpLabelByKey={visibleThreadJumpLabelByKey}
+        attachThreadListAutoAnimateRef={attachThreadListAutoAnimateRef}
+        expandThreadListForProject={expandThreadListForProject}
+        collapseThreadListForProject={collapseThreadListForProject}
+        dragInProgressRef={dragInProgressRef}
+        suppressProjectClickAfterDragRef={suppressProjectClickAfterDragRef}
+        suppressProjectClickForContextMenuRef={suppressProjectClickForContextMenuRef}
+        attachProjectListAutoAnimateRef={attachProjectListAutoAnimateRef}
+        projectsLength={projects.length}
+      />
 
-          <SidebarSeparator />
-          <SidebarChromeFooter />
-        </>
-      )}
+      <SidebarSeparator />
+      <SidebarChromeFooter />
     </>
   );
 }

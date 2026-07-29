@@ -46,8 +46,14 @@ export function shouldRenderUnifiedWorkspaceTree(input: {
   featureEnabled: boolean;
   projectExpanded: boolean;
   hasPinnedCollapsedThread: boolean;
+  projectMemberCount: number;
 }): boolean {
-  return input.featureEnabled && input.projectExpanded && !input.hasPinnedCollapsedThread;
+  return (
+    input.featureEnabled &&
+    input.projectExpanded &&
+    !input.hasPinnedCollapsedThread &&
+    input.projectMemberCount > 0
+  );
 }
 
 export const THREAD_SELECTION_SAFE_SELECTOR = "[data-thread-item], [data-thread-selection-safe]";

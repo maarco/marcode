@@ -71,6 +71,12 @@ export const UW_TREE_LABEL_CLASS =
 export const UW_TREE_META_CLASS =
   "ml-auto flex shrink-0 items-center gap-1 font-mono text-[9px] text-foreground/40";
 
+export const UW_TREE_COUNT_SLOT_CLASS =
+  "relative inline-flex size-5 shrink-0 items-center justify-center";
+
+/** Reserved right gutter for rows without a folder count. The action stays
+ * invisible until the row is hovered or keyboard-focused, matching the
+ * original tree treatment without stealing space from count-bearing folders. */
 export const UW_TREE_HOVER_ACTIONS_CLASS =
   "pointer-events-none absolute right-1 flex items-center gap-0.5 opacity-0 " +
   "transition-opacity duration-150 " +

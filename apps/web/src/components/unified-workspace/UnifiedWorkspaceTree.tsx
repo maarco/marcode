@@ -216,20 +216,15 @@ function RootGutter({ isActive }: { isActive: boolean }) {
   );
 }
 
-function defaultAccordionHeight(directChildCount: number): number {
-  return Math.min(Math.max(directChildCount * 26, 60), 200);
-}
-
 function RootFolderAccordionPanel(props: {
   readonly nodeId: string;
   readonly label: string;
-  readonly directChildCount: number;
   readonly height: number | undefined;
   readonly onHeightChange: (nodeId: string, height: number) => void;
   readonly children: ReactNode;
 }) {
-  const { nodeId, label, directChildCount, height, onHeightChange, children } = props;
-  const resolvedHeight = height ?? defaultAccordionHeight(directChildCount);
+  const { nodeId, label, height, onHeightChange, children } = props;
+  const resolvedHeight = height;
   const dragRef = useRef<{
     startY: number;
     startHeight: number;
@@ -265,7 +260,10 @@ function RootFolderAccordionPanel(props: {
 
       dragRef.current = {
         startY: event.clientY,
-        startHeight: resolvedHeight,
+        startHeight:
+          resolvedHeight ??
+          event.currentTarget.previousElementSibling?.getBoundingClientRect().height ??
+          40,
         previousCursor: document.body.style.cursor,
         previousUserSelect: document.body.style.userSelect,
       };
@@ -292,7 +290,7 @@ function RootFolderAccordionPanel(props: {
       event.preventDefault();
       event.stopPropagation();
       const delta = event.key === "ArrowUp" ? -10 : 10;
-      onHeightChange(nodeId, Math.max(40, resolvedHeight + delta));
+      onHeightChange(nodeId, Math.max(40, (resolvedHeight ?? 40) + delta));
     },
     [nodeId, onHeightChange, resolvedHeight],
   );
@@ -301,7 +299,7 @@ function RootFolderAccordionPanel(props: {
     <div data-accordion-content className={UW_TREE_ACCORDION_CONTENT_CLASS}>
       <div
         className={`${UW_TREE_ACCORDION_CONTENT_TOP_CLASS} overflow-y-auto overflow-x-hidden`}
-        style={{ maxHeight: resolvedHeight }}
+        style={resolvedHeight === undefined ? undefined : { height: resolvedHeight }}
       >
         {children}
       </div>
@@ -311,7 +309,7 @@ function RootFolderAccordionPanel(props: {
         aria-label={`Resize ${label} folder panel`}
         aria-orientation="horizontal"
         aria-valuemin={40}
-        aria-valuenow={Math.round(resolvedHeight)}
+        aria-valuenow={Math.round(resolvedHeight ?? 0)}
         className={`group/accordion-resize ${UW_TREE_ACCORDION_RESIZE_CLASS}`}
         onMouseDown={handleResizeStart}
         onKeyDown={handleResizeKeyDown}
@@ -1013,7 +1011,6 @@ export const UnifiedWorkspaceTree = forwardRef<
               <RootFolderAccordionPanel
                 nodeId={node.id}
                 label={node.label}
-                directChildCount={node.directChildCount ?? node.children.length}
                 height={accordionHeights.get(node.id)}
                 onHeightChange={setAccordionHeight}
               >
