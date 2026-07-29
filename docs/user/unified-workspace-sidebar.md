@@ -37,6 +37,12 @@ other threads too.
 Every thread you have not archived is always somewhere in the tree. If you never placed one, it sits
 at the project root. Nothing gets hidden.
 
+When several checkouts or worktrees are grouped under one repository row, each physical project
+keeps its own tree. The grouped row lists those workspaces as a compact accordion and opens the
+workspace that owns the active thread automatically. Select another workspace row to inspect its
+folders, threads, commands, and live resources without mixing identical paths from different
+worktrees.
+
 ## Adding things
 
 Use **Add item** on the project row, or the context menu on any row to add underneath it:

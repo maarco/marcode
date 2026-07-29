@@ -35,6 +35,9 @@ Source owners:
 Current rule:
 
 - Visible product name is `Marcode`, with environment/release labels such as Dev, Nightly, or Alpha.
+- Development, nightly, and production use the same approved black mark on a white rounded-square
+  background across web, mobile, desktop, marketing, favicons, and packaged assets. Channel identity
+  comes from naming and build metadata rather than alternate icon artwork.
 - Keep compatibility names that are still upstream-owned or migration-sensitive. Do not broadly
   rename `@t3tools/*`, storage keys, mobile schemes/bundle ids, or package names.
 - A mark or channel change requires a sibling sweep across web, desktop, mobile, marketing, and

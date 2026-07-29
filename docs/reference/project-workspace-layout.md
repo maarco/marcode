@@ -143,4 +143,6 @@ builder.
 
 Layout is per physical project. A grouped logical project made of several physical
 projects/environments keeps one layout per member. Cross-project and cross-environment moves are
-rejected.
+rejected. The sidebar presents grouped members as a single-open workspace accordion: the active
+thread's physical member opens automatically, and selecting another member swaps in that member's
+independently indexed and persisted tree.

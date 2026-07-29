@@ -101,6 +101,10 @@ These are the things a change to this feature must never break (spec §16, verif
   against an old server all degrade to an empty layout rather than erroring.
 - **Native mobile (`apps/mobile`) must keep decoding the project shell** even though it ignores
   layout presentation entirely. Not independently re-verified in this pass — see Known gaps.
+- **Grouped projects retain one physical tree per member.** The sidebar lists grouped checkouts or
+  worktrees as a single-open accordion, automatically selects the member that owns the active
+  thread, and mounts that member's independently indexed/persisted tree. Switching members never
+  merges duplicate relative paths or permits a cross-project move.
 
 ## Naming: kebab-case export, camelCase file
 
@@ -196,26 +200,28 @@ console, or exercise them through `UnifiedWorkspaceAttachDialog`/the Add-URL dia
 temporary trigger):
 
 1. Add a project with at least two files and two folders indexed.
-2. Attach a file and a folder.
-3. Create a thread at the project root.
-4. Create a thread for the attached file (context menu → "New child thread", or drag a new-thread
+2. Group at least two physical checkouts/worktrees, switch between their member rows, and confirm
+   the active thread's member opens automatically with its own folder index.
+3. Attach a file and a folder.
+4. Create a thread at the project root.
+5. Create a thread for the attached file (context menu → "New child thread", or drag a new-thread
    creation onto it).
-5. Drag the root thread under the folder.
-6. Move it again through "Move to…".
-7. Open the file from the tree; confirm the existing right-panel file surface opens.
-8. Open a terminal; confirm the live terminal node appears under the thread without a sidebar reload.
-9. Run a command; confirm terminal activation.
-10. Open two browser tabs; confirm both live browser nodes appear.
-11. Pin one browser tab as a URL shortcut; confirm it survives the tab closing.
-12. Close the terminal/browser; confirm the live nodes disappear (no stale rows).
-13. Reload; confirm persisted placement and shortcuts restore.
-14. Archive, then unarchive, a placed thread; confirm placement is preserved across the round trip.
-15. Remove an attached file from the sidebar; confirm the file on disk is untouched.
-16. Rename/delete a disk path behind an attachment; confirm it renders as a broken reference, not a
+6. Drag the root thread under the folder.
+7. Move it again through "Move to…".
+8. Open the file from the tree; confirm the existing right-panel file surface opens.
+9. Open a terminal; confirm the live terminal node appears under the thread without a sidebar reload.
+10. Run a command; confirm terminal activation.
+11. Open two browser tabs; confirm both live browser nodes appear.
+12. Pin one browser tab as a URL shortcut; confirm it survives the tab closing.
+13. Close the terminal/browser; confirm the live nodes disappear (no stale rows).
+14. Reload; confirm persisted placement and shortcuts restore.
+15. Archive, then unarchive, a placed thread; confirm placement is preserved across the round trip.
+16. Remove an attached file from the sidebar; confirm the file on disk is untouched.
+17. Rename/delete a disk path behind an attachment; confirm it renders as a broken reference, not a
     silent removal.
-17. Attempt a cycle (drag a folder into its own descendant) and a cross-project drop; confirm both
+18. Attempt a cycle (drag a folder into its own descendant) and a cross-project drop; confirm both
     are rejected with an explanation.
-18. Reconnect a second client/tab; confirm the layout stream synchronizes.
+19. Reconnect a second client/tab; confirm the layout stream synchronizes.
 
 Check both themes and check 390px, 820px, and desktop width — this sidebar inherits Marcode's
 existing responsive sidebar sheet behavior, and any new row/menu/dialog can introduce its own overflow

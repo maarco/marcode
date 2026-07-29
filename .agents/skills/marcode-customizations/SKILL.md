@@ -50,8 +50,9 @@ Preserve both sides of the fork:
 
 - User-visible web and desktop identity comes from `apps/web/src/branding.ts` and
   `apps/desktop/src/app/DesktopEnvironment.ts`, with stage-aware display names.
-- The shared mark is `apps/web/src/components/MarcodeMark.tsx`; favicon and packaged asset siblings
-  must stay aligned when the mark changes.
+- The web and mobile marks plus every dev, nightly, production, desktop, marketing, favicon, and
+  packaged asset sibling use the approved black mark on a white rounded-square background. Keep the
+  artwork aligned across channels; channel identity comes from naming and build metadata.
 - `apps/web/src/components/FloatingPillNav.tsx` is the primary floating navigation shell.
 - Floating application layers use `apps/web/src/editor/floating-surface-z.ts`; do not introduce
   arbitrary z-index islands.
