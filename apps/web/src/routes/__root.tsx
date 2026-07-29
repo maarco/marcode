@@ -63,6 +63,7 @@ import {
   useActiveEnvironmentId,
   useThreadRefs,
 } from "../state/entities";
+import { useShallow } from "zustand/react/shallow";
 import { markPromotedDraftThreadByRef, useComposerDraftStore } from "../composerDraftStore";
 import {
   createKeybindingsUpdateToastController,
@@ -304,30 +305,26 @@ function AuthenticatedTracingBootstrap() {
  */
 function DraftPromotionWatcher() {
   const threadRefs = useThreadRefs();
-  const unpromotedDrafts = useComposerDraftStore((store) => {
-    const result: { environmentId: EnvironmentId; threadId: ThreadId }[] = [];
-    for (const draftThread of Object.values(store.draftThreadsByThreadKey)) {
-      if (draftThread.promotedTo == null) {
-        result.push({
-          environmentId: draftThread.environmentId,
-          threadId: draftThread.threadId,
-        });
-      }
-    }
-    return result;
-  });
+  const unpromotedDraftKeys = useComposerDraftStore(
+    useShallow((store) =>
+      Object.values(store.draftThreadsByThreadKey)
+        .filter((draft) => draft.promotedTo == null)
+        .map((draft) => `${draft.environmentId}:${draft.threadId}`),
+    ),
+  );
 
   useEffect(() => {
-    if (unpromotedDrafts.length === 0 || threadRefs.length === 0) {
+    if (unpromotedDraftKeys.length === 0 || threadRefs.length === 0) {
       return;
     }
     const serverRefSet = new Set(threadRefs.map((ref) => `${ref.environmentId}:${ref.threadId}`));
-    for (const draft of unpromotedDrafts) {
-      if (serverRefSet.has(`${draft.environmentId}:${draft.threadId}`)) {
-        markPromotedDraftThreadByRef(scopeThreadRef(draft.environmentId, draft.threadId));
+    for (const draftKey of unpromotedDraftKeys) {
+      if (serverRefSet.has(draftKey)) {
+        const [environmentId, threadId] = draftKey.split(":") as [EnvironmentId, ThreadId];
+        markPromotedDraftThreadByRef(scopeThreadRef(environmentId, threadId));
       }
     }
-  }, [threadRefs, unpromotedDrafts]);
+  }, [threadRefs, unpromotedDraftKeys]);
 
   return null;
 }
