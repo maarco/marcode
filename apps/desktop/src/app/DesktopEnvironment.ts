@@ -149,8 +149,8 @@ const make = Effect.fn("desktop.environment.make")(function* (
       : input.platform === "darwin"
         ? path.join(homeDirectory, "Library", "Application Support")
         : Option.getOrElse(config.xdgConfigHome, () => path.join(homeDirectory, ".config"));
-  const configuredBaseDir = config.t3Home;
-  const baseDir = Option.getOrElse(configuredBaseDir, () => path.join(homeDirectory, ".t3"));
+  const configuredBaseDir = config.marcodeHome;
+  const baseDir = Option.getOrElse(configuredBaseDir, () => path.join(homeDirectory, ".marcode"));
   const rootDir = path.resolve(input.dirname, "../../..");
   const appRoot = input.isPackaged ? input.appPath : rootDir;
   const branding = resolveDesktopAppBranding({

@@ -412,7 +412,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     const unit = yield* fs.readFileString(unitPath);
     // A unit is current only if it matches what install would write now (an
     // older CLI wrote a different runtime/node path) AND the entry point it
-    // references still exists (a pinned runtime under ~/.t3 can be deleted to
+    // references still exists (a pinned runtime under ~/.marcode can be deleted to
     // reclaim space). Either mismatch makes connect offer a repair.
     const entryExists = yield* fs.exists(plannedEntryPath);
     const current = unit === renderBootServiceUnit(plan) && entryExists;

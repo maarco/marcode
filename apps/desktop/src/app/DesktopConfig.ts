@@ -35,7 +35,7 @@ const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<s
 export const DesktopConfig = Config.all({
   appDataDirectory: trimmedString("APPDATA"),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
-  t3Home: trimmedString("MARCODE_HOME"),
+  marcodeHome: trimmedString("MARCODE_HOME"),
   devServerUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option),
   appUserModelIdOverride: trimmedString("MARCODE_DESKTOP_APP_USER_MODEL_ID"),
   devRemoteT3ServerEntryPath: trimmedString("MARCODE_DEV_REMOTE_T3_SERVER_ENTRY_PATH"),

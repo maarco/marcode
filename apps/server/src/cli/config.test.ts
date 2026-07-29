@@ -29,7 +29,7 @@ const makeDesktopBootstrap = (
   mode: "desktop",
   noBrowser: true,
   port: 4888,
-  t3Home: "/tmp/t3-bootstrap-home",
+  marcodeHome: "/tmp/t3-bootstrap-home",
   host: "127.0.0.1",
   desktopBootstrapToken: "desktop-bootstrap-token",
   tailscaleServeEnabled: false,
@@ -283,7 +283,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         makeDesktopBootstrap({
           port: 4888,
           host: "127.0.0.2",
-          t3Home: baseDir,
+          marcodeHome: baseDir,
           noBrowser: true,
           desktopBootstrapToken: "desktop-token",
           tailscaleServeEnabled: false,
@@ -407,7 +407,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         makeDesktopBootstrap({
           port: 4888,
           host: "127.0.0.2",
-          t3Home: "/tmp/t3-bootstrap-home",
+          marcodeHome: "/tmp/t3-bootstrap-home",
           noBrowser: false,
           desktopBootstrapToken: "desktop-token",
           tailscaleServeEnabled: false,

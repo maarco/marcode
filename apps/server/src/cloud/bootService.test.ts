@@ -81,8 +81,8 @@ const makeTestContext = Effect.fn("test.makeTestContext")(function* () {
     path,
     dirs: {
       home: root,
-      baseDir: path.join(root, ".t3"),
-      logsDir: path.join(root, ".t3", "userdata", "logs"),
+      baseDir: path.join(root, ".marcode"),
+      logsDir: path.join(root, ".marcode", "userdata", "logs"),
       stableEntry,
     },
   };
@@ -91,9 +91,9 @@ const makeTestContext = Effect.fn("test.makeTestContext")(function* () {
 it("renders a systemd unit with absolute paths and append-mode logging", () => {
   const unit = BootService.renderBootServiceUnit({
     nodePath: "/usr/local/bin/node",
-    t3EntryPath: "/home/theo/.t3/runtime/versions/0.0.27/node_modules/t3/dist/bin.mjs",
-    baseDir: "/home/theo/.t3",
-    logPath: "/home/theo/.t3/userdata/logs/boot-service.log",
+    t3EntryPath: "/home/theo/.marcode/runtime/versions/0.0.27/node_modules/t3/dist/bin.mjs",
+    baseDir: "/home/theo/.marcode",
+    logPath: "/home/theo/.marcode/userdata/logs/boot-service.log",
     unitPath: "/home/theo/.config/systemd/user/marcode.service",
   });
 
@@ -108,13 +108,13 @@ it("renders a systemd unit with absolute paths and append-mode logging", () => {
       "[Service]",
       "Type=simple",
       "WorkingDirectory=%h",
-      "Environment=MARCODE_HOME=/home/theo/.t3",
+      "Environment=MARCODE_HOME=/home/theo/.marcode",
       "Environment=T3_BOOT_SERVICE_UNIT=marcode.service",
-      "ExecStart=/usr/local/bin/node /home/theo/.t3/runtime/versions/0.0.27/node_modules/t3/dist/bin.mjs serve",
+      "ExecStart=/usr/local/bin/node /home/theo/.marcode/runtime/versions/0.0.27/node_modules/t3/dist/bin.mjs serve",
       "Restart=always",
       "RestartSec=5",
-      "StandardOutput=append:/home/theo/.t3/userdata/logs/boot-service.log",
-      "StandardError=append:/home/theo/.t3/userdata/logs/boot-service.log",
+      "StandardOutput=append:/home/theo/.marcode/userdata/logs/boot-service.log",
+      "StandardError=append:/home/theo/.marcode/userdata/logs/boot-service.log",
       "",
       "[Install]",
       "WantedBy=default.target",
@@ -166,7 +166,7 @@ it("flags package-manager cache entry points as ephemeral", () => {
   );
   assert.isFalse(
     BootService.isEphemeralCacheEntry(
-      "/home/theo/.t3/runtime/versions/0.0.27/node_modules/t3/dist/bin.mjs",
+      "/home/theo/.marcode/runtime/versions/0.0.27/node_modules/t3/dist/bin.mjs",
     ),
   );
 });

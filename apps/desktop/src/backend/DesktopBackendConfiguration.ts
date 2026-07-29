@@ -340,7 +340,7 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       mode: "desktop" as const,
       noBrowser: true,
       port: backendExposure.port,
-      t3Home: environment.baseDir,
+      marcodeHome: environment.baseDir,
       host: backendExposure.bindHost,
       desktopBootstrapToken: input.bootstrapToken,
       tailscaleServeEnabled: backendExposure.tailscaleServeEnabled,
@@ -400,7 +400,7 @@ const resolveWslStartConfig = Effect.fn("desktop.backendConfiguration.resolveWsl
     mode: "desktop" as const,
     noBrowser: true,
     port: input.port,
-    // Omit t3Home so the Linux backend uses its own home dir instead of
+    // Omit marcodeHome so the Linux backend uses its own home dir instead of
     // the Windows-side baseDir (which would be a /mnt/c path and share
     // the SQLite file with the primary).
     host: wslBindHost,
@@ -472,7 +472,7 @@ const resolveWslStartConfig = Effect.fn("desktop.backendConfiguration.resolveWsl
 
   // Build an explicit copy of process.env minus MARCODE_HOME (dev-runner
   // exports the Windows-side base dir for the primary; if it leaks into
-  // the WSL backend the Linux side ends up sharing C:\Users\...\.t3 via
+  // the WSL backend the Linux side ends up sharing C:\Users\...\.marcode via
   // /mnt/c, which means both backends read/write the same database and
   // their env-ids collide).
   const parentEnvWithoutT3Home: Record<string, string | undefined> = {};
