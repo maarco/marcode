@@ -1,92 +1,67 @@
-# T3 Code
+# Marcode
 
-T3 Code is a minimal web GUI for coding agents (currently Codex, Claude, Cursor, and OpenCode, more coming soon).
+Marcode is a maintained fork of [T3 Code](https://github.com/pingdotgg/t3code), a minimal web GUI for coding agents. It currently supports Codex, Claude, Cursor, and OpenCode.
 
 ## Installation
 
-> [!WARNING]
-> T3 Code currently supports Codex, Claude, Cursor, and OpenCode.
-> Install and authenticate at least one provider before use:
->
-> - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
-> - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
-> - Cursor: install [Cursor CLI](https://cursor.com/cli) and run `cursor-agent login`
-> - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
+Authenticate at least one provider before use:
+
+- Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
+- Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
+- Cursor: install [Cursor CLI](https://cursor.com/cli) and run `cursor-agent login`
+- OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
 
 ### Run without installing
+
+The CLI keeps the upstream-compatible `t3` package name:
 
 ```bash
 npx t3@latest
 ```
 
-Tip: Use `npx t3@latest --help` for the full CLI reference.
+Use `npx t3@latest --help` for the full CLI reference.
 
-### Desktop app
+### Run from source
 
-Install the latest version of the desktop app from [GitHub Releases](https://github.com/pingdotgg/t3code/releases), or from your favorite package registry:
-
-#### Windows (`winget`)
+Install [Vite+](https://vite.plus/guide/) and the project dependencies:
 
 ```bash
-winget install T3Tools.T3Code
+vp i
+vp run dev
 ```
 
-#### macOS (Homebrew)
+For the desktop development surface:
 
 ```bash
-brew install --cask t3-code
+vp run dev:desktop
 ```
 
-#### Arch Linux (AUR)
+Published desktop builds will appear in [Marcode Releases](https://github.com/maarco/marcode/releases).
 
-```bash
-yay -S t3code-bin
-```
+## Status
 
-## Some notes
-
-We are very very early in this project. Expect bugs.
-
-We are not accepting contributions yet.
-
-There's no public docs site yet, checkout the miscellaneous markdown files in [docs](./docs).
+Marcode is early and under active development. Expect bugs and incomplete surfaces.
 
 ## Documentation
 
 - [Getting started](./docs/getting-started/quick-start.md)
 - [Remote access](./docs/user/remote-access.md)
-- [Keeping T3 Code in sync](./docs/user/server-updates.md)
+- [Server updates](./docs/user/server-updates.md)
 - [Architecture overview](./docs/architecture/overview.md)
 - [Provider guides](./docs/providers/codex.md)
 - [Operations](./docs/operations/ci.md)
 - [Reference](./docs/reference/encyclopedia.md)
 
-## If you REALLY want to contribute still.... read this first
+## Upstream synchronization
 
-### Install `vp`
+Marcode tracks the official [T3 Code repository](https://github.com/pingdotgg/t3code) as `upstream`.
 
-T3 Code uses Vite+ so you'll need to install the global `vp` command-line tool.
+The scheduled [Upstream Sync workflow](https://github.com/maarco/marcode/actions/workflows/upstream-sync.yml) detects upstream changes and prepares reviewable integration work. It never resolves conflicts automatically or pushes to `main`. Conflicted syncs create a GitHub Issue for manual follow-up; clean syncs create a draft pull request.
 
-#### macOS / Linux
+See the [upstream sync runbook](./docs/operations/upstream-sync.md) for the integration policy and recovery steps.
 
-```bash
-curl -fsSL https://vite.plus | bash
-```
+## Contributing
 
-#### Windows
-
-```bash
-irm https://vite.plus/ps1 | iex
-```
-
-Checkout their getting started guide for more information: https://viteplus.dev/guide/
-
-### Install dependencies
-
-```bash
-vp i
-```
-
-Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or PR.
+Read [CONTRIBUTING.md](./CONTRIBUTING.md) before opening an issue or pull request. The repository's [Issues](https://github.com/maarco/marcode/issues) are enabled for bug reports and follow-up work.
 
 Need support? Join the [Discord](https://discord.gg/jn4EGJjrvv).
