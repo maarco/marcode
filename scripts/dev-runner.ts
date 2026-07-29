@@ -667,7 +667,7 @@ export function runDevRunnerWithInput(input: DevRunnerCliInput) {
 
     const hostEnvironment = yield* HostProcessEnvironment;
     // A dev server started inside a worktree defaults to that worktree's own
-    // (gitignored) `.t3` — see @t3tools/shared/devHome for why this must
+    // (gitignored) `.marcode` — see @t3tools/shared/devHome for why this must
     // outrank an ambient MARCODE_HOME. `--home-dir` still wins.
     const worktreeHome = yield* resolveWorktreeMarcodeHome(yield* HostProcessWorkingDirectory);
     // Trim before choosing: `--home-dir ""` is not a selection, and treating it

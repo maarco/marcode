@@ -11,14 +11,14 @@ Use this skill for the web client. For iOS Simulator, Android Emulator, or physi
 
 1. Run commands from the repository root.
 2. Choose a base directory that belongs only to the current worktree or test:
-   - Use the repository's ignored `.t3` directory for reusable worktree-local state.
-   - Use `mktemp -d /tmp/t3code-test.XXXXXX` for disposable state and retain the printed absolute path.
-3. Start the full web stack with `vp run dev`. Add `--share` when the user needs to open it from another tailnet device. In a linked worktree it defaults to that worktree's gitignored `.t3`; pass `--home-dir <base-dir>` only when the test needs a different isolated directory.
+   - Use the repository's ignored `.marcode` directory for reusable worktree-local state.
+   - Use `mktemp -d /tmp/marcode-test.XXXXXX` for disposable state and retain the printed absolute path.
+3. Start the full web stack with `vp run dev`. Add `--share` when the user needs to open it from another tailnet device. In a linked worktree it defaults to that worktree's gitignored `.marcode`; pass `--home-dir <base-dir>` only when the test needs a different isolated directory.
 4. Keep the terminal session alive and read the selected server port, web port, base directory, and pairing URL from its output.
 
-Treat a base directory as disposable only when it was created or deliberately selected for the current test. Never delete or directly seed the shared `~/.t3` directory. Prefer starting with a new temporary base directory over clearing state of uncertain ownership.
+Treat a base directory as disposable only when it was created or deliberately selected for the current test. Never delete or directly seed the shared `~/.marcode` directory. Prefer starting with a new temporary base directory over clearing state of uncertain ownership.
 
-The worktree-local default deliberately outranks an ambient `T3CODE_HOME`; do not pass the shared home through to a worktree dev server.
+The worktree-local default deliberately outranks an ambient `MARCODE_HOME`; do not pass the shared home through to a worktree dev server.
 
 Ports are derived from the worktree path but can shift when occupied. Always read the actual values from the `[dev-runner]` line.
 
@@ -57,7 +57,7 @@ Treat pairing URLs as secrets. Do not copy them into final responses, screenshot
 Create another token against the same database and web URL as the running dev server:
 
 ```bash
-T3CODE_PORT=<server-port> node apps/server/src/bin.ts auth pairing create \
+MARCODE_PORT=<server-port> node apps/server/src/bin.ts auth pairing create \
   --base-dir <base-dir> \
   --dev-url <web-url> \
   --base-url <web-url> \
@@ -65,20 +65,20 @@ T3CODE_PORT=<server-port> node apps/server/src/bin.ts auth pairing create \
   --label agent-ui-test
 ```
 
-Use the `Pair URL` from this command once. Derive `<server-port>` and `<web-url>` from the current dev-runner output, including any automatically selected port offset. Setting `T3CODE_PORT` keeps the administrative CLI from probing for an unrelated free port.
+Use the `Pair URL` from this command once. Derive `<server-port>` and `<web-url>` from the current dev-runner output, including any automatically selected port offset. Setting `MARCODE_PORT` keeps the administrative CLI from probing for an unrelated free port.
 
-Always pass `--dev-url` for a dev-runner environment so the generated pairing URL uses the current web origin. An explicit base directory stores runtime state in `<base-dir>/userdata`; the `<base-dir>/dev` fallback is only used by an implicit dev home. A worktree-local `.t3` counts as explicit, so its state lives in `<worktree>/.t3/userdata`. Use `auth pairing list` to inspect active token metadata; it intentionally cannot reveal token secrets.
+Always pass `--dev-url` for a dev-runner environment so the generated pairing URL uses the current web origin. An explicit base directory stores runtime state in `<base-dir>/userdata`; the `<base-dir>/dev` fallback is only used by an implicit dev home. A worktree-local `.marcode` counts as explicit, so its state lives in `<worktree>/.marcode/userdata`. Use `auth pairing list` to inspect active token metadata; it intentionally cannot reveal token secrets.
 
 ## Inspect or seed SQLite state
 
 Read [references/sqlite-fixtures.md](references/sqlite-fixtures.md) before changing the database.
 
-- Use `node apps/server/scripts/t3-sqlite-state.ts query` for schema discovery and read-only checks.
-- Stop the dev server before using `node apps/server/scripts/t3-sqlite-state.ts exec`, then restart it with the same base directory.
+- Use `node apps/server/scripts/marcode-sqlite-state.ts query` for schema discovery and read-only checks.
+- Stop the dev server before using `node apps/server/scripts/marcode-sqlite-state.ts exec`, then restart it with the same base directory.
 - Seed projection tables only for disposable UI fixtures. Use application commands and APIs when testing business behavior or projection correctness.
 - Use the auth CLI, not direct `auth_*` table edits, for pairing and sessions.
 
-The helper refuses to write to the shared `~/.t3` directory by default and creates a database backup before each mutation.
+The helper refuses to write to the shared `~/.marcode` directory by default and creates a database backup before each mutation.
 
 ## Tear down only when the testing loop is finished
 

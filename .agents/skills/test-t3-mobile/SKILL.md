@@ -29,14 +29,14 @@ Do not treat unavailable iOS tooling as a blocker when Android is a valid repres
 The development identity on both platforms is:
 
 - App: `T3 Code Dev`
-- Bundle/package identifier: `com.t3tools.t3code.dev`
+- Bundle/package identifier: `com.t3tools.marcode.dev`
 - URL scheme: `t3code-dev`
 
 Bundle or package presence proves the correct variant, not native compatibility. Reuse it only when the current changes did not alter its Expo SDK, native dependencies, config plugins, entitlements, generated project, or native source.
 
 ## Start one disposable T3 environment
 
-Run backend commands from the repository root. Use the ignored, worktree-local `.t3` directory or create a fresh directory with the host OS's temporary-directory mechanism. An explicit base directory stores state in `<base-dir>/userdata`; never point testing at shared `~/.t3` state.
+Run backend commands from the repository root. Use the ignored, worktree-local `.t3` directory or create a fresh directory with the host OS's temporary-directory mechanism. An explicit base directory stores state in `<base-dir>/userdata`; never point testing at shared `~/.marcode` state.
 
 Seed a small number of meaningful Git projects before starting the backend:
 
@@ -97,12 +97,12 @@ Use `ios-debugger-agent` to select one UDID and set these XcodeBuildMCP session 
 - Scheme: `T3CodeDev`
 - Configuration: `Debug`
 - Simulator ID: the selected UDID
-- Bundle ID: `com.t3tools.t3code.dev`
+- Bundle ID: `com.t3tools.marcode.dev`
 
 Check the installed client with:
 
 ```bash
-xcrun simctl get_app_container <simulator-udid> com.t3tools.t3code.dev app
+xcrun simctl get_app_container <simulator-udid> com.t3tools.marcode.dev app
 xcrun simctl openurl <simulator-udid> <printed-dev-client-url>
 ```
 
@@ -113,12 +113,12 @@ Accept the iOS confirmation prompt and dismiss the developer menu when it obscur
 Select one running emulator serial from `adb devices` and check the installed client:
 
 ```bash
-adb -s <emulator-serial> shell pm path com.t3tools.t3code.dev
+adb -s <emulator-serial> shell pm path com.t3tools.marcode.dev
 adb -s <emulator-serial> reverse tcp:<metro-port> tcp:<metro-port>
 adb -s <emulator-serial> shell am start -W \
   -a android.intent.action.VIEW \
   -d '<printed-dev-client-url>' \
-  com.t3tools.t3code.dev
+  com.t3tools.marcode.dev
 ```
 
 Do not start, stop, erase, or reconfigure an emulator owned by another task. Track and later stop only processes owned by this test.
@@ -128,14 +128,14 @@ Do not start, stop, erase, or reconfigure an emulator owned by another task. Tra
 Issue a fresh credential against the running backend's exact base directory:
 
 ```bash
-T3CODE_PORT=<server-port> node apps/server/src/bin.ts auth pairing create \
+MARCODE_PORT=<server-port> node apps/server/src/bin.ts auth pairing create \
   --base-dir <base-dir> \
   --base-url <mobile-origin> \
   --ttl 15m \
   --label agent-mobile-<short-device-id>
 ```
 
-In PowerShell, set `$env:T3CODE_PORT = "<server-port>"` first and run the `node ... auth pairing create` command without the leading assignment.
+In PowerShell, set `$env:MARCODE_PORT = "<server-port>"` first and run the `node ... auth pairing create` command without the leading assignment.
 
 If the visible Add Environment action is not exposed as a semantic target, open the app's registered route instead of guessing coordinates:
 
@@ -144,7 +144,7 @@ xcrun simctl openurl <simulator-udid> 't3code-dev://connections/new'
 adb -s <emulator-serial> shell am start -W \
   -a android.intent.action.VIEW \
   -d 't3code-dev://connections/new' \
-  com.t3tools.t3code.dev
+  com.t3tools.marcode.dev
 ```
 
 Run only the command for the selected platform.
