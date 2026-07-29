@@ -184,6 +184,10 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
   ) {
     const addScriptFormId = React.useId();
     const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
+    const [actionsMenuOpen, setActionsMenuOpen] = useState({
+      scripts: false,
+      imports: false,
+    });
     const [dialogOpen, setDialogOpen] = useState(false);
     const [name, setName] = useState("");
     const [command, setCommand] = useState("");
@@ -323,6 +327,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
     useImperativeHandle(ref, () => ({ openAddDialog }), [openAddDialog]);
 
     const openEditDialog = (script: ProjectScript) => {
+      setActionsMenuOpen({ scripts: false, imports: false });
       setEditingScriptId(script.id);
       setName(script.name);
       setCommand(script.command);

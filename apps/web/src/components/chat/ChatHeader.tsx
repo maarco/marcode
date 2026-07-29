@@ -31,6 +31,7 @@ interface ThreadActionsClusterProps {
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
   gitCwd: string | null;
+  onNewThreadInProject: () => void;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
   onUpdateProjectScript: (
@@ -69,6 +70,7 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   keybindings,
   availableEditors,
   gitCwd,
+  onNewThreadInProject,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
