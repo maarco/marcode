@@ -94,7 +94,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.isFalse(hasMacPasskeySigningConfiguration({}));
     assert.isFalse(
       hasMacPasskeySigningConfiguration({
-        T3CODE_CLERK_PUBLISHABLE_KEY: "pk_test_configured-for-runtime-auth-only",
+        MARCODE_CLERK_PUBLISHABLE_KEY: "pk_test_configured-for-runtime-auth-only",
       }),
     );
     assert.isTrue(
@@ -365,22 +365,22 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   it("derives macOS passkey signing configuration from the Clerk publishable key", () => {
     const configuration = resolveMacPasskeySigningConfiguration({
       MARCODE_APPLE_TEAM_ID: "abc1234567",
-      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-      T3CODE_CLERK_PUBLISHABLE_KEY: `pk_test_${btoa("example.clerk.accounts.dev$")}`,
+      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/marcode.provisionprofile",
+      MARCODE_CLERK_PUBLISHABLE_KEY: `pk_test_${btoa("example.clerk.accounts.dev$")}`,
     });
 
     assert.deepStrictEqual(configuration, {
       appId: "app.marcode.desktop",
       teamId: "ABC1234567",
       rpDomains: ["example.clerk.accounts.dev"],
-      provisioningProfilePath: "/tmp/t3code.provisionprofile",
+      provisioningProfilePath: "/tmp/marcode.provisionprofile",
     });
   });
 
   it("normalizes explicit macOS passkey RP domains and renders required entitlements", () => {
     const configuration = resolveMacPasskeySigningConfiguration({
       MARCODE_APPLE_TEAM_ID: "ABC1234567",
-      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
+      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/marcode.provisionprofile",
       MARCODE_CLERK_PASSKEY_RP_DOMAINS:
         " Clerk.Example.com,example.clerk.accounts.dev,clerk.example.com ",
     });
@@ -420,7 +420,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "https://domain-user:domain-secret@example.clerk.accounts.dev/path?token=query-secret";
     const invalidDomainError = captureError({
       MARCODE_APPLE_TEAM_ID: "ABC1234567",
-      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
+      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/marcode.provisionprofile",
       MARCODE_CLERK_PASSKEY_RP_DOMAINS: unsafeDomain,
     });
     assert.instanceOf(invalidDomainError, InvalidMacPasskeyRpDomainError);
@@ -438,19 +438,19 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       () =>
         resolveMacPasskeySigningConfiguration({
           MARCODE_APPLE_TEAM_ID: "ABC1234567",
-          MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
+          MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/marcode.provisionprofile",
           MARCODE_CLERK_PASSKEY_RP_DOMAINS: "example.clerk.accounts.dev:8443",
         }),
       /Invalid passkey RP domain/u,
     );
     const invalidPublishableKeyError = captureError({
       MARCODE_APPLE_TEAM_ID: "ABC1234567",
-      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-      T3CODE_CLERK_PUBLISHABLE_KEY: "pk_test_%",
+      MARCODE_MACOS_PROVISIONING_PROFILE: "/tmp/marcode.provisionprofile",
+      MARCODE_CLERK_PUBLISHABLE_KEY: "pk_test_%",
     });
     assert.instanceOf(invalidPublishableKeyError, InvalidMacPasskeyPublishableKeyError);
     assert.ok(invalidPublishableKeyError.cause);
-    assert.equal(invalidPublishableKeyError.message, "T3CODE_CLERK_PUBLISHABLE_KEY is invalid.");
+    assert.equal(invalidPublishableKeyError.message, "MARCODE_CLERK_PUBLISHABLE_KEY is invalid.");
     assert.notProperty(invalidPublishableKeyError, "publishableKey");
     assert.notInclude(invalidPublishableKeyError.message, "pk_test_%");
   });
@@ -481,13 +481,13 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     Effect.gen(function* () {
       const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, false, undefined, {
         entitlementsPath: "/tmp/entitlements.mac.plist",
-        provisioningProfilePath: "/tmp/t3code.provisionprofile",
+        provisioningProfilePath: "/tmp/marcode.provisionprofile",
       });
 
       const mac = config.mac as Record<string, unknown>;
       assert.equal(config.appId, "app.marcode.desktop");
       assert.equal(mac.entitlements, "/tmp/entitlements.mac.plist");
-      assert.equal(mac.provisioningProfile, "/tmp/t3code.provisionprofile");
+      assert.equal(mac.provisioningProfile, "/tmp/marcode.provisionprofile");
       assert.deepStrictEqual(mac.protocols, [
         { name: "Marcode", schemes: ["marcode", "marcode-dev"] },
       ]);
@@ -663,11 +663,11 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
           ConfigProvider.layer(
             ConfigProvider.fromEnv({
               env: {
-                T3CODE_DESKTOP_SKIP_BUILD: "true",
-                T3CODE_DESKTOP_KEEP_STAGE: "true",
-                T3CODE_DESKTOP_SIGNED: "true",
-                T3CODE_DESKTOP_VERBOSE: "true",
-                T3CODE_DESKTOP_MOCK_UPDATES: "true",
+                MARCODE_DESKTOP_SKIP_BUILD: "true",
+                MARCODE_DESKTOP_KEEP_STAGE: "true",
+                MARCODE_DESKTOP_SIGNED: "true",
+                MARCODE_DESKTOP_VERBOSE: "true",
+                MARCODE_DESKTOP_MOCK_UPDATES: "true",
               },
             }),
           ),

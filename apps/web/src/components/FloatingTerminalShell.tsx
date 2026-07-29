@@ -19,7 +19,7 @@ import { cn } from "~/lib/utils";
  * instead of the viewport, which would pin the panel inside the chat column.
  */
 
-const GEOMETRY_KEY = "t3code:floating-terminal-geometry:v1";
+const GEOMETRY_KEY = "marcode:floating-terminal-geometry:v1";
 const MIN_W = 400;
 const MIN_H = 280;
 const DEFAULT_W = 900;

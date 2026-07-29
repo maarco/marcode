@@ -7,7 +7,7 @@ import * as NodeUtil from "node:util";
 
 const execFile = NodeUtil.promisify(NodeChildProcess.execFile);
 
-export const SHOWCASE_PROJECT_ID = "t3code";
+export const SHOWCASE_PROJECT_ID = "marcode";
 export const SHOWCASE_THREAD_ID = "remote-command-center";
 export const SHOWCASE_TERMINAL_ID = "term-1";
 
@@ -45,16 +45,16 @@ const PROJECT_SCRIPTS = JSON.stringify([
 ]);
 
 export const SHOWCASE_TERMINAL_BUFFER = [
-  "\u001b[38;5;75m~/Code/t3code\u001b[0m \u001b[38;5;212mfeat/remote-command-center\u001b[0m",
+  "\u001b[38;5;75m~/Code/marcode\u001b[0m \u001b[38;5;212mfeat/remote-command-center\u001b[0m",
   "$ vp test run --changed",
   "",
-  "  \u001b[38;5;117mt3code-mobile\u001b[0m       184 passed",
+  "  \u001b[38;5;117mmarcode-mobile\u001b[0m       184 passed",
   "  \u001b[38;5;213mclient-runtime\u001b[0m      263 passed",
   "  \u001b[38;5;221mserver\u001b[0m              165 passed",
   "",
   "\u001b[32m✨ 612 tests passed\u001b[0m  ·  3 environments online",
   "",
-  "\u001b[38;5;75m~/Code/t3code\u001b[0m \u001b[38;5;212mfeat/remote-command-center\u001b[0m $ ",
+  "\u001b[38;5;75m~/Code/marcode\u001b[0m \u001b[38;5;212mfeat/remote-command-center\u001b[0m $ ",
 ].join("\r\n");
 
 const BASE_ENVIRONMENT_PRESENCE = `export function environmentLabel(count: number): string {
@@ -83,7 +83,7 @@ export function RemoteHandoffCard(props: { machine: string; latencyMs: number })
 `;
 
 const PROJECT_FAVICONS = {
-  t3code: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  marcode: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
   <rect width="128" height="128" rx="10" fill="#000"/>
   <g transform="translate(28 28) scale(3.130435)"><path d="M21.4294 20.0487C21.245 19.8643 21.1428 19.616 21.1428 19.355V14.4481C21.1428 13.9078 20.7047 13.4679 20.1626 13.4679H15.2582C14.9972 13.4679 14.7489 13.3638 14.5646 13.1813L13.5771 12.1937C13.1938 11.8103 13.1938 11.1897 13.5771 10.8063L14.5664 9.81692C14.7508 9.63255 14.999 9.53032 15.26 9.53032H20.1663C20.7066 9.53032 21.1465 9.09221 21.1465 8.55004V3.64318C21.1465 3.38396 21.2487 3.13387 21.433 2.9495L22.7107 1.67167C23.094 1.29015 23.094 0.669491 22.7107 0.286142C22.3274 -0.0953808 21.7068 -0.0953808 21.3253 0.286142L20.0477 1.56397C19.8633 1.74834 19.6151 1.85057 19.3541 1.85057H18.8795H14.4478C13.9075 1.85057 13.4676 2.28868 13.4676 2.83085V7.73771C13.4676 7.99875 13.3636 8.24701 13.1811 8.43139L12.1918 9.42079C11.8103 9.80414 11.1897 9.80414 10.8064 9.42079L9.81711 8.43139C9.63276 8.24701 9.53055 7.99875 9.53055 7.73771V2.83267C9.53055 2.29233 9.09249 1.85239 8.55039 1.85239H3.64412C3.38493 1.85239 3.13487 1.74834 2.95052 1.5658L1.67284 0.287968C1.28954 -0.0953808 0.668955 -0.0953808 0.287477 0.287968C-0.0958257 0.671316 -0.0958257 1.29198 0.287477 1.6735L1.56515 2.95133C1.7495 3.1357 1.85172 3.38396 1.85172 3.64501V8.55004C1.85172 9.09221 2.2916 9.53032 2.83188 9.53032H7.73816C7.99917 9.53032 8.2474 9.63255 8.43175 9.81692L9.42104 10.8063C9.80434 11.1897 9.80434 11.8103 9.42104 12.1937L8.43175 13.1813C8.2474 13.3656 7.99917 13.4679 7.73816 13.4679H2.83188C2.2916 13.4679 1.85172 13.906 1.85172 14.4481V19.355C1.85172 19.6142 1.74768 19.8643 1.56515 20.0487L0.287477 21.3265C-0.0958257 21.7099 -0.0958257 22.3305 0.287477 22.7139C0.67078 23.0954 1.28954 23.0954 1.67284 22.7139L2.95052 21.436C3.13487 21.2517 3.38311 21.1494 3.64412 21.1494H8.55039C9.09066 21.1494 9.53055 20.7113 9.53055 20.1692V15.2623C9.53055 15.0013 9.63276 14.753 9.81711 14.5686L10.8064 13.5792C11.1897 13.1959 11.8103 13.1959 12.1918 13.5792L13.1811 14.5668C13.3654 14.7512 13.4676 14.9994 13.4676 15.2605V20.1673C13.4676 20.7077 13.9057 21.1476 14.4478 21.1476H19.3541C19.6151 21.1476 19.8633 21.2517 20.0477 21.4342L21.3272 22.712C21.7086 23.0936 22.3292 23.0936 22.7125 22.712C23.0958 22.3287 23.0958 21.708 22.7125 21.3247L21.4348 20.0468L21.4294 20.0487Z" fill="#fff"/></g>
 </svg>`,
@@ -104,11 +104,11 @@ const PROJECT_FAVICONS = {
 
 export const SHOWCASE_PROJECTS = [
   {
-    id: "t3code",
+    id: "marcode",
     title: "T3 Code",
-    directory: "t3code",
-    repositoryUrl: "https://github.com/pingdotgg/t3code.git",
-    favicon: PROJECT_FAVICONS.t3code,
+    directory: "marcode",
+    repositoryUrl: "https://github.com/pingdotgg/marcode.git",
+    favicon: PROJECT_FAVICONS.marcode,
   },
   {
     id: "react",
@@ -130,7 +130,7 @@ export const SHOWCASE_ENVIRONMENTS = [
   {
     id: "moonbase-terminal",
     label: "Moonbase Terminal",
-    projectIds: ["t3code"],
+    projectIds: ["marcode"],
   },
   {
     id: "suspense-station",
@@ -147,7 +147,7 @@ export const SHOWCASE_ENVIRONMENTS = [
 export const SHOWCASE_THREADS = [
   {
     id: SHOWCASE_THREAD_ID,
-    projectId: "t3code",
+    projectId: "marcode",
     title: "Make remote coding feel local ✦",
     branch: "feat/remote-command-center",
     minutesAgo: 3,
@@ -158,7 +158,7 @@ export const SHOWCASE_THREADS = [
   },
   {
     id: "pocket-command-center",
-    projectId: "t3code",
+    projectId: "marcode",
     title: "Put the command center in your pocket",
     branch: "feat/pocket-command-center",
     minutesAgo: 21,
@@ -242,22 +242,22 @@ async function initializeRepository(input: {
   await runGit(input.workspaceRoot, ["commit", "-m", input.commitMessage]);
 }
 
-async function seedT3CodeWorkspace(workspaceRoot: string): Promise<void> {
+async function seedMarcodeWorkspace(workspaceRoot: string): Promise<void> {
   await NodeFSP.mkdir(NodePath.join(workspaceRoot, "apps/mobile/src/features/home"), {
     recursive: true,
   });
   await NodeFSP.writeFile(
     NodePath.join(workspaceRoot, "package.json"),
-    `${JSON.stringify({ name: "t3code", private: true, scripts: { test: "vp test" } }, null, 2)}\n`,
+    `${JSON.stringify({ name: "marcode", private: true, scripts: { test: "vp test" } }, null, 2)}\n`,
   );
-  await NodeFSP.writeFile(NodePath.join(workspaceRoot, "favicon.svg"), PROJECT_FAVICONS.t3code);
+  await NodeFSP.writeFile(NodePath.join(workspaceRoot, "favicon.svg"), PROJECT_FAVICONS.marcode);
   await NodeFSP.writeFile(
     NodePath.join(workspaceRoot, "apps/mobile/src/features/home/environmentPresence.ts"),
     BASE_ENVIRONMENT_PRESENCE,
   );
   await initializeRepository({
     workspaceRoot,
-    repositoryUrl: "https://github.com/pingdotgg/t3code.git",
+    repositoryUrl: "https://github.com/pingdotgg/marcode.git",
     commitMessage: "Show connected environments",
   });
   await runGit(workspaceRoot, ["checkout", "-b", "feat/remote-command-center"]);
@@ -538,7 +538,7 @@ export async function seedShowcaseEnvironment(input: {
   if (!workspaceRoot) throw new Error("The primary showcase workspace is not configured.");
   const dbPath = NodePath.join(input.baseDir, "userdata", "state.sqlite");
   if (primaryProject.id === SHOWCASE_PROJECT_ID) {
-    await seedT3CodeWorkspace(workspaceRoot);
+    await seedMarcodeWorkspace(workspaceRoot);
   }
   await Promise.all(
     projects

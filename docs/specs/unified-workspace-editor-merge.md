@@ -225,7 +225,7 @@ confident-but-wrong readings the first time:
 
 While verifying, the client polled `GET /api/orchestration/threads/<id>` in a
 tight loop against a thread that no longer exists, taking a 404 every time and
-never backing off or giving up. The id came from a `t3code:composer-drafts:v1`
+never backing off or giving up. The id came from a `marcode:composer-drafts:v1`
 entry in `localStorage` — a composer draft outliving its thread, which is what a
 wiped or rebuilt environment produces (and what deleting a thread with an open
 draft would also produce). Not caused by this merge and not fixed here.

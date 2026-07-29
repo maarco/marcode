@@ -688,7 +688,7 @@ Simplified:
   must be left alone.
 
 **Persisted state must be migrated, not just left alone.**
-`RIGHT_PANEL_STORAGE_KEY = "t3code:right-panel-state:v2"` at
+`RIGHT_PANEL_STORAGE_KEY = "marcode:right-panel-state:v2"` at
 `RIGHT_PANEL_STORAGE_VERSION = 7` (`:42-43`). Every existing install has
 `files`/`file` surfaces in `localStorage`. Bump to `8` and extend
 `migratePersistedRightPanelState` (`:182-262`) to **drop** them:

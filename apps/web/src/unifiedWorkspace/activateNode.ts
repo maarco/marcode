@@ -168,7 +168,7 @@ export function activateUnifiedWorkspaceNode(input: UnifiedWorkspaceActivationIn
 // `components/preview/previewActionBus.ts` window-event convention used for
 // the same kind of "some other mounted view should handle this" hand-off.
 
-const RUN_COMMAND_EVENT = "t3code:unified-workspace-run-command";
+const RUN_COMMAND_EVENT = "marcode:unified-workspace-run-command";
 
 export interface UnifiedWorkspaceRunCommandRequest {
   readonly environmentId: string;

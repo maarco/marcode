@@ -2845,7 +2845,7 @@ function ChatViewContent(props: ChatViewProps) {
   // (spec §8 Command: "Reuse the current runProjectScript behavior... Do not duplicate
   // terminal-open/write logic"). The sidebar lives outside this component tree, so it
   // can't call `runProjectScript` directly — it navigates to the resolved thread and
-  // dispatches a request over `t3code:unified-workspace-run-command` (mirrors the
+  // dispatches a request over `marcode:unified-workspace-run-command` (mirrors the
   // existing `previewActionBus` cross-component hand-off convention); whichever
   // `ChatView` instance is active for that thread picks it up here.
   useEffect(() => {

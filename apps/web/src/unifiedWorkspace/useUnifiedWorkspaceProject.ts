@@ -67,7 +67,12 @@ import { projectEnvironment } from "~/state/projects";
 import { terminalEnvironment } from "~/state/terminal";
 import { useKnownTerminalSessions } from "~/state/terminalSessions";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { buildThreadRouteParams, resolveThreadRouteTarget } from "~/threadRoutes";
+import { useComposerDraftStore } from "~/composerDraftStore";
+import {
+  buildDraftThreadRouteParams,
+  buildThreadRouteParams,
+  resolveThreadRouteTarget,
+} from "~/threadRoutes";
 import { useUiStateStore } from "~/uiStateStore";
 
 import { activateUnifiedWorkspaceNode, requestUnifiedWorkspaceCommandRun } from "./activateNode";
@@ -474,9 +479,24 @@ export function useUnifiedWorkspaceProject(input: {
   const activationOps = useMemo(
     () => ({
       navigateToThread: (threadId: string) => {
+        const threadRef = scopeThreadRef(environmentId, ThreadId.make(threadId));
+        // If this thread is an unpromoted draft, route to the draft view
+        // instead of the server thread route (which would 404).
+        const draftStore = useComposerDraftStore.getState();
+        const draftThread = draftStore.getDraftThreadByRef(threadRef);
+        if (draftThread && draftThread.promotedTo == null) {
+          const draftId = draftStore.findDraftIdByThreadRef(threadRef);
+          if (draftId) {
+            void router.navigate({
+              to: "/draft/$draftId",
+              params: buildDraftThreadRouteParams(draftId),
+            });
+            return;
+          }
+        }
         void router.navigate({
           to: "/$environmentId/$threadId",
-          params: buildThreadRouteParams(scopeThreadRef(environmentId, ThreadId.make(threadId))),
+          params: buildThreadRouteParams(threadRef),
         });
       },
       ensureDraftThread: (draftInput: { parentId: string | null }) => {
