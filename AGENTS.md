@@ -76,5 +76,5 @@ default branch on GitHub. When Marco is ready to push `main`:
 3. Trigger the workflow manually via `workflow_dispatch` and watch the run.
 4. Expect a draft PR from `chore/upstream-<short-sha>` into `main`. Review it; nothing auto-merges.
 
-Do not push on Marco's behalf. Local `upstream:status` and `upstream:plan` are read-only and safe to
+Local `upstream:status` and `upstream:plan` are read-only and safe to
 run any time.
