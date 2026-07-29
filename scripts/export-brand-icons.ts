@@ -402,7 +402,12 @@ const probeIconComposerTool = Effect.fn("iconExport.probeIconComposerTool")(func
     path: candidate,
     version: `${shortVersion} (${bundleVersion})`,
     bundleVersion,
-    supportsDesignGeneration: Number.parseInt(shortVersion, 10) >= 2,
+    // Xcode 26's Icon Composer reports app version 1.0 even though it is the
+    // current design-generation-capable exporter. The standalone executable
+    // has the preview-export CLI used below; the older DeveloperTool ictool
+    // only exposes actool's legacy arguments.
+    supportsDesignGeneration:
+      candidate.includes("Icon Composer.app") || Number.parseInt(shortVersion, 10) >= 2,
   });
 });
 
@@ -463,8 +468,11 @@ const resolveIconComposerTool = Effect.fn("iconExport.resolveIconComposerTool")(
     .filter(Option.isSome)
     .map((tool) => tool.value)
     .filter((tool) => tool.supportsDesignGeneration)
-    .sort((left, right) =>
-      right.bundleVersion.localeCompare(left.bundleVersion, undefined, { numeric: true }),
+    .sort(
+      (left, right) =>
+        Number(right.path.includes("Icon Composer.app")) -
+          Number(left.path.includes("Icon Composer.app")) ||
+        right.bundleVersion.localeCompare(left.bundleVersion, undefined, { numeric: true }),
     );
   const newestTool = compatibleTools[0];
   if (newestTool) return newestTool;
@@ -485,21 +493,13 @@ const renderIcon = Effect.fn("iconExport.renderIcon")(function* (
   const fs = yield* FileSystem.FileSystem;
   const args = [
     sourcePath,
-    "--export-image",
-    "--output-file",
-    outputPath,
-    "--platform",
+    "--export-preview",
     platform,
-    "--rendition",
     "Default",
-    "--width",
     String(size),
-    "--height",
     String(size),
-    "--scale",
     "1",
-    "--design-generation",
-    String(DESIGN_GENERATION),
+    outputPath,
   ];
   const result = yield* runCommand(toolPath, args);
   if (result.exitCode !== 0) {

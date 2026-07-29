@@ -1,17 +1,54 @@
 {
   "fill": {
-    "solid": "display-p3:0.00000,0.00000,0.00000,1.00000"
+    "solid": "display-p3:1.00000,1.00000,1.00000,1.00000"
   },
   "groups": [
     {
       "layers": [
         {
+          "blend-mode-specializations": [
+            {
+              "appearance": "dark",
+              "value": "normal"
+            }
+          ],
+          "fill-specializations": [
+            {
+              "value": {
+                "linear-gradient": [
+                  "extended-gray:0.00000,1.00000",
+                  "extended-gray:0.00000,1.00000"
+                ]
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "linear-gradient": [
+                  "extended-gray:1.00000,1.00000",
+                  "extended-gray:1.00000,1.00000"
+                ]
+              }
+            }
+          ],
+          "glass": false,
           "image-name": "text.svg",
           "name": "Text",
-          "position": {
-            "scale": 10,
-            "translation-in-points": [0, 0]
-          }
+          "position-specializations": [
+            {
+              "value": {
+                "scale": 18,
+                "translation-in-points": [0, 0]
+              }
+            },
+            {
+              "appearance": "dark",
+              "value": {
+                "scale": 18,
+                "translation-in-points": [0, 0]
+              }
+            }
+          ]
         }
       ],
       "shadow": {
