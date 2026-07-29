@@ -5789,19 +5789,23 @@ function ChatViewContent(props: ChatViewProps) {
               data-chat-composer-overlay="true"
               className={
                 isDraftHeroState
-                  ? "pointer-events-none absolute inset-0 z-20 flex items-center"
+                  ? "pointer-events-none absolute inset-0 z-20 flex items-center justify-center"
                   : "pointer-events-none absolute inset-x-0 bottom-0 z-20 pt-1.5 sm:pt-2"
               }
             >
               <div
                 ref={attachDraftHeroTransitionGroupRef}
-                className="chat-composer-horizontal-inset w-full"
+                className={
+                  isDraftHeroState
+                    ? "chat-composer-horizontal-inset flex w-full flex-col items-center"
+                    : "chat-composer-horizontal-inset w-full"
+                }
               >
                 <div className="pointer-events-auto relative z-10">
                   {isDraftHeroState ? (
-                    <div className="absolute inset-x-0 bottom-full z-0">
+                    <div className="relative z-0 w-full">
                       <div
-                        className="px-4 pb-20 sm:px-6 sm:pb-24"
+                        className="px-4 pb-8 sm:px-6 sm:pb-10"
                         style={
                           forceExpandedMobileComposer
                             ? {
