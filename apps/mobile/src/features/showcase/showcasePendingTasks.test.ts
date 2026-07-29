@@ -10,9 +10,9 @@ import {
 const projects: ReadonlyArray<EnvironmentProject> = [
   {
     environmentId: EnvironmentId.make("moonbase-terminal"),
-    id: ProjectId.make("t3code"),
+    id: ProjectId.make("marcode"),
     title: "T3 Code",
-    workspaceRoot: "/workspace/t3code",
+    workspaceRoot: "/workspace/marcode",
     repositoryIdentity: null,
     defaultModelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
     scripts: [],
@@ -51,7 +51,7 @@ it("builds sendable-looking pending tasks against real showcase projects", () =>
     [
       {
         environmentId: "moonbase-terminal",
-        projectId: "t3code",
+        projectId: "marcode",
         title: "T3 Code",
         branch: "feat/offline-launchpad",
         createdAt: "2026-07-16T08:52:00.000Z",

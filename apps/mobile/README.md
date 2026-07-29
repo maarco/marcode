@@ -39,8 +39,8 @@ reduced-capability local build. Personal Team builds omit the widget and share e
 entitlement, and native Sign in with Apple entitlement; builds without this opt-in are unchanged.
 
 ```bash
-T3CODE_IOS_PERSONAL_TEAM=1 \
-T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID=com.example.t3code.dev \
+MARCODE_IOS_PERSONAL_TEAM=1 \
+MARCODE_IOS_PERSONAL_TEAM_BUNDLE_ID=com.example.marcode.dev \
 vp run ios:dev
 ```
 
@@ -53,8 +53,8 @@ vp run ios:release
 The Personal Team equivalent also needs a unique bundle identifier:
 
 ```bash
-T3CODE_IOS_PERSONAL_TEAM=1 \
-T3CODE_IOS_PERSONAL_TEAM_BUNDLE_ID=com.example.t3code \
+MARCODE_IOS_PERSONAL_TEAM=1 \
+MARCODE_IOS_PERSONAL_TEAM_BUNDLE_ID=com.example.marcode \
 vp run ios:release
 ```
 
@@ -91,8 +91,8 @@ The native lint task runs SwiftLint for Swift plus ktlint and detekt for Kotlin.
 
 CI uses Expo fingerprinting with the `preview:dev` profile to reuse an existing compatible build when possible, or start a new internal EAS build when native runtime inputs change. Production and default local builds continue to use the `appVersion` runtime policy.
 
-For preview or production EAS environments, set `T3CODE_CLERK_PUBLISHABLE_KEY`,
-`T3CODE_CLERK_JWT_TEMPLATE`, and `T3CODE_RELAY_URL`
+For preview or production EAS environments, set `MARCODE_CLERK_PUBLISHABLE_KEY`,
+`MARCODE_CLERK_JWT_TEMPLATE`, and `MARCODE_RELAY_URL`
 as EAS environment variables. Expo config maps the canonical values into the mobile build.
 
 Create a PR preview dev-client build manually:

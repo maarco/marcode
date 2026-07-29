@@ -996,7 +996,7 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
         const addedForFork = yield* driver.ensureRemote({
           cwd,
           preferredName: "octocat",
-          url: "git@github.com:octocat/t3code.git",
+          url: "git@github.com:octocat/marcode.git",
         });
         assert.equal(addedForFork, "octocat");
         assert.equal(yield* git(cwd, ["remote"]), "octocat\norigin");
@@ -1100,17 +1100,20 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
           cwd,
           path: worktreePath,
           refName: resolvedBase.commitSha,
-          newRefName: "t3code/fetched-origin",
+          newRefName: "marcode/fetched-origin",
           baseRefName: resolvedBase.remoteRefName,
         });
 
         assert.equal(yield* git(worktreePath, ["rev-parse", "HEAD"]), remoteHead);
         assert.equal(
-          yield* driver.readConfigValue(worktreePath, "branch.t3code/fetched-origin.gh-merge-base"),
+          yield* driver.readConfigValue(
+            worktreePath,
+            "branch.marcode/fetched-origin.gh-merge-base",
+          ),
           initialBranch,
         );
         assert.equal(
-          yield* driver.readConfigValue(worktreePath, "branch.t3code/fetched-origin.remote"),
+          yield* driver.readConfigValue(worktreePath, "branch.marcode/fetched-origin.remote"),
           null,
         );
         const status = yield* driver.statusDetails(worktreePath);

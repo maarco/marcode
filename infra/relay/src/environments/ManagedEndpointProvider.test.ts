@@ -17,7 +17,7 @@ const config = RelayConfiguration.RelayConfiguration.of({
     teamId: "team-id",
     keyId: "key-id",
     privateKey: Redacted.make("private-key"),
-    bundleId: "com.t3tools.t3code.dev",
+    bundleId: "com.t3tools.marcode.dev",
   },
   apnsDeliveryJobSigningSecret: Redacted.make("job-secret"),
   clerkSecretKey: Redacted.make("clerk-secret"),
@@ -25,7 +25,7 @@ const config = RelayConfiguration.RelayConfiguration.of({
   clerkJwtAudience: "t3-code-relay",
   cloudMintPrivateKey: Redacted.make("cloud-private-key"),
   cloudMintPublicKey: "cloud-public-key",
-  managedEndpointBaseDomain: "t3code.test",
+  managedEndpointBaseDomain: "marcode.test",
   managedEndpointNamespace: "dev_julius",
 });
 
@@ -221,7 +221,7 @@ function expectedManagedHostname(environmentId: string, userId = "user_ABC"): st
     .update(`dev_julius:${userId}:${environmentId}`)
     .digest("hex")
     .slice(0, 16);
-  return `dev-julius-${hash}.t3code.test`;
+  return `dev-julius-${hash}.marcode.test`;
 }
 
 function expectedManagedTunnelName(environmentId: string, userId = "user_ABC"): string {
@@ -229,7 +229,7 @@ function expectedManagedTunnelName(environmentId: string, userId = "user_ABC"): 
     .update(`dev_julius:${userId}:${environmentId}`)
     .digest("hex")
     .slice(0, 16);
-  return `t3coderelay-managedendpoint-dev-julius-${hash}`;
+  return `marcoderelay-managedendpoint-dev-julius-${hash}`;
 }
 
 describe("ManagedEndpointProvider", () => {
@@ -328,7 +328,7 @@ describe("ManagedEndpointProvider", () => {
           | { readonly name?: string }
           | undefined
       )?.name;
-      expect(requestedName).toMatch(/^t3coderelay-managedendpoint-dev-julius-[a-f0-9]{16}$/);
+      expect(requestedName).toMatch(/^marcoderelay-managedendpoint-dev-julius-[a-f0-9]{16}$/);
       const configBody = (
         tunnelCalls.find((call) => call.operation === "putConfiguration")?.input as
           | { readonly tunnelConfig?: unknown }
@@ -337,7 +337,7 @@ describe("ManagedEndpointProvider", () => {
       expect(configBody).toMatchObject({
         ingress: [
           {
-            hostname: expect.stringMatching(/^dev-julius-[a-f0-9]{16}\.t3code\.test$/),
+            hostname: expect.stringMatching(/^dev-julius-[a-f0-9]{16}\.marcode\.test$/),
           },
           { service: "http_status:404" },
         ],

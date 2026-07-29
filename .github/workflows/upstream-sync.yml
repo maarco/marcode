@@ -222,7 +222,7 @@ jobs:
             const slug = report.source.url.replace(/^https:\/\/github\.com\//, "").replace(/\.git$/, "");
             // Kept equal to pullRequest.titleTemplate / labels / reviewers in .github/upstream-sync.yml
             // by scripts/upstream-sync-workflow.test.ts.
-            const title = `chore(upstream): sync t3code through ${shortSha}`;
+            const title = `chore(upstream): sync marcode through ${shortSha}`;
             const labels = ["upstream-sync"];
             const reviewers = [];
             const requiredChecks = ["Check", "Test", "Mobile Native Static Analysis", "Release Smoke"];

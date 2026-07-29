@@ -32,7 +32,7 @@ const bitbucketPullRequest = {
   source: {
     branch: { name: "feature/source-control" },
     repository: {
-      full_name: "octocat/t3code",
+      full_name: "octocat/marcode",
       workspace: { slug: "octocat" },
     },
   },
@@ -150,9 +150,9 @@ function makeLayer(input: {
       ConfigProvider.layer(
         ConfigProvider.fromEnv({
           env: {
-            T3CODE_BITBUCKET_API_BASE_URL: "https://api.test.local/2.0",
-            T3CODE_BITBUCKET_EMAIL: "user@example.com",
-            T3CODE_BITBUCKET_API_TOKEN: "token",
+            MARCODE_BITBUCKET_API_BASE_URL: "https://api.test.local/2.0",
+            MARCODE_BITBUCKET_EMAIL: "user@example.com",
+            MARCODE_BITBUCKET_API_TOKEN: "token",
           },
         }),
       ),
@@ -187,7 +187,7 @@ it.effect("parses pull request responses from the Bitbucket REST API", () => {
       state: "open",
       updatedAt: Option.some(DateTime.makeUnsafe("2026-01-02T00:00:00.000Z")),
       isCrossRepository: true,
-      headRepositoryNameWithOwner: "octocat/t3code",
+      headRepositoryNameWithOwner: "octocat/marcode",
       headRepositoryOwnerLogin: "octocat",
     });
     assert.strictEqual(
@@ -481,7 +481,7 @@ it.effect("creates pull requests using the official REST payload shape", () => {
       description: "PR body",
       source: {
         branch: { name: "feature/provider" },
-        repository: { full_name: "owner/t3code" },
+        repository: { full_name: "owner/marcode" },
       },
       destination: {
         branch: { name: "main" },
@@ -699,15 +699,15 @@ it.effect("preserves Git checkout failures without deriving the domain message f
 it.effect("checks out fork pull requests through an ensured fork remote", () => {
   const { git, layer } = makeLayer({
     response: (request) => {
-      if (request.url.endsWith("/repositories/octocat/t3code")) {
+      if (request.url.endsWith("/repositories/octocat/marcode")) {
         return Response.json({
           ...repositoryJson,
-          full_name: "octocat/t3code",
+          full_name: "octocat/marcode",
           links: {
-            html: { href: "https://bitbucket.org/octocat/t3code" },
+            html: { href: "https://bitbucket.org/octocat/marcode" },
             clone: [
-              { name: "https", href: "https://bitbucket.org/octocat/t3code.git" },
-              { name: "ssh", href: "git@bitbucket.org:octocat/t3code.git" },
+              { name: "https", href: "https://bitbucket.org/octocat/marcode.git" },
+              { name: "ssh", href: "git@bitbucket.org:octocat/marcode.git" },
             ],
           },
         });
@@ -717,7 +717,7 @@ it.effect("checks out fork pull requests through an ensured fork remote", () => 
         source: {
           branch: { name: "main" },
           repository: {
-            full_name: "octocat/t3code",
+            full_name: "octocat/marcode",
             workspace: { slug: "octocat" },
           },
         },
@@ -736,23 +736,23 @@ it.effect("checks out fork pull requests through an ensured fork remote", () => 
     assert.deepStrictEqual(git.ensureRemote.mock.calls[0]?.[0], {
       cwd: "/repo",
       preferredName: "octocat",
-      url: "git@bitbucket.org:octocat/t3code.git",
+      url: "git@bitbucket.org:octocat/marcode.git",
     });
     assert.deepStrictEqual(git.fetchRemoteBranch.mock.calls[0]?.[0], {
       cwd: "/repo",
       remoteName: "octocat",
       remoteBranch: "main",
-      localBranch: "t3code/pr-42/main",
+      localBranch: "marcode/pr-42/main",
     });
     assert.deepStrictEqual(git.setBranchUpstream.mock.calls[0]?.[0], {
       cwd: "/repo",
-      branch: "t3code/pr-42/main",
+      branch: "marcode/pr-42/main",
       remoteName: "octocat",
       remoteBranch: "main",
     });
     assert.deepStrictEqual(git.switchRef.mock.calls[0]?.[0], {
       cwd: "/repo",
-      refName: "t3code/pr-42/main",
+      refName: "marcode/pr-42/main",
     });
   }).pipe(Effect.provide(layer));
 });

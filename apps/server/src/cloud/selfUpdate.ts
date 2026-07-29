@@ -117,7 +117,7 @@ export const resolveServerSelfUpdateCapability = Effect.fn(
       Effect.orElseSucceed(() => false),
     );
     // INVOCATION_ID only proves that some systemd unit launched us. The
-    // explicit marker written into t3code.service identifies this unit as the
+    // explicit marker written into marcode.service identifies this unit as the
     // supervisor that will replace the current process when restarted.
     if (
       unitReferencesEntry &&

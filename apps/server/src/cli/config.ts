@@ -32,7 +32,7 @@ export const hostFlag = Flag.string("host").pipe(
 );
 export const baseDirFlag = Flag.string("base-dir").pipe(
   Flag.withDescription(
-    "Explicit Marcode data directory; runtime state is stored under userdata (equivalent to T3CODE_HOME).",
+    "Explicit Marcode data directory; runtime state is stored under userdata (equivalent to MARCODE_HOME).",
   ),
   Flag.optional,
 );
@@ -58,7 +58,7 @@ export const autoBootstrapProjectFromCwdFlag = Flag.boolean("auto-bootstrap-proj
 );
 export const logWebSocketEventsFlag = Flag.boolean("log-websocket-events").pipe(
   Flag.withDescription(
-    "Emit server-side logs for outbound WebSocket push traffic (equivalent to T3CODE_LOG_WS_EVENTS).",
+    "Emit server-side logs for outbound WebSocket push traffic (equivalent to MARCODE_LOG_WS_EVENTS).",
   ),
   Flag.withAlias("log-ws-events"),
   Flag.optional,
@@ -76,37 +76,37 @@ export const tailscaleServePortFlag = Flag.integer("tailscale-serve-port").pipe(
 );
 
 const EnvServerConfig = Config.all({
-  logLevel: Config.logLevel("T3CODE_LOG_LEVEL").pipe(Config.withDefault("Info")),
-  traceMinLevel: Config.logLevel("T3CODE_TRACE_MIN_LEVEL").pipe(Config.withDefault("Info")),
-  traceTimingEnabled: Config.boolean("T3CODE_TRACE_TIMING_ENABLED").pipe(Config.withDefault(true)),
-  traceFile: Config.string("T3CODE_TRACE_FILE").pipe(
+  logLevel: Config.logLevel("MARCODE_LOG_LEVEL").pipe(Config.withDefault("Info")),
+  traceMinLevel: Config.logLevel("MARCODE_TRACE_MIN_LEVEL").pipe(Config.withDefault("Info")),
+  traceTimingEnabled: Config.boolean("MARCODE_TRACE_TIMING_ENABLED").pipe(Config.withDefault(true)),
+  traceFile: Config.string("MARCODE_TRACE_FILE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  traceMaxBytes: Config.int("T3CODE_TRACE_MAX_BYTES").pipe(Config.withDefault(10 * 1024 * 1024)),
-  traceMaxFiles: Config.int("T3CODE_TRACE_MAX_FILES").pipe(Config.withDefault(10)),
-  traceBatchWindowMs: Config.int("T3CODE_TRACE_BATCH_WINDOW_MS").pipe(Config.withDefault(200)),
-  otlpTracesUrl: Config.string("T3CODE_OTLP_TRACES_URL").pipe(
+  traceMaxBytes: Config.int("MARCODE_TRACE_MAX_BYTES").pipe(Config.withDefault(10 * 1024 * 1024)),
+  traceMaxFiles: Config.int("MARCODE_TRACE_MAX_FILES").pipe(Config.withDefault(10)),
+  traceBatchWindowMs: Config.int("MARCODE_TRACE_BATCH_WINDOW_MS").pipe(Config.withDefault(200)),
+  otlpTracesUrl: Config.string("MARCODE_OTLP_TRACES_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpMetricsUrl: Config.string("T3CODE_OTLP_METRICS_URL").pipe(
+  otlpMetricsUrl: Config.string("MARCODE_OTLP_METRICS_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpExportIntervalMs: Config.int("T3CODE_OTLP_EXPORT_INTERVAL_MS").pipe(
+  otlpExportIntervalMs: Config.int("MARCODE_OTLP_EXPORT_INTERVAL_MS").pipe(
     Config.withDefault(10_000),
   ),
-  otlpServiceName: Config.string("T3CODE_OTLP_SERVICE_NAME").pipe(Config.withDefault("t3-server")),
-  mode: Config.schema(ServerConfig.RuntimeMode, "T3CODE_MODE").pipe(
+  otlpServiceName: Config.string("MARCODE_OTLP_SERVICE_NAME").pipe(Config.withDefault("t3-server")),
+  mode: Config.schema(ServerConfig.RuntimeMode, "MARCODE_MODE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  port: Config.port("T3CODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  host: Config.string("T3CODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  t3Home: Config.string("T3CODE_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  port: Config.port("MARCODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  host: Config.string("MARCODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  t3Home: Config.string("MARCODE_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
   devUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  devAllowedOrigins: Config.string("T3CODE_DEV_ALLOWED_ORIGINS").pipe(
+  devAllowedOrigins: Config.string("MARCODE_DEV_ALLOWED_ORIGINS").pipe(
     Config.withDefault(""),
     Config.map((value) =>
       value
@@ -115,27 +115,27 @@ const EnvServerConfig = Config.all({
         .filter((entry) => entry.length > 0),
     ),
   ),
-  noBrowser: Config.boolean("T3CODE_NO_BROWSER").pipe(
+  noBrowser: Config.boolean("MARCODE_NO_BROWSER").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  bootstrapFd: Config.int("T3CODE_BOOTSTRAP_FD").pipe(
+  bootstrapFd: Config.int("MARCODE_BOOTSTRAP_FD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  autoBootstrapProjectFromCwd: Config.boolean("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
+  autoBootstrapProjectFromCwd: Config.boolean("MARCODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  logWebSocketEvents: Config.boolean("T3CODE_LOG_WS_EVENTS").pipe(
+  logWebSocketEvents: Config.boolean("MARCODE_LOG_WS_EVENTS").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  tailscaleServeEnabled: Config.boolean("T3CODE_TAILSCALE_SERVE").pipe(
+  tailscaleServeEnabled: Config.boolean("MARCODE_TAILSCALE_SERVE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  tailscaleServePort: Config.port("T3CODE_TAILSCALE_SERVE_PORT").pipe(
+  tailscaleServePort: Config.port("MARCODE_TAILSCALE_SERVE_PORT").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
