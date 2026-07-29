@@ -127,13 +127,13 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
 export const ChatHeader = memo(function ChatHeader({ activeThreadTitle }: ChatHeaderProps) {
   return (
     <div className="@container/header-actions flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-      <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden sm:gap-3">
+      <div className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden sm:gap-3">
         <Tooltip>
           <TooltipTrigger
             render={
               <h2
                 aria-label={activeThreadTitle}
-                className="min-w-0 flex-1 truncate text-sm font-medium text-foreground"
+                className="min-w-0 max-w-full truncate px-2 text-right text-sm font-black text-foreground/85 sm:px-3"
               >
                 {activeThreadTitle}
               </h2>

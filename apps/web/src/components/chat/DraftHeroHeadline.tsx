@@ -1,9 +1,10 @@
 import type { ScopedProjectRef } from "@t3tools/contracts";
 import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { FolderPlusIcon } from "lucide-react";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { openCommandPalette } from "~/commandPaletteBus";
+import { INTRO_MESSAGES } from "~/content/introMessages";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
 import { useClientSettings } from "~/hooks/useSettings";
 import { selectProjectGroupingSettings } from "~/logicalProject";
@@ -29,6 +30,10 @@ interface DraftHeroHeadlineProps {
   readonly activeProjectTitle: string | null;
 }
 
+const MENTIKO_GIF_TEXT_SOURCE = "https://assets.amarn.me/gif-text.gif";
+
+type GifTextStatus = "loading" | "ready" | "failed";
+
 export function DraftHeroHeadline({
   activeProjectRef,
   activeProjectTitle,
@@ -41,6 +46,30 @@ export function DraftHeroHeadline({
   const projectSortOrder = useClientSettings((settings) => settings.sidebarProjectSortOrder);
   const handleNewThread = useNewThreadHandler();
   const openAddProject = useCallback(() => openCommandPalette({ open: "add-project" }), []);
+  const [gifTextStatus, setGifTextStatus] = useState<GifTextStatus>("loading");
+  const [introMessage] = useState(
+    () =>
+      INTRO_MESSAGES[Math.floor(Math.random() * INTRO_MESSAGES.length)] ?? "What should we build?",
+  );
+
+  useEffect(() => {
+    const image = new Image();
+    image.src = MENTIKO_GIF_TEXT_SOURCE;
+    image.onload = () => setGifTextStatus("ready");
+    image.onerror = () => setGifTextStatus("failed");
+
+    return () => {
+      image.onload = null;
+      image.onerror = null;
+    };
+  }, []);
+
+  const headlineTextClassName =
+    gifTextStatus === "ready"
+      ? "draft-hero-headline-gif-text"
+      : gifTextStatus === "loading"
+        ? "text-muted-foreground/70 animate-pulse"
+        : "text-foreground";
 
   const environmentLabelById = useMemo(
     () =>
@@ -101,7 +130,7 @@ export function DraftHeroHeadline({
     <Menu>
       <MenuTrigger
         aria-label={hasResolvedProject ? "Change project" : "Choose a project"}
-        className="pointer-events-auto inline cursor-pointer border-current border-b border-dotted text-foreground underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+        className={`pointer-events-auto inline cursor-pointer border-current border-b border-dotted underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
       >
         {activeProjectDisplayName ?? "Choose a project"}
       </MenuTrigger>
@@ -138,16 +167,27 @@ export function DraftHeroHeadline({
     <button
       type="button"
       onClick={openAddProject}
-      className="pointer-events-auto inline cursor-pointer border-current border-b border-dotted text-muted-foreground/60 underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring"
+      className={`pointer-events-auto inline cursor-pointer border-current border-b border-dotted underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
     >
       {activeProjectTitle ?? "Add a project"}
     </button>
   );
 
+  const headlineMessage =
+    hasResolvedProject && introMessage.endsWith("?") ? (
+      <>
+        <span className={headlineTextClassName}>{introMessage.slice(0, -1)} in</span>{" "}
+        {projectSelector}
+        <span className={headlineTextClassName}>?</span>
+      </>
+    ) : (
+      <span className={headlineTextClassName}>{introMessage}</span>
+    );
+
   return (
-    <h1 className="mx-auto w-full max-w-5xl text-center font-normal text-2xl text-foreground tracking-tight sm:text-3xl">
+    <h1 className="mx-auto w-full max-w-5xl px-2 text-center font-black text-5xl text-foreground leading-[0.95] tracking-tight sm:px-6 sm:text-6xl">
       {hasResolvedProject ? (
-        <>What should we build in {projectSelector}?</>
+        headlineMessage
       ) : canChooseProject ? (
         <>{projectSelector} to start</>
       ) : (

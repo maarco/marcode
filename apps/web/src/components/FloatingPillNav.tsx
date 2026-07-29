@@ -22,6 +22,7 @@ import {
   Code1Filled,
   KeySquareFilled,
 } from "@aliimam/icons";
+import { FlaskConicalIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useEditorStore } from "../editor/editor-store";
 import { usePillNavPreferences, getPillNavShineGradient } from "../editor/pill-prefs";
@@ -142,6 +143,11 @@ const CATEGORIES: NavCategory[] = [
         href: "/settings/keybindings",
         label: "Keybindings",
         icon: <DocumentTextFilled className="h-4 w-4" />,
+      },
+      {
+        href: "/settings/beta",
+        label: "Beta",
+        icon: <FlaskConicalIcon className="h-4 w-4" />,
       },
       {
         href: "/settings/diagnostics",

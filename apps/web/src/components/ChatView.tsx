@@ -221,6 +221,7 @@ import {
 } from "../state/entities";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
+import AnimatedShaderHeroBackground from "./ui/animated-shader-hero";
 import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { MessagesTimeline } from "./chat/MessagesTimeline";
@@ -5715,6 +5716,7 @@ function ChatViewContent(props: ChatViewProps) {
         <div className="flex min-h-0 min-w-0 flex-1">
           {/* Chat column */}
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+            {isDraftHeroState ? <AnimatedShaderHeroBackground className="z-0 opacity-90" /> : null}
             {/* Provider status overlays the timeline without changing its content height. */}
             <div className="pointer-events-none absolute inset-x-0 top-0 z-20">
               <ProviderStatusBanner
@@ -5799,7 +5801,7 @@ function ChatViewContent(props: ChatViewProps) {
                   {isDraftHeroState ? (
                     <div className="absolute inset-x-0 bottom-full z-0">
                       <div
-                        className="pb-8"
+                        className="px-4 pb-20 sm:px-6 sm:pb-24"
                         style={
                           forceExpandedMobileComposer
                             ? {
@@ -5828,7 +5830,7 @@ function ChatViewContent(props: ChatViewProps) {
                   >
                     <div
                       className={cn(
-                        "chat-composer-glass-shell relative mx-auto w-full max-w-3xl",
+                        "chat-composer-glass-shell chat-composer-glass-shell-transparent relative mx-auto w-full max-w-3xl",
                         showComposerContextStrip && "chat-composer-glass-shell-with-context",
                       )}
                     >

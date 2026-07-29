@@ -289,6 +289,20 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     align-items: center;
   }
 
+  /* Mentiko's decision header pattern: the animated GIF is the fill, and the
+     browser clips that fill to each glyph. Keep the filter monochrome so the
+     movement reads as light in the dark thread shell instead of as a neon blob. */
+  .draft-hero-headline-gif-text {
+    background-image: url("https://assets.amarn.me/gif-text.gif");
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    filter: grayscale(1) contrast(0.45) brightness(1.75);
+  }
+
   /* Fade rows themselves as they pass beneath the top chrome. A mask remains
      visible even when the header and timeline share the same background. */
   .chat-timeline-scroll-fade,
@@ -361,6 +375,11 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 
     position: relative;
     isolation: isolate;
+  }
+
+  .chat-composer-glass-shell-transparent {
+    /* 80% transparent means the composer keeps only a 20% surface tint. */
+    --glass-opacity: 20%;
   }
 
   .chat-composer-glass-shell::before {
@@ -903,6 +922,14 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 [data-sidebar-version="v1"],
 [data-sidebar-version="v2"] {
   background-color: var(--sidebar);
+}
+
+/* The thread space and its explorer are one surface. Keep the shell from
+   introducing a lighter card-colored strip beside the conversation. */
+[data-app-sidebar],
+[data-app-sidebar] [data-slot="sidebar"],
+[data-app-sidebar] [data-slot="sidebar-inner"] {
+  background-color: var(--background);
 }
 
 body {
