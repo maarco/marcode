@@ -1,5 +1,13 @@
-import { type ServerLifecycleWelcomePayload } from "@t3tools/contracts";
-import { scopedProjectKey, scopeProjectRef } from "@t3tools/client-runtime/environment";
+import {
+  type ServerLifecycleWelcomePayload,
+  type EnvironmentId,
+  type ThreadId,
+} from "@t3tools/contracts";
+import {
+  scopedProjectKey,
+  scopeProjectRef,
+  scopeThreadRef,
+} from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
   Outlet,
@@ -49,7 +57,13 @@ import {
   primaryServerConfigEventAtom,
   primaryServerWelcomeAtom,
 } from "../state/server";
-import { readProject, setActiveEnvironmentId, useActiveEnvironmentId } from "../state/entities";
+import {
+  readProject,
+  setActiveEnvironmentId,
+  useActiveEnvironmentId,
+  useThreadRefs,
+} from "../state/entities";
+import { markPromotedDraftThreadByRef, useComposerDraftStore } from "../composerDraftStore";
 import {
   createKeybindingsUpdateToastController,
   type KeybindingsUpdateToastController,
@@ -139,6 +153,7 @@ function RootRouteView() {
         <SlowRpcRequestToastCoordinator />
         <HostedStaticEnvironmentBootstrap />
         {primaryEnvironmentAuthenticated ? <EventRouter /> : null}
+        {primaryEnvironmentAuthenticated ? <DraftPromotionWatcher /> : null}
         {primaryEnvironmentAuthenticated ? <ProviderUpdateLaunchNotification /> : null}
         {appShell}
       </AnchoredToastProvider>
@@ -276,6 +291,43 @@ function AuthenticatedTracingBootstrap() {
   useEffect(() => {
     void configureClientTracing();
   }, []);
+
+  return null;
+}
+
+/**
+ * Watches for server thread refs that match unpromoted draft sessions and
+ * marks them as promoted. This catches the race where the user navigates
+ * away from the draft route before the server thread list refreshes —
+ * without this, the draft never gets marked promoted and the sidebar
+ * routes to a stale draft URL instead of the real thread.
+ */
+function DraftPromotionWatcher() {
+  const threadRefs = useThreadRefs();
+  const unpromotedDrafts = useComposerDraftStore((store) => {
+    const result: { environmentId: EnvironmentId; threadId: ThreadId }[] = [];
+    for (const draftThread of Object.values(store.draftThreadsByThreadKey)) {
+      if (draftThread.promotedTo == null) {
+        result.push({
+          environmentId: draftThread.environmentId,
+          threadId: draftThread.threadId,
+        });
+      }
+    }
+    return result;
+  });
+
+  useEffect(() => {
+    if (unpromotedDrafts.length === 0 || threadRefs.length === 0) {
+      return;
+    }
+    const serverRefSet = new Set(threadRefs.map((ref) => `${ref.environmentId}:${ref.threadId}`));
+    for (const draft of unpromotedDrafts) {
+      if (serverRefSet.has(`${draft.environmentId}:${draft.threadId}`)) {
+        markPromotedDraftThreadByRef(scopeThreadRef(draft.environmentId, draft.threadId));
+      }
+    }
+  }, [threadRefs, unpromotedDrafts]);
 
   return null;
 }
