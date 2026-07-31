@@ -10,8 +10,8 @@ import {
 
 describe("SidebarStageBackdrop", () => {
   it("resolves stage artwork only when enabled", () => {
-    expect(resolveSidebarStageBackdropVariant("Dev")).toBe("dev");
-    expect(resolveSidebarStageBackdropVariant("Nightly")).toBe("nightly");
+    expect(resolveSidebarStageBackdropVariant("Dev", true)).toBe("dev");
+    expect(resolveSidebarStageBackdropVariant("Nightly", true)).toBe("nightly");
     expect(resolveSidebarStageBackdropVariant("Dev", false)).toBeNull();
     expect(resolveSidebarStageBackdropVariant("Alpha")).toBeNull();
   });
