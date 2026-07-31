@@ -1,6 +1,12 @@
 import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { isElectron } from "../env";
@@ -8,7 +14,7 @@ import { getLocalStorageItem } from "../hooks/useLocalStorage";
 import { resolveShortcutCommand } from "../keybindings";
 import { isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import { useClientSettings } from "../hooks/useSettings";
+import { useSidebarV2Enabled } from "../hooks/useSettings";
 import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
 import ThreadSidebar from "./Sidebar";
 import ThreadSidebarV2 from "./SidebarV2";
@@ -22,6 +28,15 @@ import {
 import { Sidebar, SidebarProvider, SidebarRail, useSidebar } from "./ui/sidebar";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "90px";
+
+function subscribeToViewportWidth(onChange: () => void): () => void {
+  window.addEventListener("resize", onChange);
+  return () => window.removeEventListener("resize", onChange);
+}
+
+function readViewportWidth(): number {
+  return window.innerWidth;
+}
 
 function readInitialThreadSidebarWidth(): number {
   try {
@@ -73,13 +88,17 @@ function SidebarControl() {
 
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const sidebarV2Enabled = useClientSettings((settings) => settings.sidebarV2Enabled);
+  const sidebarV2Enabled = useSidebarV2Enabled();
   const pathname = useLocation({ select: (location) => location.pathname });
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
   const useSidebarV2 = sidebarV2Enabled;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
-  const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(window.innerWidth);
+  // Subscribed rather than read once: the clamp must track live window size,
+  // and a clamped drag ends with an unchanged width, which skips the re-render
+  // that would otherwise refresh a render-time snapshot.
+  const viewportWidth = useSyncExternalStore(subscribeToViewportWidth, readViewportWidth);
+  const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(viewportWidth);
   const [isWindowFullscreen, setIsWindowFullscreen] = useState(() => {
     const getWindowFullscreenState = window.desktopBridge?.getWindowFullscreenState;
     return isMacosDesktop && typeof getWindowFullscreenState === "function"

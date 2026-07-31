@@ -26,7 +26,7 @@ schedule:
 
 pullRequest:
   draft: true
-  titleTemplate: "chore(upstream): sync t3code through {upstreamShortSha}"
+  titleTemplate: "chore(upstream): sync marcode through {upstreamShortSha}"
   labels:
     - upstream-sync
   reviewers: []

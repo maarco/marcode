@@ -1,0 +1,3 @@
+display_name: "Marcode Upstream Integration"
+short_description: "Safely merge upstream changes into Marcode"
+default_prompt: "Use $marcode-upstream-integration to plan, resolve, verify, and hand off an upstream sync without losing Marcode behavior or merge state."

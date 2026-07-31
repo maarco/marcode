@@ -52,7 +52,7 @@ schedule:
 
 pullRequest:
   draft: true
-  titleTemplate: "chore(upstream): sync t3code through {upstreamShortSha}"
+  titleTemplate: "chore(upstream): sync marcode through {upstreamShortSha}"
   labels:
     - upstream-sync
   reviewers: []
@@ -290,7 +290,7 @@ it("renders templates from the short sha only", () => {
       branchTemplate: "chore/upstream-{upstreamShortSha}",
       mergeMessage: "chore(upstream): merge pingdotgg/t3code@{upstreamShortSha}",
     },
-    pullRequest: { titleTemplate: "chore(upstream): sync t3code through {upstreamShortSha}" },
+    pullRequest: { titleTemplate: "chore(upstream): sync marcode through {upstreamShortSha}" },
   } as never;
   assert.equal(renderIntegrationBranch(manifest, "6f34ad3e87eb"), "chore/upstream-6f34ad3e87eb");
   assert.equal(
@@ -299,7 +299,7 @@ it("renders templates from the short sha only", () => {
   );
   assert.equal(
     renderPullRequestTitle(manifest, "6f34ad3e87eb"),
-    "chore(upstream): sync t3code through 6f34ad3e87eb",
+    "chore(upstream): sync marcode through 6f34ad3e87eb",
   );
 });
 

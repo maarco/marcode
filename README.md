@@ -1,6 +1,6 @@
 # Marcode
 
-Marcode is a maintained fork of [T3 Code](https://github.com/pingdotgg/t3code), a minimal web GUI for coding agents. It currently supports Codex, Claude, Cursor, and OpenCode.
+Marcode is a maintained fork of [T3 Code](https://github.com/pingdotgg/t3code), an agent harness control surface for controlling coding agents from the web, mobile, and desktop. It currently supports Codex, Claude, Cursor, Grok Build, and OpenCode.
 
 ## Installation
 
@@ -9,9 +9,12 @@ Authenticate at least one provider before use:
 - Codex: install [Codex CLI](https://developers.openai.com/codex/cli) and run `codex login`
 - Claude: install [Claude Code](https://claude.com/product/claude-code) and run `claude auth login`
 - Cursor: install [Cursor CLI](https://cursor.com/cli) and run `cursor-agent login`
+- Grok Build: install [Grok Build CLI](https://x.ai/cli) and run `grok login`
 - OpenCode: install [OpenCode](https://opencode.ai) and run `opencode auth login`
 
-### Run without installing
+### Try it out (install-free)
+
+The easiest way to test Marcode is to run the server in your terminal:
 
 The CLI keeps the upstream-compatible `t3` package name:
 
@@ -19,7 +22,9 @@ The CLI keeps the upstream-compatible `t3` package name:
 npx t3@latest
 ```
 
-Use `npx t3@latest --help` for the full CLI reference.
+This launches the backend and local web app to control your agents.
+
+Tip: Use `npx t3@latest --help` for the full CLI reference.
 
 ### Run from source
 
