@@ -207,7 +207,7 @@ export const SHOWCASE_THREADS = [
   // a store screenshot has to show that history exists, not just imply it.
   {
     id: "handoff-haptics",
-    projectId: "t3code",
+    projectId: "marcode",
     title: "Tune the handoff haptics",
     branch: "feat/handoff-haptics",
     minutesAgo: 5 * 60,

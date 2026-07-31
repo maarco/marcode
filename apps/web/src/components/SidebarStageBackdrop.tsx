@@ -42,7 +42,9 @@ export function useEnvironmentStageLabel(): string {
   });
 }
 
-export function useSidebarStageBackdropVariant(enabled = false): SidebarStageBackdropVariant | null {
+export function useSidebarStageBackdropVariant(
+  enabled = false,
+): SidebarStageBackdropVariant | null {
   return resolveSidebarStageBackdropVariant(useEnvironmentStageLabel(), enabled);
 }
 

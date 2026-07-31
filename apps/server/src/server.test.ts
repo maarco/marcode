@@ -6450,7 +6450,6 @@ it.layer(NodeServices.layer)("server router seam", (it) => {
     }).pipe(Effect.provide(NodeHttpServer.layerTest)),
   );
 
-
   it.effect("stops the provider session and closes thread terminals after archive", () =>
     Effect.gen(function* () {
       const threadId = ThreadId.make("thread-archive");
