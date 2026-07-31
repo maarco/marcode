@@ -23,7 +23,7 @@ export class RelayTransactions extends Context.Service<
   {
     readonly withTransaction: RelayDb["Service"]["$client"]["withTransaction"];
   }
->()("t3code-relay/db/RelayTransactions") {
+>()("marcode-relay/db/RelayTransactions") {
   static readonly layer = Layer.effect(
     RelayTransactions,
     Effect.gen(function* () {
