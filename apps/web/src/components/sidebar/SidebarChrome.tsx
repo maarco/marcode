@@ -24,7 +24,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 /** Settings lives in FloatingPillNav; the sidebar footer only owns update state. */
 export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   return (
-    <SidebarFooter className="p-2">
+    <SidebarFooter className="p-[var(--sidebar-content-inset)]">
       <SidebarProviderUpdatePill />
       <SidebarUpdatePill />
     </SidebarFooter>

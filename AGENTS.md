@@ -74,13 +74,71 @@ This repository is a fork of `pingdotgg/t3code`. Merging upstream goes through t
 - Use Marcode for visible product identity; do not mass-replace internal upstream-shaped `T3` identifiers.
 - See [Upstream sync](./docs/operations/upstream-sync.md) for the runbook.
 
-### Pending: first live workflow run
+### How the scheduled sync behaves
 
-`.github/workflows/upstream-sync.yml` has never executed. It becomes real once it is on the default branch on GitHub. When Marco is ready to push `main`:
-
-1. Push `main` to `origin`.
-2. Enable _Settings → Actions → General → Allow GitHub Actions to create and approve pull requests_.
-3. Trigger the workflow manually via `workflow_dispatch` and watch the run.
-4. Expect a draft PR from `chore/upstream-<short-sha>` into `main`. Review it; nothing auto-merges.
+`.github/workflows/upstream-sync.yml` runs daily. A clean delta pushes `chore/upstream-<short-sha>`
+and opens a draft pull request. A conflicted delta pushes nothing, files an `upstream-sync-blocked`
+issue, and fails the run on purpose — that failure is the signal, not a broken workflow. Resolve it
+by hand on an `integrate/upstream-<short-sha>` branch, open a review pull request, and close the
+tracking issue when the resolution lands.
 
 Local `upstream:status` and `upstream:plan` are read-only and safe to run any time.
+
+## Terminology
+
+- **you** means the agent reading this file and changing Marcode.
+- **user** means the person using Marcode to direct coding agents.
+- **agent** means the coding agent a user runs inside Marcode. Depending on context, that may also include you.
+- **provider** means the agent runtime or harness Marcode talks to, such as Codex, Claude, Cursor, or OpenCode.
+- **client** means the web, desktop, or mobile UI.
+- **environment** means one running server and the machine, filesystem, provider credentials, and state it owns.
+- **project** means an environment-local workspace record rooted at a directory.
+- **thread** means the durable conversation and work history for a project.
+- **turn** means one user-to-agent cycle, including follow-up work such as checkpointing.
+- **Marcode home** means the base data directory. Runtime state normally lives below its `userdata` directory.
+
+## The three ways to hurt yourself
+
+1. **Killing by pattern.** Never `pkill -f`, `pgrep | kill`, or `kill` a PID you found by matching a name, path, or worktree string. Your own agent process has this worktree's path in its argv, and this machine runs several other dev servers at once. Kill only a PID you captured at spawn, or the owner of your port after confirming its working directory is your worktree.
+2. **Writing to the live install.** `~/.marcode/userdata` is the developer's real Marcode database, in use while you work. Reading it and copying from it are fine, and a good way to get real test data (see Test data). Never start a server against it, never open it read-write, never clean it up.
+3. **Baking in origins.** Never set `VITE_HTTP_URL` or `VITE_WS_URL` for dev. Dev is single-origin and Vite proxies `/api`, `/ws`, `/oauth`, and `/.well-known`. Setting them bakes localhost into the bundle and silently breaks every remote browser.
+
+## Test data
+
+An empty database is a bad test. Seed your worktree's `.marcode` with a copy of real data instead of pointing at live state:
+
+- Copy from `~/.marcode/userdata` (the developer's real data, the most realistic test set) or `~/.marcode/dev`. Worktree state lives at `<worktree>/.marcode/userdata`.
+- Snapshot the database with `VACUUM INTO`, which is safe even while a server has the source open and yields one consistent file:
+
+  ```bash
+  mkdir -p .marcode/userdata
+  rm -f .marcode/userdata/state.sqlite*  # VACUUM INTO refuses to overwrite
+  bun -e "new (require('bun:sqlite').Database)(process.env.HOME + '/.marcode/userdata/state.sqlite', { readonly: true }).run(\"VACUUM INTO '.marcode/userdata/state.sqlite'\")"
+  ```
+
+  A plain `cp` is only safe when no server has the source open, and must bring the `-wal` and `-shm` siblings along. A live file copy is a corrupt copy.
+
+- Bring `secrets` and `settings.json` only if the flow under test needs them.
+- Copy in, never symlink. Data flows one way: into your sandbox, never back out.
+
+## How it works
+
+Clients send typed WebSocket requests. The server turns them into _commands_, a pure _decider_ turns commands into persisted _events_, and a _projector_ derives the read model the UI renders. Provider CLIs run as subprocesses; per-provider _adapters_ translate their native protocols into orchestration events. Side effects run in queue-backed _reactors_ that emit _receipts_ when milestones land. Each turn ends with a _checkpoint_, a hidden git ref, so the app can diff and restore.
+
+Full glossary with file links: `docs/internals/glossary.md`
+
+## Pull requests
+
+- Never open a pull request unless the developer explicitly asks you to.
+- Conventional commit titles, plain language: `fix(web): new threads no longer spike CPU`.
+- Body: the problem in a sentence or two, then how you fixed it.
+- One concern per PR. If the description says "also", split it.
+- UI changes need before/after images. Motion or timing needs a short video.
+
+## Taste
+
+- Complexity belongs at the adapter boundary. Orchestration stays pure, UI stays dumb.
+- Inferred types over annotations. `any` is the enemy.
+- Comments describe how a thing is used, and move when the code moves.
+- Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.
+- If a rule here fights the task in front of you, say so loudly and get a human sign-off before breaking it.

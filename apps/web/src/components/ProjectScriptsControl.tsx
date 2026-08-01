@@ -509,6 +509,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
                   <Button
                     size="xs"
                     variant="outline"
+                    className="w-7 px-0 sm:w-6 @3xl/header-actions:w-auto! @3xl/header-actions:px-[calc(--spacing(2)-1px)]"
                     aria-label={`Run ${primaryScript.name}`}
                     onClick={() => onRunScript(primaryScript)}
                   />
@@ -609,6 +610,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
                 <Button
                   size="xs"
                   variant="outline"
+                  className="w-7 px-0 sm:w-6 @3xl/header-actions:w-auto! @3xl/header-actions:px-[calc(--spacing(2)-1px)]"
                   aria-label="Add action"
                   onClick={openAddDialog}
                 />
