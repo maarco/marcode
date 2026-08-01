@@ -1,5 +1,5 @@
 {
-  "name": "T3 Code Dev",
+  "name": "Marcode Dev",
   "image": "debian:bookworm",
   "features": {
     "ghcr.io/devcontainers/features/git:1": {},
@@ -19,7 +19,10 @@
     "ghcr.io/devcontainers-extra/features/bun"
   ],
   "postCreateCommand": {
-    "bun-install": "bun install --backend=copyfile --frozen-lockfile"
+    // corepack reads the pnpm version from package.json `packageManager`, so this
+    // never drifts from the lockfile. bun stays installed above: it is not the
+    // package manager, it is what AGENTS.md uses for `bun:sqlite` test-data seeding.
+    "install": "corepack enable && pnpm install --frozen-lockfile"
   },
   "customizations": {
     "vscode": {
