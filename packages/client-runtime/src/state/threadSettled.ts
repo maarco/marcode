@@ -216,13 +216,24 @@ export function threadWokeAt(
 }
 
 /**
+ * A merged/closed change request settles its thread only once the thread has
+ * been idle this long. Without the idle guard the merge signal is permanent:
+ * sending a message to a merged-PR thread would un-settle the row only until
+ * its turn completed, then the still-merged PR would snap it straight back
+ * into the settled tail. An hour keeps the follow-up conversation visible
+ * while it is warm; once the burst goes stale the merge signal settles it
+ * again.
+ */
+export const CHANGE_REQUEST_SETTLE_IDLE_MS = 60 * 60 * 1_000;
+
+/**
  * Settled resolution over the server-backed settled lifecycle. Activity
  * blockers (pending approval/user-input, a live session, an unadjudicated
  * queued turn) are checked first and hold a thread active regardless of any
  * override. Past the blockers, the explicit user override (thread.settle /
  * thread.unsettle commands, projected into settledOverride + settledAt)
  * wins in both directions; without one, a thread auto-settles on a
- * merged/closed PR immediately or on inactivity past the window — except
+ * merged/closed PR (once idle) or on inactivity past the window — except
  * that an open PR blocks the inactivity path entirely. The server
  * un-settles on real activity (user message, session start, approval/
  * user-input request), so an override never goes stale silently.
@@ -259,7 +270,16 @@ export function effectiveSettled(
   // until real activity clears it server-side.
   if (shell.settledOverride === "active") return false;
   if (options.changeRequestState === "merged" || options.changeRequestState === "closed") {
-    return true;
+    // A merged/closed PR is a durable completion signal, but it must not bury
+    // a thread while the user is still having a warm follow-up conversation.
+    // Once the thread has been idle for an hour, the PR state settles it.
+    const lastActivityAt = threadLastActivityAt(shell);
+    if (
+      lastActivityAt === null ||
+      Date.parse(lastActivityAt) < Date.parse(options.now) - CHANGE_REQUEST_SETTLE_IDLE_MS
+    ) {
+      return true;
+    }
   }
   // An open PR is unfinished business regardless of how long the thread has
   // been quiet: review can take days, and hiding the thread would bury the
