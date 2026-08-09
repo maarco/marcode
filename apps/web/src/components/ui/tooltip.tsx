@@ -1,6 +1,7 @@
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 
 import {
+  FLOATING_SURFACE_Z,
   PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
   portalOverlayStyle,
 } from "~/editor/floating-surface-z";
@@ -44,7 +45,7 @@ function TooltipPopup({
         data-slot="tooltip-positioner"
         side={side}
         sideOffset={sideOffset}
-        style={portalOverlayStyle()}
+        style={portalOverlayStyle({ zIndex: FLOATING_SURFACE_Z.portalOverlayTooltip })}
       >
         <TooltipPrimitive.Popup
           className={cn(

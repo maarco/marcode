@@ -24,6 +24,7 @@ bringing in upstream correctness, security, protocol, dependency, and operationa
 - Browser dev is single-origin: Vite proxies `/api`, `/ws`, `/oauth`, and `/.well-known` to the backend. Do not set `VITE_HTTP_URL` or `VITE_WS_URL` for `dev`/`dev:web`.
 - Worktree paths supply stable preferred port offsets. Read the actual server and web ports from the `[dev-runner]` line because occupied ports can still shift them.
 - Before handing off a `--share` URL, open its origin in a controlled browser and confirm the app loads. A successful curl is insufficient because browsers reject some otherwise reachable ports.
+- If a pairing token got consumed, mint a fresh one with `node apps/server/src/bin.ts pair` — note it carries standard scopes, while the startup URL carries admin scopes (needed for Settings → Connections management).
 
 ## Package Roles
 
@@ -83,6 +84,41 @@ by hand on an `integrate/upstream-<short-sha>` branch, open a review pull reques
 tracking issue when the resolution lands.
 
 Local `upstream:status` and `upstream:plan` are read-only and safe to run any time.
+
+### Write every change so the next upstream merge is cheap
+
+This is a maintained fork: upstream rewrites their files, and every line Marcode edits inside an
+upstream-owned file is a line some future sync has to reconcile by hand. Treat the size of that
+edit surface as a cost you are choosing to pay. Before opening any pull request, ask what the next
+merge will look like — and prefer the shape that conflicts on a seam instead of a subsystem.
+
+- **Add a file, don't rewrite theirs.** Put Marcode behavior in a Marcode-owned module and mount it
+  from the upstream file in as few lines as possible. `apps/web/src/components/unified-workspace/`
+  is the worked example: the whole workspace tree lives there and `Sidebar.tsx` carries one import
+  plus one mount point, so upstream replacing their entire sidebar cost a two-hunk conflict instead
+  of thousands of lines.
+- **Minimize coupling, not just line count.** A Marcode component that accepts fifteen handlers
+  threaded out of an upstream component's local variables breaks on every upstream refactor. One
+  that takes a few stable identifiers and sources the rest from hooks and stores survives them.
+  Coupling to their internals is the expensive part; a long file of your own is not.
+- **Mark the seam.** Comment the insertion point in the upstream file (`── Marcode fork seam ──`)
+  and say what it mounts and why. The next person resolving that conflict needs to know instantly
+  whether a hunk is theirs, ours, or a join.
+- **Take their refactor even when you keep your behavior.** When upstream renames a selector,
+  splits a helper into a new module, or moves a token, follow them and re-apply Marcode's behavior
+  on top. Keeping the old shape "because ours works" guarantees the same conflict next time, and
+  quietly opts out of everything they build on the new shape.
+- **Pin removals with a test.** Marcode retiring an upstream surface (right-panel file surfaces,
+  the sidebar footer) is invisible to a merge — upstream keeps shipping it and it merges back in
+  silently. Assert the removal so a future sync fails loudly instead.
+- **Watch for the breaks that produce no conflict.** A clean merge is not a safe merge. New
+  upstream code that reads `T3CODE_*` env vars, `t3code:*` storage keys, `~/.t3` paths, or
+  `t3code.service` will merge without a mark and then quietly not work on Marcode. After any sync,
+  grep the merged tree for upstream identity that Marcode renames and confirm each hit.
+- **Divergences you keep, you own.** Holding a different implementation of an upstream subsystem
+  (the xterm terminal, kept for its search) means re-porting their work on that subsystem by hand,
+  every sync, forever. That can be the right call — make it deliberately, and say so in a comment
+  where the divergence lives.
 
 ## Terminology
 

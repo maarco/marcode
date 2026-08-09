@@ -22,7 +22,7 @@ import {
   Code1Filled,
   KeySquareFilled,
 } from "@aliimam/icons";
-import { FlaskConicalIcon } from "lucide-react";
+import { ChartNoAxesColumnIcon, FlaskConicalIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useEditorStore } from "../editor/editor-store";
 import { usePillNavPreferences, getPillNavShineGradient } from "../editor/pill-prefs";
@@ -158,6 +158,15 @@ const CATEGORIES: NavCategory[] = [
         href: "/settings/archived",
         label: "Archived Chats",
         icon: <ClockFilled className="h-4 w-4" />,
+      },
+      // Upstream's usage page lives at the top-level /usage route and is
+      // linked from their sidebar footer. Marcode keeps that footer empty
+      // (this nav owns brand/settings), so surface it here or it would be
+      // unreachable in the UI.
+      {
+        href: "/usage",
+        label: "Usage",
+        icon: <ChartNoAxesColumnIcon className="h-4 w-4" />,
       },
     ],
   },
