@@ -13,8 +13,10 @@ layer("041_ProjectionProjectFaviconPath", (it) => {
     Effect.gen(function* () {
       const sql = yield* SqlClient.SqlClient;
 
-      yield* runMigrations({ toMigrationInclusive: 39 });
+      // Upstream numbers these 39/40; Marcode's ProjectWorkspaceLayout holds
+      // id 033, so every shared migration sits one higher here.
       yield* runMigrations({ toMigrationInclusive: 40 });
+      yield* runMigrations({ toMigrationInclusive: 41 });
 
       const columns = yield* sql<{ readonly name: string; readonly notnull: number }>`
         PRAGMA table_info(projection_projects)

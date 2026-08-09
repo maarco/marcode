@@ -167,11 +167,15 @@ describe("DesktopLinuxUrlHandler", () => {
         recorded.files[0]?.content,
         'Exec="/home/alice/Applications/T3-Code.AppImage" %U',
       );
-      assert.include(recorded.files[0]?.content, "MimeType=x-scheme-handler/t3code;");
+      // The desktop-entry FILENAME comes from the fixture's linuxWmClass, but
+      // the scheme comes from ElectronProtocol.getDesktopScheme() — the real
+      // protocol this build registers, which is `marcode` here. Upstream's
+      // copy of this test asserts `t3code` for both.
+      assert.include(recorded.files[0]?.content, "MimeType=x-scheme-handler/marcode;");
       assert.deepEqual(recorded.commands, [
         {
           command: "xdg-mime",
-          args: ["default", "t3code-url-handler.desktop", "x-scheme-handler/t3code"],
+          args: ["default", "t3code-url-handler.desktop", "x-scheme-handler/marcode"],
         },
       ]);
     });
