@@ -74,7 +74,10 @@ authenticated.
 ### Desktop `.dmg` packaging notes
 
 - Default build is unsigned/not notarized for local sharing.
-- The DMG build uses `assets/prod/black-macos-1024.png` as the production app icon source.
+- The DMG build uses `assets/prod/black-macos-1024.png` as the production app icon source and
+  composites its transparent pixels onto an opaque white matte before creating `icon.icns`.
+  Finder treats the transparent monochrome source as a template and otherwise renders it
+  black-on-black.
 - Desktop production windows load the bundled UI from the `t3code://app/` root URL (not a
   `127.0.0.1` document URL, and not an explicit `index.html` path).
 - Desktop packaging includes `apps/server/dist` (the `t3` backend) and starts it on loopback with an

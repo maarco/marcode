@@ -1,3 +1,5 @@
+import { PNG } from "pngjs";
+
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 export const WINDOWS_ICON_SIZES = [16, 24, 32, 48, 64, 128, 256] as const;
@@ -23,6 +25,25 @@ export function readPngDimensions(contents: Buffer): {
     width: contents.readUInt32BE(16),
     height: contents.readUInt32BE(20),
   };
+}
+
+/**
+ * MacOS Finder treats a transparent monochrome app icon as a template mask.
+ * Composite the icon onto an opaque white matte before building the ICNS so
+ * Finder preserves the white background and black mark.
+ */
+export function makeOpaqueWhitePng(contents: Buffer): Buffer {
+  const png = PNG.sync.read(contents);
+
+  for (let offset = 0; offset < png.data.length; offset += 4) {
+    const alpha = png.data[offset + 3]! / 255;
+    png.data[offset] = Math.round(png.data[offset]! * alpha + 255 * (1 - alpha));
+    png.data[offset + 1] = Math.round(png.data[offset + 1]! * alpha + 255 * (1 - alpha));
+    png.data[offset + 2] = Math.round(png.data[offset + 2]! * alpha + 255 * (1 - alpha));
+    png.data[offset + 3] = 255;
+  }
+
+  return PNG.sync.write(png);
 }
 
 /** Encodes PNG renditions directly into a modern, multi-resolution ICO file. */

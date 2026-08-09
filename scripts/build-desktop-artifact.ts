@@ -17,6 +17,7 @@ import {
   type WebAssetBrand,
 } from "./lib/brand-assets.ts";
 import { getDefaultBuildArch } from "./lib/build-target-arch.ts";
+import { makeOpaqueWhitePng } from "./lib/icon-export.ts";
 import { loadRepoEnv } from "./lib/public-config.ts";
 import { resolveCatalogDependencies } from "./lib/resolve-catalog.ts";
 
@@ -1317,15 +1318,22 @@ function stageMacIcons(stageResourcesDir: string, sourcePng: string, verbose: bo
       prefix: "t3code-icon-build-",
     });
 
+    const macIconSourcePath = path.join(tmpRoot, "mac-icon-source.png");
+    const sourceContents = yield* fs.readFile(sourcePng);
+    yield* fs.writeFile(macIconSourcePath, makeOpaqueWhitePng(Buffer.from(sourceContents)));
+
     const iconPngPath = path.join(stageResourcesDir, "icon.png");
     const iconIcnsPath = path.join(stageResourcesDir, "icon.icns");
 
-    yield* runCommand(ChildProcess.make({})`sips -z 512 512 ${sourcePng} --out ${iconPngPath}`, {
-      label: "sips mac icon",
-      verbose,
-    });
+    yield* runCommand(
+      ChildProcess.make({})`sips -z 512 512 ${macIconSourcePath} --out ${iconPngPath}`,
+      {
+        label: "sips mac icon",
+        verbose,
+      },
+    );
 
-    yield* generateMacIconSet(sourcePng, iconIcnsPath, tmpRoot, path, verbose);
+    yield* generateMacIconSet(macIconSourcePath, iconIcnsPath, tmpRoot, path, verbose);
   });
 }
 

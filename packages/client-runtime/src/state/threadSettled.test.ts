@@ -165,11 +165,32 @@ describe("effectiveSettled", () => {
     ).toBe(true);
   });
 
-  it("settles immediately when a change request merges or closes", () => {
-    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+  it("keeps recently active merged and closed change requests warm", () => {
+    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:30:00.000Z" });
+    const boundary = makeShell({ activityAt: "2026-04-09T23:00:00.000Z" });
     for (const changeRequestState of ["merged", "closed"] as const) {
       expect(
         effectiveSettled(recentlyActive, {
+          now: NOW,
+          autoSettleAfterDays: null,
+          changeRequestState,
+        }),
+      ).toBe(false);
+      expect(
+        effectiveSettled(boundary, {
+          now: NOW,
+          autoSettleAfterDays: null,
+          changeRequestState,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  it("settles merged and closed change requests after the warm window", () => {
+    const idle = makeShell({ activityAt: "2026-04-09T22:59:59.999Z" });
+    for (const changeRequestState of ["merged", "closed"] as const) {
+      expect(
+        effectiveSettled(idle, {
           now: NOW,
           autoSettleAfterDays: null,
           changeRequestState,
