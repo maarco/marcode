@@ -130,7 +130,8 @@ export function DraftHeroHeadline({
     <Menu>
       <MenuTrigger
         aria-label={hasResolvedProject ? "Change project" : "Choose a project"}
-        className={`pointer-events-auto inline cursor-pointer border-current border-b border-dotted underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
+        className={`pointer-events-auto inline-block max-w-64 truncate cursor-pointer border-current border-b border-dotted align-bottom underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
+        title={activeProjectDisplayName ?? undefined}
       >
         {activeProjectDisplayName ?? "Choose a project"}
       </MenuTrigger>
@@ -151,7 +152,9 @@ export function DraftHeroHeadline({
           {projectPickerEntries.map(({ group }) => {
             return (
               <MenuRadioItem key={group.projectKey} value={group.projectKey} closeOnClick>
-                <span className="min-w-0 truncate">{group.displayName}</span>
+                <span className="block min-w-0 truncate" title={group.displayName}>
+                  {group.displayName}
+                </span>
               </MenuRadioItem>
             );
           })}

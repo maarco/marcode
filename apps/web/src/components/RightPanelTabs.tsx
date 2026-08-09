@@ -1,6 +1,6 @@
 import type { ContextMenuItem, PreviewSessionSnapshot } from "@t3tools/contracts";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
-import { ClipboardList, FileDiff, Globe2, Plus, TerminalSquare, X } from "lucide-react";
+import { Bot, FileDiff, Globe2, Plus, TerminalSquare, X } from "lucide-react";
 import {
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
@@ -39,8 +39,11 @@ interface RightPanelTabsProps {
   onAddBrowser: () => void;
   onAddTerminal: () => void;
   onAddDiff: () => void;
+  onAddAgents: () => void;
   browserAvailable: boolean;
   diffAvailable: boolean;
+  /** Running + waiting subagents; badges the Agents card in the empty state. */
+  liveAgentCount: number;
   children: ReactNode;
 }
 
@@ -83,8 +86,10 @@ function RightPanelEmptyState(props: {
   onAddBrowser: () => void;
   onAddTerminal: () => void;
   onAddDiff: () => void;
+  onAddAgents: () => void;
   browserAvailable: boolean;
   diffAvailable: boolean;
+  liveAgentCount: number;
 }) {
   const actions = [
     {
@@ -94,6 +99,7 @@ function RightPanelEmptyState(props: {
       available: props.browserAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.browser,
       onClick: props.onAddBrowser,
+      badgeCount: 0,
     },
     {
       label: "Terminal",
@@ -102,6 +108,7 @@ function RightPanelEmptyState(props: {
       available: true,
       disabledReason: null,
       onClick: props.onAddTerminal,
+      badgeCount: 0,
     },
     {
       label: "Diff",
@@ -110,6 +117,16 @@ function RightPanelEmptyState(props: {
       available: props.diffAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.diff,
       onClick: props.onAddDiff,
+      badgeCount: 0,
+    },
+    {
+      label: "Agents",
+      description: "Watch subagents and workflows run.",
+      icon: Bot,
+      available: true,
+      disabledReason: null,
+      onClick: props.onAddAgents,
+      badgeCount: props.liveAgentCount,
     },
   ] as const;
 
@@ -127,7 +144,17 @@ function RightPanelEmptyState(props: {
             const Icon = action.icon;
             const content = (
               <>
-                <Icon className="mb-3 size-5" />
+                <span className="relative mb-3 inline-flex">
+                  <Icon className="size-5" />
+                  {action.badgeCount > 0 ? (
+                    <span
+                      aria-hidden
+                      className="absolute -top-1.5 -right-2 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-info px-1 text-[9px] font-semibold tabular-nums text-white"
+                    >
+                      {action.badgeCount}
+                    </span>
+                  ) : null}
+                </span>
                 <span className="text-sm font-medium">{action.label}</span>
                 <span className="mt-1 text-xs leading-relaxed text-muted-foreground">
                   {action.description}
@@ -140,7 +167,7 @@ function RightPanelEmptyState(props: {
                   key={action.label}
                   type="button"
                   onClick={action.onClick}
-                  className="flex min-h-28 w-full flex-col items-start rounded-lg border border-border/80 bg-card p-4 text-left transition hover:border-border hover:bg-accent/60 dark:border-transparent dark:shadow-none dark:inset-ring-1 dark:inset-ring-white/5"
+                  className="cursor-pointer flex min-h-28 w-full flex-col items-start rounded-lg border border-border/80 bg-card p-4 text-left transition hover:border-border hover:bg-accent/60 dark:border-transparent dark:shadow-none dark:inset-ring-1 dark:inset-ring-white/5"
                 >
                   {content}
                 </button>
@@ -182,8 +209,8 @@ function surfaceTitle(
         terminalLabelsById.get(surface.activeTerminalId) ??
         getTerminalLabel(surface.activeTerminalId)
       );
-    case "plan":
-      return "Plan";
+    case "agents":
+      return "Agents";
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -200,14 +227,14 @@ function surfaceTitle(
 function PreviewFavicon({ url }: { url: string | null }) {
   const faviconUrl = faviconUrlForOrigin(url, 32);
   const [failedUrl, setFailedUrl] = useState<string | null>(null);
-  if (!faviconUrl || failedUrl === faviconUrl) return <Globe2 className="size-3.5 shrink-0" />;
+  if (!faviconUrl || failedUrl === faviconUrl) return <Globe2 className="size-3 shrink-0" />;
   return (
     <img
       src={faviconUrl}
       alt=""
       aria-hidden
       draggable={false}
-      className="size-3.5 shrink-0 rounded-sm"
+      className="size-3 shrink-0 rounded-sm"
       onError={() => setFailedUrl(faviconUrl)}
     />
   );
@@ -227,11 +254,11 @@ function SurfaceIcon({
       return <PreviewFavicon url={url} />;
     }
     case "diff":
-      return <FileDiff className="size-3.5 shrink-0" />;
+      return <FileDiff className="size-3 shrink-0" />;
     case "terminal":
-      return <TerminalSquare className="size-3.5 shrink-0" />;
-    case "plan":
-      return <ClipboardList className="size-3.5 shrink-0" />;
+      return <TerminalSquare className="size-3 shrink-0" />;
+    case "agents":
+      return <Bot className="size-3 shrink-0" />;
   }
 }
 
@@ -317,7 +344,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       <div
         className={cn(
           "workspace-topbar gap-1 pl-2",
-          !ownsDesktopTitleBar && "[--workspace-topbar-height:--spacing(11)]",
+          props.mode !== "inline" && "[--workspace-topbar-height:--spacing(11)]",
           props.mode === "inline" ? "pr-28" : "pr-3",
           ownsDesktopTitleBar && "wco:pr-[calc(var(--workspace-native-controls-inset)+6rem)]",
           props.mode === "inline" && props.maximized && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
@@ -343,45 +370,51 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                   onAuxClick={(event) => handleTabAuxClick(event, surface)}
                   onContextMenu={(event) => void handleTabContextMenu(event, surface)}
                   className={cn(
-                    "group flex h-7 min-w-25 max-w-44 shrink-0 items-center gap-1.5 rounded-md px-2 text-sm",
+                    "cursor-pointer group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs",
                     active
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                   )}
                 >
+                  <button
+                    type="button"
+                    className="cursor-pointer group/close relative flex size-4 shrink-0 items-center justify-center rounded-sm hover:bg-muted"
+                    aria-label={`Close ${title}`}
+                    onClick={() => props.onCloseSurface(surface)}
+                  >
+                    {/* Upstream badges a "pending" dot here, fed by pending
+                        FILE surfaces. Marcode retired the file surfaces, so
+                        there is nothing to be pending and the dot is dropped
+                        rather than wired to a always-empty set. */}
+                    <span className="relative flex size-3 items-center justify-center group-hover/tab:hidden group-focus-visible/close:hidden">
+                      <SurfaceIcon surface={surface} sessions={props.previewSessions} />
+                    </span>
+                    <X className="hidden size-3 group-hover/tab:block group-focus-visible/close:block" />
+                  </button>
                   <Tooltip>
                     <TooltipTrigger
                       render={
                         <button
                           type="button"
-                          className="flex min-w-0 flex-1 items-center gap-1.5"
+                          className="cursor-pointer flex min-w-0 items-center"
                           onClick={() => props.onActivate(surface)}
                         >
-                          <SurfaceIcon surface={surface} sessions={props.previewSessions} />
                           <span className="truncate">{title}</span>
                         </button>
                       }
                     />
                     <TooltipPopup>{title}</TooltipPopup>
                   </Tooltip>
-                  <button
-                    type="button"
-                    className="relative flex size-4 shrink-0 items-center justify-center rounded opacity-0 hover:bg-muted focus:opacity-100 group-hover:opacity-100"
-                    aria-label={`Close ${title}`}
-                    onClick={() => props.onCloseSurface(surface)}
-                  >
-                    <X className="size-3" />
-                  </button>
                 </div>
               );
             })}
             {props.surfaces.length > 0 ? (
               <Menu>
                 <MenuTrigger
-                  className="relative inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                  className="cursor-pointer relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
                   aria-label="Add panel"
                 >
-                  <Plus className="size-4" />
+                  <Plus className="size-3.5" />
                 </MenuTrigger>
                 <MenuPopup align="start" side="bottom" sideOffset={6} className="min-w-44">
                   <SurfaceMenuItem
@@ -404,6 +437,10 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                     <FileDiff />
                     Diff
                   </SurfaceMenuItem>
+                  <SurfaceMenuItem available onClick={props.onAddAgents}>
+                    <Bot />
+                    Agents
+                  </SurfaceMenuItem>
                 </MenuPopup>
               </Menu>
             ) : null}
@@ -411,14 +448,16 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         </ScrollArea>
         {props.layoutControls}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex min-h-0 flex-1 flex-col" data-right-panel-surface-content>
         {props.activeSurfaceId === null ? (
           <RightPanelEmptyState
             onAddBrowser={props.onAddBrowser}
             onAddTerminal={props.onAddTerminal}
             onAddDiff={props.onAddDiff}
+            onAddAgents={props.onAddAgents}
             browserAvailable={props.browserAvailable}
             diffAvailable={props.diffAvailable}
+            liveAgentCount={props.liveAgentCount}
           />
         ) : (
           props.children

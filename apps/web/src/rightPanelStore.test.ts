@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
   migratePersistedRightPanelState,
+  RIGHT_PANEL_KINDS,
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
   selectThreadRightPanelState,
@@ -72,7 +73,7 @@ describe("rightPanelStore", () => {
     });
   });
 
-  it("drops persisted file and files surfaces during v7-to-v8 migration", () => {
+  it("drops persisted file, files and plan surfaces during migration", () => {
     expect(
       migratePersistedRightPanelState({
         byThreadKey: {
@@ -102,14 +103,51 @@ describe("rightPanelStore", () => {
       }),
     ).toEqual({
       byThreadKey: {
-        // thread-A's active surface WAS the dropped file — reconciliation falls back to null.
+        // thread-A held only a file and a plan; both kinds are retired now
+        // (Marcode's floating editor owns files, upstream folded plans into
+        // the transcript), so the thread is left with an empty, closed panel.
         "env-1:thread-A": {
-          isOpen: true,
+          isOpen: false,
           activeSurfaceId: null,
-          surfaces: [{ id: "plan", kind: "plan" }],
+          surfaces: [],
         },
         // thread-B's active surface (diff) survives untouched even though its sibling
         // standalone-explorer surface was dropped.
+        "env-1:thread-B": {
+          isOpen: true,
+          activeSurfaceId: "diff",
+          surfaces: [{ id: "diff", kind: "diff" }],
+        },
+      },
+    });
+  });
+
+  it("drops persisted plan surfaces and does not reopen an empty panel", () => {
+    expect(
+      migratePersistedRightPanelState({
+        byThreadKey: {
+          "env-1:thread-A": {
+            isOpen: true,
+            activeSurfaceId: "plan",
+            surfaces: [{ id: "plan", kind: "plan" }],
+          },
+          "env-1:thread-B": {
+            isOpen: true,
+            activeSurfaceId: "plan",
+            surfaces: [
+              { id: "plan", kind: "plan" },
+              { id: "diff", kind: "diff" },
+            ],
+          },
+        },
+      }),
+    ).toEqual({
+      byThreadKey: {
+        "env-1:thread-A": {
+          isOpen: false,
+          activeSurfaceId: null,
+          surfaces: [],
+        },
         "env-1:thread-B": {
           isOpen: true,
           activeSurfaceId: "diff",
@@ -126,7 +164,7 @@ describe("rightPanelStore", () => {
   });
 
   it("opening a different kind keeps both surfaces and activates the new one", () => {
-    useRightPanelStore.getState().open(refA, "plan");
+    useRightPanelStore.getState().open(refA, "agents");
     useRightPanelStore.getState().open(refA, "preview");
     expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, refA)).toBe("preview");
     expect(
@@ -136,7 +174,7 @@ describe("rightPanelStore", () => {
 
   it("reopening an inactive singleton activates its existing surface", () => {
     useRightPanelStore.getState().open(refA, "diff");
-    useRightPanelStore.getState().open(refA, "plan");
+    useRightPanelStore.getState().open(refA, "agents");
     useRightPanelStore.getState().open(refA, "diff");
 
     expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
@@ -144,19 +182,38 @@ describe("rightPanelStore", () => {
       activeSurfaceId: "diff",
       surfaces: [
         { id: "diff", kind: "diff" },
-        { id: "plan", kind: "plan" },
+        { id: "agents", kind: "agents" },
       ],
     });
   });
 
+  // Marcode retired the right-panel file surfaces; the floating Code editor is
+  // the only file-editing surface. Upstream still ships "files"/"file" kinds
+  // and their store actions, so pin the removal here: if a future sync
+  // reintroduces them, this fails loudly instead of silently restoring a
+  // second editing surface.
+  it("does not expose the retired file/files right-panel surfaces", () => {
+    expect(RIGHT_PANEL_KINDS).not.toContain("files");
+    expect(RIGHT_PANEL_KINDS).not.toContain("file");
+    const store = useRightPanelStore.getState() as unknown as Record<string, unknown>;
+    expect(store.openFile).toBeUndefined();
+    expect(store.reconcileFileSurfaces).toBeUndefined();
+  });
+
+  // Upstream folded plans into the transcript and dropped the surface; keep
+  // that removal pinned for the same reason.
+  it("does not expose a plan right-panel surface", () => {
+    expect(RIGHT_PANEL_KINDS).not.toContain("plan");
+  });
+
   it("close hides the panel without clearing its selected surface", () => {
-    useRightPanelStore.getState().open(refA, "plan");
+    useRightPanelStore.getState().open(refA, "agents");
     useRightPanelStore.getState().close(refA);
     expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, refA)).toBeNull();
     expect(selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA)).toEqual({
       isOpen: false,
-      activeSurfaceId: "plan",
-      surfaces: [{ id: "plan", kind: "plan" }],
+      activeSurfaceId: "agents",
+      surfaces: [{ id: "agents", kind: "agents" }],
     });
   });
 
@@ -186,12 +243,12 @@ describe("rightPanelStore", () => {
 
   it("toggle to a different kind switches active", () => {
     useRightPanelStore.getState().toggle(refA, "preview");
-    useRightPanelStore.getState().toggle(refA, "plan");
-    expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, refA)).toBe("plan");
+    useRightPanelStore.getState().toggle(refA, "agents");
+    expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, refA)).toBe("agents");
   });
 
   it("removeThread clears persisted state", () => {
-    useRightPanelStore.getState().open(refA, "plan");
+    useRightPanelStore.getState().open(refA, "agents");
     useRightPanelStore.getState().removeThread(refA);
     expect(selectActiveRightPanel(useRightPanelStore.getState().byThreadKey, refA)).toBeNull();
   });
