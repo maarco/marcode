@@ -8,13 +8,13 @@ successful merge, so every run re-plans the same growing delta from the same mer
 Eight days of upstream drift accumulated: **140 commits, 41 conflicted files, ~150 conflict
 hunks.**
 
-| field | value |
-| --- | --- |
-| upstream source | `ba9c9ae81dce4e554b4dd52abfd28d0c01b5c651` (`fix(server): one greedy agent process no longer takes down the whole server (#5788)`) |
-| last upstream sha already in `main` | `5192f777fe54c2a2a359f6c25ecf5fbde46d49b0` |
-| target base | `origin/main` = `d0c01668c0f87b10bf952f929c55c7a8ca818fdf` |
-| new upstream commits | 140 |
-| conflicted files | 41 |
+| field                               | value                                                                                                                              |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| upstream source                     | `ba9c9ae81dce4e554b4dd52abfd28d0c01b5c651` (`fix(server): one greedy agent process no longer takes down the whole server (#5788)`) |
+| last upstream sha already in `main` | `5192f777fe54c2a2a359f6c25ecf5fbde46d49b0`                                                                                         |
+| target base                         | `origin/main` = `d0c01668c0f87b10bf952f929c55c7a8ca818fdf`                                                                         |
+| new upstream commits                | 140                                                                                                                                |
+| conflicted files                    | 41                                                                                                                                 |
 
 Note: PR #9 (bot sync through `e60821f0e0d8`) is still open and draft. It is a strict subset
 of this delta and should be closed in favour of whatever lands from this work.
@@ -52,16 +52,16 @@ So the sync stops here rather than inventing an answer unattended.
 
 ### The 8 files that need your decision
 
-| file | hunks | why |
-| --- | --- | --- |
-| `apps/web/src/components/Sidebar.tsx` | 18 | unified workspace tree vs promoted sidebar v2 |
-| `apps/web/src/components/RightPanelTabs.tsx` | 12 | Marcode multi-surface right panel |
-| `apps/web/src/components/ChatView.tsx` | 10 | Marcode workspace/terminal/browser integration |
-| `apps/web/src/components/ProjectScriptsControl.tsx` | 9 | unified-workspace command placement |
-| `apps/web/src/components/ThreadTerminalDrawer.tsx` | 7 | Marcode terminal surface |
-| `apps/web/src/index.css` | 7 | `data-sidebar-version` → `data-app-sidebar` selector rename + Marcode palette |
-| `apps/web/src/components/chat/ChatHeader.tsx` | 5 | Marcode portals thread actions into FloatingPillNav |
-| `apps/web/src/components/AppSidebarLayout.tsx` | 5 | v1/v2 mount logic vs Marcode floating shell |
+| file                                                | hunks | why                                                                           |
+| --------------------------------------------------- | ----- | ----------------------------------------------------------------------------- |
+| `apps/web/src/components/Sidebar.tsx`               | 18    | unified workspace tree vs promoted sidebar v2                                 |
+| `apps/web/src/components/RightPanelTabs.tsx`        | 12    | Marcode multi-surface right panel                                             |
+| `apps/web/src/components/ChatView.tsx`              | 10    | Marcode workspace/terminal/browser integration                                |
+| `apps/web/src/components/ProjectScriptsControl.tsx` | 9     | unified-workspace command placement                                           |
+| `apps/web/src/components/ThreadTerminalDrawer.tsx`  | 7     | Marcode terminal surface                                                      |
+| `apps/web/src/index.css`                            | 7     | `data-sidebar-version` → `data-app-sidebar` selector rename + Marcode palette |
+| `apps/web/src/components/chat/ChatHeader.tsx`       | 5     | Marcode portals thread actions into FloatingPillNav                           |
+| `apps/web/src/components/AppSidebarLayout.tsx`      | 5     | v1/v2 mount logic vs Marcode floating shell                                   |
 
 Plus 4 smaller ones that fall out of the same decision:
 `apps/web/src/rightPanelStore.ts` (6), `apps/web/src/components/sidebar/SidebarChrome.tsx` (3),
@@ -124,7 +124,7 @@ These are the dangerous class. Each one would have shipped a quietly broken Marc
    `marcode.service`. Fixed inside the new test block.
 
 9. **`projector.ts` — git mis-aligned the hunks.** Upstream's two new `project.updated`
-   fields (`defaultThreadEnvMode`, `faviconPath`) were aligned against Marcode's *different*
+   fields (`defaultThreadEnvMode`, `faviconPath`) were aligned against Marcode's _different_
    `project.workspace-layout-applied` handler. Taking either side would have silently dropped
    upstream's new fields from the project-updated path. Both were added explicitly.
 
@@ -138,17 +138,17 @@ id would re-run or skip it on existing installs.
 Upstream 36→41 were shifted to **37–41** (files renamed via `git mv`, registry and the
 `041_…` test label updated):
 
-| id | migration |
-| --- | --- |
-| 33 | `ProjectWorkspaceLayout` (Marcode) |
-| 34 | `ProjectionThreadsSettled` |
-| 35 | `ProjectionThreadsSnoozed` |
-| 36 | `ProjectionThreadTitleRegeneration` |
-| 37 | `ProjectionThreadsPinned` (upstream 36) |
-| 38 | `ProjectionTurnsKeysetIndex` (upstream 37) |
-| 39 | `ProjectionThreadsPinOrderKey` (upstream 38) |
-| 40 | `ProjectionProjectsDefaultThreadEnvMode` (upstream 39) |
-| 41 | `ProjectionProjectFaviconPath` (upstream 40) |
+| id  | migration                                              |
+| --- | ------------------------------------------------------ |
+| 33  | `ProjectWorkspaceLayout` (Marcode)                     |
+| 34  | `ProjectionThreadsSettled`                             |
+| 35  | `ProjectionThreadsSnoozed`                             |
+| 36  | `ProjectionThreadTitleRegeneration`                    |
+| 37  | `ProjectionThreadsPinned` (upstream 36)                |
+| 38  | `ProjectionTurnsKeysetIndex` (upstream 37)             |
+| 39  | `ProjectionThreadsPinOrderKey` (upstream 38)           |
+| 40  | `ProjectionProjectsDefaultThreadEnvMode` (upstream 39) |
+| 41  | `ProjectionProjectFaviconPath` (upstream 40)           |
 
 ### Other notable decisions
 
