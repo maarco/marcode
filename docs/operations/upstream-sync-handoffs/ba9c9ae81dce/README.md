@@ -190,19 +190,45 @@ Upstream 36→41 were shifted to **37–41** (files renamed via `git mv`, regist
 
 ## How to resume
 
+`resolved-files.tar.gz` holds the final content of all 48 hand-resolved files;
+`resolved-files.txt` lists them. Unpacking it over a freshly reproduced merge takes the
+conflict count from **41 down to exactly the 14** listed above. This recipe was verified
+end-to-end: the resulting tree is byte-identical to the state the tests above were run
+against.
+
 ```sh
 git fetch origin main
 git switch --create integrate/upstream-ba9c9ae81dce origin/main
 git fetch https://github.com/pingdotgg/t3code.git main
-git merge --no-ff ba9c9ae81dce4e554b4dd52abfd28d0c01b5c651
+git merge --no-ff ba9c9ae81dce4e554b4dd52abfd28d0c01b5c651   # 41 conflicts
 
-# reapply everything already resolved and verified
-git apply --3way resolutions.patch
+H=docs/operations/upstream-sync-handoffs/ba9c9ae81dce
 
-# then resolve only the 8 web files listed above, by hand, and drive the UI
+# 1. final content of every already-resolved file
+tar xzf "$H/resolved-files.tar.gz"
+
+# 2. Marcode's deletion of the retired right-panel file surface
+git rm -f apps/web/src/components/files/FilePreviewPanel.tsx
+
+# 3. drop upstream's original migration numbering (renumbered to 037-041 in the archive)
+rm -f apps/server/src/persistence/Migrations/036_ProjectionThreadsPinned.ts \
+      apps/server/src/persistence/Migrations/037_ProjectionTurnsKeysetIndex.ts \
+      apps/server/src/persistence/Migrations/038_ProjectionThreadsPinOrderKey.ts \
+      apps/server/src/persistence/Migrations/039_ProjectionProjectsDefaultThreadEnvMode.ts \
+      apps/server/src/persistence/Migrations/040_ProjectionProjectFaviconPath.ts \
+      apps/server/src/persistence/Migrations/040_ProjectionProjectFaviconPath.test.ts
+
+# 4. stage them
+xargs -a "$H/resolved-files.txt" git add
+
+git diff --name-only --diff-filter=U   # the 14 that need your decision
 ```
 
-`resolutions.patch` contains zero conflict markers. After applying it, the only remaining
-conflicted paths are the ones needing your sidebar decision.
+Then resolve those 14 by hand and drive the UI at 390px and 820px before trusting the
+result.
 
-Do not `git checkout --ours/--theirs`, `reset`, `restore`, `stash`, `clean`, or force push.
+A note on the deletes in steps 2 and 3: they only remove paths this writeup already accounts
+for — the retired `FilePreviewPanel`, and upstream's pre-renumbering migration filenames whose
+renamed copies the archive restores. Nothing else is touched. Do not reach for
+`git checkout --ours/--theirs`, `reset`, `restore`, `stash`, `clean`, or a force push to get
+through the remaining 14.
