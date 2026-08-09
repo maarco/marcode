@@ -17,6 +17,8 @@ function makeProject(id: string): EnvironmentProject {
     repositoryIdentity: null,
     defaultModelSelection: null,
     scripts: [],
+    workspaceLayoutVersion: 0,
+    workspaceLayout: [],
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-07-01T00:00:00.000Z",
   };
