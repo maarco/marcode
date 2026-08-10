@@ -130,7 +130,10 @@ export function DraftHeroHeadline({
     <Menu>
       <MenuTrigger
         aria-label={hasResolvedProject ? "Change project" : "Choose a project"}
-        className={`pointer-events-auto inline-block max-w-64 truncate cursor-pointer border-current border-b border-dotted align-bottom underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
+        // Marcode keeps `border-current` + `headlineTextClassName` so the dotted underline tracks the
+        // animated GIF headline text color. `align-baseline` is upstream's fix for the project name
+        // sitting below the headline; it applies to Marcode's variant unchanged.
+        className={`pointer-events-auto inline-block max-w-64 truncate cursor-pointer border-current border-b border-dotted align-baseline underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
         title={activeProjectDisplayName ?? undefined}
       >
         {activeProjectDisplayName ?? "Choose a project"}
