@@ -130,7 +130,7 @@ export function DraftHeroHeadline({
     <Menu>
       <MenuTrigger
         aria-label={hasResolvedProject ? "Change project" : "Choose a project"}
-        className={`pointer-events-auto inline-block max-w-64 truncate cursor-pointer border-current border-b border-dotted align-bottom underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
+        className={`pointer-events-auto inline-block max-w-64 truncate cursor-pointer border-current border-b border-dotted align-baseline underline-offset-8 transition-opacity hover:opacity-75 focus-visible:rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${headlineTextClassName}`}
         title={activeProjectDisplayName ?? undefined}
       >
         {activeProjectDisplayName ?? "Choose a project"}

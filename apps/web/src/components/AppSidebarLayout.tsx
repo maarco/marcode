@@ -18,6 +18,7 @@ import { useLegacySidebarEnabled } from "../hooks/useSettings";
 import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
 import LegacyThreadSidebar from "./LegacySidebar";
 import ThreadSidebar from "./Sidebar";
+import { useProjects } from "../state/entities";
 import {
   resolveInitialThreadSidebarWidth,
   resolveThreadSidebarMaximumWidth,
@@ -83,6 +84,14 @@ function SidebarControl() {
     return () => window.removeEventListener(TOGGLE_SIDEBAR_EVENT, onToggle);
   }, [toggleSidebar]);
 
+  return null;
+}
+
+// Settings swaps the thread sidebar out of the tree. Keep the lightweight
+// project projection subscribed so returning to a draft never renders the
+// zero-project state while the environment snapshot reconnects.
+function ProjectProjectionRetention() {
+  useProjects();
   return null;
 }
 
@@ -154,6 +163,10 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider className="h-dvh! min-h-0!" defaultOpen style={sidebarProviderStyle}>
+      {/* Upstream keeps the project projection subscribed while settings swaps the
+          thread sidebar out of the tree. Marcode unmounts the whole sidebar there,
+          so this retention matters more here, not less. */}
+      <ProjectProjectionRetention />
       {/* Marcode renders no sidebar on settings routes: FloatingPillNav owns
           brand, settings and sidebar controls, so upstream's in-sidebar
           SettingsSidebarNav would duplicate them. */}
