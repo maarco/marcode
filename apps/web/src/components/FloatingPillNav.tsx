@@ -22,7 +22,7 @@ import {
   Code1Filled,
   KeySquareFilled,
 } from "@aliimam/icons";
-import { ChartNoAxesColumnIcon, FlaskConicalIcon } from "lucide-react";
+import { ChartNoAxesColumnIcon, FlaskConicalIcon, GitPullRequestIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useEditorStore } from "../editor/editor-store";
 import { usePillNavPreferences, getPillNavShineGradient } from "../editor/pill-prefs";
@@ -167,6 +167,16 @@ const CATEGORIES: NavCategory[] = [
         href: "/usage",
         label: "Usage",
         icon: <ChartNoAxesColumnIcon className="h-4 w-4" />,
+      },
+      // Same story as Usage: upstream links /pull-requests from the sidebar
+      // footer they own and Marcode does not render. Their footer entry is
+      // gated on the environment's `pullRequests` capability; this static
+      // entry is not, because the route renders its own unavailable state
+      // rather than depending on a caller-side gate.
+      {
+        href: "/pull-requests",
+        label: "Pull Requests",
+        icon: <GitPullRequestIcon className="h-4 w-4" />,
       },
     ],
   },
