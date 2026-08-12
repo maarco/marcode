@@ -20,6 +20,10 @@ export const FLOATING_SURFACE_Z = {
   // they escape the floating panels' stacking contexts. Keep them below the
   // always-on-top nav so the nav remains usable while overlays are open.
   portalOverlay: 13100,
+  // A tooltip describes whatever is under the pointer, including controls
+  // inside an open popover, menu, or dialog, so it sits one tier above the
+  // rest of the portaled overlays rather than tying with them on DOM order.
+  portalOverlayTooltip: 13150,
   // transient toasts remain above the regular app chrome, but below the
   // always-on-top pill nav and kollabor assistant surfaces.
   toast: 19500,

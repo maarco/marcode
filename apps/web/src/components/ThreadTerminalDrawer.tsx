@@ -62,10 +62,10 @@ import {
 import {
   isDiffToggleShortcut,
   isTerminalClearShortcut,
-  isTerminalCloseShortcut,
   isTerminalNewShortcut,
   isTerminalSplitShortcut,
   isTerminalSplitVerticalShortcut,
+  isTerminalCloseShortcut,
   isTerminalToggleShortcut,
   terminalDeleteShortcutData,
   terminalNavigationShortcutData,
@@ -76,12 +76,20 @@ import {
   type ThreadTerminalGroup,
 } from "../types";
 import { readLocalApi } from "~/localApi";
+import { useClientSettings } from "../hooks/useSettings";
+import * as Schema from "effect/Schema";
+import { useLocalStorage } from "../hooks/useLocalStorage";
 import { useAttachedTerminalSession } from "../state/terminalSessions";
 import { serverEnvironment } from "../state/server";
 import { previewEnvironment } from "../state/preview";
 import { terminalEnvironment } from "../state/terminal";
 import { openTerminalLinkInPreview } from "./preview/openTerminalLinkInPreview";
 import { useAtomCommand } from "../state/use-atom-command";
+import {
+  resolveTerminalFontPreference,
+  resolveTerminalFontSizePreference,
+  TYPOGRAPHY_ADVANCED_STORAGE_KEY,
+} from "../appearanceFonts";
 
 const MIN_DRAWER_HEIGHT = 180;
 const MAX_DRAWER_HEIGHT_RATIO = 0.75;
@@ -234,6 +242,10 @@ function normalizeComputedColor(value: string | null | undefined, fallback: stri
   return value ?? fallback;
 }
 
+function readThemeColor(styles: CSSStyleDeclaration, variable: string, fallback: string): string {
+  return normalizeComputedColor(styles.getPropertyValue(variable), fallback);
+}
+
 function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
   const isDark = document.documentElement.classList.contains("dark");
   const fallbackBackground = isDark ? "rgb(14, 18, 24)" : "rgb(255, 255, 255)";
@@ -244,6 +256,7 @@ function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
     document.body;
   const drawerStyles = getComputedStyle(drawerSurface);
   const bodyStyles = getComputedStyle(document.body);
+  const themeStyles = getComputedStyle(document.documentElement);
   const background = normalizeComputedColor(
     drawerStyles.backgroundColor,
     normalizeComputedColor(bodyStyles.backgroundColor, fallbackBackground),
@@ -252,12 +265,18 @@ function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
     drawerStyles.color,
     normalizeComputedColor(bodyStyles.color, fallbackForeground),
   );
+  // Ported from upstream's Ghostty surface: a theme may override the terminal
+  // colors explicitly, and those tokens must win over the drawer's computed
+  // surface. Marcode still renders through xterm (it carries the terminal
+  // search this file implements), so the tokens are applied to ITheme here.
+  const themedBackground = readThemeColor(themeStyles, "--terminal-background", background);
+  const themedForeground = readThemeColor(themeStyles, "--terminal-foreground", foreground);
 
   if (isDark) {
     return {
-      background,
-      foreground,
-      cursor: "rgb(180, 203, 255)",
+      background: themedBackground,
+      foreground: themedForeground,
+      cursor: readThemeColor(themeStyles, "--terminal-cursor", "rgb(180, 203, 255)"),
       selectionBackground: "rgba(180, 203, 255, 0.25)",
       scrollbarSliderBackground: "rgba(255, 255, 255, 0.1)",
       scrollbarSliderHoverBackground: "rgba(255, 255, 255, 0.18)",
@@ -282,9 +301,9 @@ function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
   }
 
   return {
-    background,
-    foreground,
-    cursor: "rgb(38, 56, 78)",
+    background: themedBackground,
+    foreground: themedForeground,
+    cursor: readThemeColor(themeStyles, "--terminal-cursor", "rgb(38, 56, 78)"),
     selectionBackground: "rgba(37, 63, 99, 0.2)",
     scrollbarSliderBackground: "rgba(0, 0, 0, 0.15)",
     scrollbarSliderHoverBackground: "rgba(0, 0, 0, 0.25)",
@@ -380,6 +399,7 @@ export function shouldHandleTerminalSelectionMouseUp(
 }
 
 interface TerminalViewportProps {
+  advancedTypography: boolean;
   threadRef: ScopedThreadRef;
   threadId: ThreadId;
   terminalId: string;
@@ -410,6 +430,7 @@ interface TerminalLaunchLocation {
 }
 
 export function TerminalViewport({
+  advancedTypography,
   threadRef,
   threadId,
   terminalId,
@@ -469,6 +490,21 @@ export function TerminalViewport({
     onAddTerminalContext(selection);
   });
   const readTerminalLabel = useEffectEvent(() => terminalLabel);
+  const terminalFontFamily = useClientSettings((settings) =>
+    resolveTerminalFontPreference({
+      advanced: advancedTypography,
+      code: settings.fontFamilyCode,
+      terminal: settings.fontFamilyTerminal,
+    }),
+  );
+  const terminalFontSize = useClientSettings((settings) =>
+    resolveTerminalFontSizePreference({
+      advanced: advancedTypography,
+      code: settings.fontSizeCode,
+      terminal: settings.fontSizeTerminal,
+    }),
+  );
+  const terminalFontRef = useRef({ family: terminalFontFamily, size: terminalFontSize });
   const terminalSession = useAttachedTerminalSession({
     environmentId,
     terminal: {
@@ -505,6 +541,21 @@ export function TerminalViewport({
   useEffect(() => {
     keybindingsRef.current = keybindings;
   }, [keybindings]);
+
+  useEffect(() => {
+    const current = terminalFontRef.current;
+    if (current.family === terminalFontFamily && current.size === terminalFontSize) return;
+    terminalFontRef.current = { family: terminalFontFamily, size: terminalFontSize };
+    const activeTerminal = terminalRef.current;
+    if (!activeTerminal) return;
+    const family = terminalFontFamily.trim();
+    if (family.length > 0) activeTerminal.options.fontFamily = family;
+    activeTerminal.options.fontSize = terminalFontSize;
+    // The cell grid is derived from font metrics, so a size change without a
+    // refit leaves the viewport reporting stale cols/rows to the pty.
+    const activeFit = fitAddonRef.current;
+    if (activeFit) fitTerminalSafely(activeFit);
+  }, [terminalFontFamily, terminalFontSize]);
 
   useEffect(() => {
     const mount = containerRef.current;
@@ -1592,6 +1643,13 @@ export default function ThreadTerminalDrawer({
     ],
   );
   const isPanel = mode === "panel" || mode === "floating";
+  // Advanced typography splits the terminal font from the code font; the
+  // viewport resolves the actual family/size from it (upstream feature).
+  const [advancedTypography] = useLocalStorage(
+    TYPOGRAPHY_ADVANCED_STORAGE_KEY,
+    false,
+    Schema.Boolean,
+  );
   const terminalOwner =
     mode === "floating" ? "floating" : mode === "panel" ? "right-panel" : "drawer";
   const controlledDrawerHeight = clampDrawerHeight(height);
@@ -2046,6 +2104,7 @@ export default function ThreadTerminalDrawer({
                     >
                       <div className="h-full p-1">
                         <TerminalViewport
+                          advancedTypography={advancedTypography}
                           threadRef={threadRef}
                           threadId={threadId}
                           terminalId={terminalId}
@@ -2075,6 +2134,7 @@ export default function ThreadTerminalDrawer({
             ) : (
               <div className="h-full p-1">
                 <TerminalViewport
+                  advancedTypography={advancedTypography}
                   key={resolvedActiveTerminalId}
                   threadRef={threadRef}
                   threadId={threadId}

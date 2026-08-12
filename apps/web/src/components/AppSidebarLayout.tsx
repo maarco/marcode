@@ -14,10 +14,11 @@ import { getLocalStorageItem } from "../hooks/useLocalStorage";
 import { resolveShortcutCommand } from "../keybindings";
 import { isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import { useSidebarV2Enabled } from "../hooks/useSettings";
+import { useLegacySidebarEnabled } from "../hooks/useSettings";
 import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
+import LegacyThreadSidebar from "./LegacySidebar";
 import ThreadSidebar from "./Sidebar";
-import ThreadSidebarV2 from "./SidebarV2";
+import { useProjects } from "../state/entities";
 import {
   resolveInitialThreadSidebarWidth,
   resolveThreadSidebarMaximumWidth,
@@ -86,12 +87,23 @@ function SidebarControl() {
   return null;
 }
 
+// Settings swaps the thread sidebar out of the tree. Keep the lightweight
+// project projection subscribed so returning to a draft never renders the
+// zero-project state while the environment snapshot reconnects.
+function ProjectProjectionRetention() {
+  useProjects();
+  return null;
+}
+
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
-  const sidebarV2Enabled = useSidebarV2Enabled();
+  // Marcode: upstream's `legacySidebarEnabled` is now the single sidebar
+  // escape hatch. The former Marcode-only `sidebarV2Enabled` flag is gone —
+  // upstream promoted that sidebar to the default, and Marcode's unified
+  // workspace tree now mounts inside it (see Sidebar.tsx's fork seam).
+  const legacySidebarEnabled = useLegacySidebarEnabled();
   const pathname = useLocation({ select: (location) => location.pathname });
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
-  const useSidebarV2 = sidebarV2Enabled;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -151,13 +163,19 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
 
   return (
     <SidebarProvider className="h-dvh! min-h-0!" defaultOpen style={sidebarProviderStyle}>
+      {/* Upstream keeps the project projection subscribed while settings swaps the
+          thread sidebar out of the tree. Marcode unmounts the whole sidebar there,
+          so this retention matters more here, not less. */}
+      <ProjectProjectionRetention />
+      {/* Marcode renders no sidebar on settings routes: FloatingPillNav owns
+          brand, settings and sidebar controls, so upstream's in-sidebar
+          SettingsSidebarNav would duplicate them. */}
       {!isOnSettings && (
         <Sidebar
           side="left"
           variant="floating"
           collapsible="offcanvas"
           data-app-sidebar=""
-          data-sidebar-version={useSidebarV2 ? "v2" : "v1"}
           className="text-foreground"
           resizable={{
             maxWidth: sidebarMaximumWidth,
@@ -169,7 +187,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
             onResize: setSidebarWidth,
           }}
         >
-          {useSidebarV2 ? <ThreadSidebarV2 /> : <ThreadSidebar />}
+          {legacySidebarEnabled ? <LegacyThreadSidebar /> : <ThreadSidebar />}
           <SidebarRail />
         </Sidebar>
       )}

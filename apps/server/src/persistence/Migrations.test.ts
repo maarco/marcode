@@ -6,13 +6,20 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   // Marcode owns id 33. Upstream migrations that would have claimed it are
   // shifted up on each sync, so an already-applied install never renumbers.
   // This pin is intentional: a sync that adds a migration fails here loudly.
+  // Upstream shipped these as 036-040; Marcode's ProjectWorkspaceLayout holds
+  // 033, so every shared migration sits one id higher here.
   assert.deepStrictEqual(
-    migrationEntries.slice(-4).map(([id, name]) => [id, name]),
+    migrationEntries.slice(-9).map(([id, name]) => [id, name]),
     [
       [33, "ProjectWorkspaceLayout"],
       [34, "ProjectionThreadsSettled"],
       [35, "ProjectionThreadsSnoozed"],
       [36, "ProjectionThreadTitleRegeneration"],
+      [37, "ProjectionThreadsPinned"],
+      [38, "ProjectionTurnsKeysetIndex"],
+      [39, "ProjectionThreadsPinOrderKey"],
+      [40, "ProjectionProjectsDefaultThreadEnvMode"],
+      [41, "ProjectionProjectFaviconPath"],
     ],
   );
 

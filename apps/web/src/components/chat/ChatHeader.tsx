@@ -31,7 +31,7 @@ interface ThreadActionsClusterProps {
   keybindings: ResolvedKeybindingsConfig;
   availableEditors: ReadonlyArray<EditorId>;
   gitCwd: string | null;
-  onNewThreadInProject: () => void;
+  readonly onOpenPullRequest?: ((number: number) => void) | undefined;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
   onUpdateProjectScript: (
@@ -43,6 +43,20 @@ interface ThreadActionsClusterProps {
 
 interface ChatHeaderProps {
   activeThreadTitle: string;
+}
+
+/**
+ * Rename commit rule shared with the sidebar's inline rename: trim, reject
+ * empty (the caller toasts), and skip the mutation when nothing changed.
+ */
+export function resolveRenameCommit(input: {
+  readonly title: string;
+  readonly originalTitle: string;
+}): { action: "commit"; title: string } | { action: "reject-empty" } | { action: "noop" } {
+  const trimmed = input.title.trim();
+  if (trimmed.length === 0) return { action: "reject-empty" };
+  if (trimmed === input.originalTitle) return { action: "noop" };
+  return { action: "commit", title: trimmed };
 }
 
 export function shouldShowOpenInPicker(input: {
@@ -70,7 +84,7 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   keybindings,
   availableEditors,
   gitCwd,
-  onNewThreadInProject,
+  onOpenPullRequest,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
@@ -89,6 +103,11 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
     activeThreadEnvironmentId,
     primaryEnvironmentId,
   });
+  // Upstream added a thread action menu + inline rename on the chat header
+  // title. Marcode's header shows only the title (this cluster is portaled
+  // into the pill nav and carries no title), and thread actions already have
+  // an entry point on the sidebar row's context menu, so that machinery is
+  // deliberately not mounted here.
   return (
     <>
       {activeProjectScripts && (
@@ -117,6 +136,7 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
         <GitActionsControl
           gitCwd={gitCwd}
           activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
+          onOpenPullRequest={onOpenPullRequest}
           {...(draftId ? { draftId } : {})}
           collapsed={narrow}
           flat
