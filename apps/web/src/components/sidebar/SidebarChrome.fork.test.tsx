@@ -32,5 +32,7 @@ describe("SidebarChromeFooter", () => {
     expect(text).not.toContain("Settings");
     expect(text).not.toContain("Usage");
     expect(text).not.toContain("Pull Requests");
+    // `pingdotgg/t3code@b73232bd` added a page-level "Back" row to the same footer.
+    expect(text).not.toContain("Back");
   });
 });

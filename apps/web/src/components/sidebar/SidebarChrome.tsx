@@ -1,8 +1,8 @@
 import { memo } from "react";
 
-import { SidebarFooter, SidebarHeader } from "../ui/sidebar";
+import { SidebarFooter, SidebarHeader, SidebarMenu } from "../ui/sidebar";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
-import { SidebarUpdatePill } from "./SidebarUpdatePill";
+import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 
 /**
  * Brand, navigation, settings, and the sidebar toggle live in FloatingPillNav.
@@ -21,12 +21,20 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   );
 });
 
-/** Settings lives in FloatingPillNav; the sidebar footer only owns update state. */
+/**
+ * Settings, Pull Requests, Usage, and the page-level Back action live in
+ * FloatingPillNav, so the sidebar footer only owns update state. The
+ * `SidebarMenu` wrapper is not decoration: upstream's `SidebarUpdatePill`
+ * renders a `SidebarMenuItem` (an `<li>`) and needs a list to sit in.
+ */
 export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   return (
     <SidebarFooter className="p-[var(--sidebar-content-inset)]">
       <SidebarProviderUpdatePill />
-      <SidebarUpdatePill />
+      <SidebarUpdateArchitectureWarning />
+      <SidebarMenu className="flex-row items-center">
+        <SidebarUpdatePill />
+      </SidebarMenu>
     </SidebarFooter>
   );
 });
