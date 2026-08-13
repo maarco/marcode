@@ -696,26 +696,24 @@ describe("buildUnifiedWorkspaceContextMenuItems", () => {
     ]);
   });
 
-  it("folder: open-in-files instead of open, and new-child-thread since it can have children", () => {
+  it("folder: open-in-files instead of open, and no thread-creation item even though it can have children", () => {
     const folder = node({ id: "d", kind: "folder", canHaveChildren: true });
     expect(ids(folder)).toEqual([
       "open-in-files",
       "copy-relative-path",
       "add-to-chat",
       "move-to",
-      "new-child-thread",
       "rename",
       "remove",
     ]);
   });
 
-  it("thread: preserves mark-unread/archive/copy-id/delete and adds move-to/new-child-thread", () => {
+  it("thread: preserves mark-unread/archive/copy-id/delete and adds move-to", () => {
     const thread = node({ id: "t", kind: "thread", canHaveChildren: true });
     expect(ids(thread)).toEqual([
       "open",
       "mark-unread",
       "move-to",
-      "new-child-thread",
       "rename",
       "archive-thread",
       "remove",
@@ -785,7 +783,7 @@ describe("buildUnifiedWorkspaceContextMenuItems", () => {
     expect(deleteItem).toMatchObject({ destructive: true, icon: "trash" });
   });
 
-  it("canMutate: false (§17 read-only) omits move-to/new-child-thread/rename/remove/pin-shortcut but keeps activation and thread-lifecycle items", () => {
+  it("canMutate: false (§17 read-only) omits move-to/rename/remove/pin-shortcut but keeps activation and thread-lifecycle items", () => {
     const folder = node({ id: "d", kind: "folder", canHaveChildren: true });
     expect(ids(folder)).not.toEqual(
       buildUnifiedWorkspaceContextMenuItems({ node: folder, canMutate: false }).map(

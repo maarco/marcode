@@ -406,57 +406,22 @@ export function useUnifiedWorkspaceProject(input: {
   // --- Draft-thread target resolution (spec §8 steps 3/4, §9) ---
   const ensureDraftThreadTarget = useEnsureDraftThreadTarget();
 
-  // Pending placement reconciliation: a synthetic thread's draft was seeded with a
-  // placement (useHandleNewThread.ts's registry); once that thread promotes to a real,
-  // committed thread (appears in `threads`), materialize the placement (spec §9). One-shot
-  // per thread — `takePendingWorkspaceThreadPlacement` removes the entry on read, so a
-  // version-conflict or offline failure degrades to "stays visible at root", never a retry loop.
+  // Pending placement reconciliation (spec §9) is now a deliberate no-op: a
+  // thread layout placement can never render (thread nodes are hidden from
+  // the tree — buildTree.ts's `computeHiddenEntries` — the classic
+  // thread-list card owns thread display now), so materializing one would be
+  // a wasted round-trip that writes a layout entry no one will ever see.
+  // Still drain the registry so a promoted draft's pending entry doesn't sit
+  // there forever — `takePendingWorkspaceThreadPlacement` removes it on read,
+  // and the registry's own contract (useHandleNewThread.ts) only relies on
+  // that drain for a thread that actually promotes; an abandoned draft's
+  // entry was already never cleaned up, unchanged by this.
   useEffect(() => {
     for (const thread of threads) {
       const ref = scopeThreadRef(environmentId, ThreadId.make(thread.threadId));
-      const pendingParentId = takePendingWorkspaceThreadPlacement(ref);
-      if (pendingParentId === undefined) continue;
-      const alreadyPlaced = layoutEntries.some(
-        (entry) => entry.kind === "thread" && entry.threadId === thread.threadId,
-      );
-      if (alreadyPlaced) continue;
-      void applyWorkspaceLayoutCommand({
-        environmentId,
-        input: {
-          environmentId,
-          projectId,
-          expectedVersion: layoutVersion,
-          operation: {
-            type: "place-resource",
-            resource: { kind: "thread", threadId: ThreadId.make(thread.threadId) },
-            parentId: pendingParentId ? ProjectWorkspaceItemId.make(pendingParentId) : null,
-            beforeId: null,
-          },
-        },
-      }).then((result) => {
-        const mutationResult = resolveLayoutCommandResult(result);
-        if (mutationResult.ok) return;
-        console.error(
-          "[unifiedWorkspace] failed to materialize a new thread's placement",
-          mutationResult,
-        );
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Couldn't place the new thread",
-            description: "It's visible at the project root instead. " + mutationResult.message,
-          }),
-        );
-      });
+      takePendingWorkspaceThreadPlacement(ref);
     }
-  }, [
-    threads,
-    layoutEntries,
-    environmentId,
-    projectId,
-    layoutVersion,
-    applyWorkspaceLayoutCommand,
-  ]);
+  }, [threads, environmentId]);
 
   // --- Route-derived "active thread" (spec §8 step 1) ---
   const routeParams = useParams({ strict: false });

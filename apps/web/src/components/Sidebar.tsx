@@ -524,7 +524,10 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
               </button>
             </span>
           </div>
-          <div className="mt-0.5 truncate text-sm font-medium text-foreground/90">{preview}</div>
+          {/* Same 12px title register as a committed thread card: a draft card
+              sits directly beside them in the list, so a 14px preview here
+              would make the two card kinds disagree on their own heading size. */}
+          <div className="mt-0.5 truncate text-xs font-medium text-foreground/90">{preview}</div>
         </div>
       </div>
     </li>
@@ -1058,12 +1061,18 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       onBlur={handleRenameBlur}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
-      className="min-w-0 flex-1 rounded-sm border border-input bg-card px-1 text-sm font-medium text-card-foreground outline-none focus:border-foreground"
+      className="min-w-0 flex-1 rounded-sm border border-input bg-card px-1 text-xs font-medium text-card-foreground outline-none focus:border-foreground"
     />
   ) : (
     <span
       className={cn(
-        "min-w-0 flex-1 text-sm transition-opacity motion-reduce:transition-none",
+        // `text-xs`, not upstream's `text-sm`: this title was the only 14px
+        // text in the sidebar. Its own siblings (project name, relative time,
+        // branch) and every section header around it are 12px, and Marcode
+        // parks the workspace tree directly above at 11px mono — so the title
+        // read as an outlier rather than a hierarchy. The rename input above
+        // matches, or the row would resize while you type in it.
+        "min-w-0 flex-1 text-xs transition-opacity motion-reduce:transition-none",
         shouldRecede ? "font-normal" : "font-medium",
         variant === "card"
           ? cn(

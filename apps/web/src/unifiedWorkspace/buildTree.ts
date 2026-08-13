@@ -3,14 +3,21 @@
  * threads + project scripts + live terminals + live preview tabs + indexed
  * path health into the `UnifiedWorkspaceNode` tree the sidebar renders.
  *
- * Spec: docs/specs/unified-workspace-tree-sidebar.md §6.3, §7.
+ * Threads never render as tree nodes — the classic thread-list card owns
+ * thread display now. A thread's live terminal/browser-tab children are
+ * still surfaced: hoisted to project-root level (see the bottom of
+ * `buildUnifiedWorkspaceTree`) regardless of whether the thread also has a
+ * layout placement, since a placement no longer produces any row to hoist
+ * "from" a specific position.
+ *
+ * Spec: docs/specs/unified-workspace-tree-sidebar.md §6.3, §7 — written
+ * before thread rows were removed; stale on that point specifically.
  *
  * No React import. No I/O — every live/runtime fact is passed in already
  * resolved by `useUnifiedWorkspaceProject.ts`.
  */
 import {
   makeCommandWorkspaceItemId,
-  makeThreadWorkspaceItemId,
   type ProjectEntry,
   type ProjectScript,
   type ProjectWorkspaceEntry,
@@ -362,10 +369,13 @@ function breakCycles(
 }
 
 /**
- * Entries that must not render: stale thread/command references (deleted
- * underlying resource) and archived threads. Stale entries get a diagnostic;
- * archived threads are expected and silent. Either way their persisted
- * children are reparented (see `resolveDisplayParent`), never dropped.
+ * Entries that must not render: every thread placement (thread rows never
+ * render — see the module doc above) and a command entry whose script was
+ * deleted. A thread placement whose thread no longer exists also gets a
+ * diagnostic (a real data-integrity issue, distinct from "threads just don't
+ * render"); every other thread placement is hidden silently, same as an
+ * archived one always was. Either way their persisted children are
+ * reparented (see `resolveDisplayParent`), never dropped.
  */
 function computeHiddenEntries(
   entriesById: ReadonlyMap<string, ProjectWorkspaceEntry>,
@@ -379,17 +389,13 @@ function computeHiddenEntries(
     if (entry.kind === "thread") {
       const thread = threadsById.get(entry.threadId);
       if (!thread || thread.deletedAt !== null) {
-        hidden.add(entry.id);
         diagnostics.push({
           code: "stale-entry",
           nodeId: qualify(entry.id),
           detail: `Thread "${entry.threadId}" no longer exists; hiding placement and reparenting its children.`,
         });
-        continue;
       }
-      if (thread.archivedAt !== null) {
-        hidden.add(entry.id);
-      }
+      hidden.add(entry.id);
       continue;
     }
     if (entry.kind === "command" && !scriptsById.has(entry.scriptId)) {
@@ -458,9 +464,10 @@ type LiveChildEntry =
 function buildTerminalNode(
   terminal: UnifiedWorkspaceTerminalInput,
   threadId: string,
-  parentId: string,
+  parentId: string | null,
   depth: number,
   ctx: BuildContext,
+  disambiguator?: string,
 ): UnifiedWorkspaceNode {
   const itemId = `terminal:${ctx.environmentId}:${threadId}:${terminal.terminalId}`;
   const status: UnifiedWorkspaceStatus =
@@ -487,15 +494,17 @@ function buildTerminalNode(
     canRemove: false,
     activation: { kind: "terminal", threadId, terminalId: terminal.terminalId },
     status,
+    ...(disambiguator ? { disambiguator } : {}),
   };
 }
 
 function buildBrowserNode(
   tab: UnifiedWorkspacePreviewTabInput,
   threadId: string,
-  parentId: string,
+  parentId: string | null,
   depth: number,
   ctx: BuildContext,
+  disambiguator?: string,
 ): UnifiedWorkspaceNode {
   const itemId = `browser:${ctx.environmentId}:${threadId}:${tab.tabId}`;
   const label = tab.title?.trim() || tab.url?.trim() || "New Tab";
@@ -518,15 +527,33 @@ function buildBrowserNode(
     status: { kind: "browser", tabId: tab.tabId, loading: tab.loading },
     ...(iconUrl ? { iconUrl } : {}),
     ...(tab.url ? { tooltip: tab.url } : {}),
+    ...(disambiguator ? { disambiguator } : {}),
   };
 }
 
-/** Terminal + browser children merged and ordered by update time, id tiebreak (spec §7 rule 5). */
+/**
+ * Terminal + browser children merged and ordered by update time, id tiebreak
+ * (spec §7 rule 5). `parentId` is `null` when hoisting a thread's live
+ * children to project-root level (see `buildUnifiedWorkspaceTree`'s tail).
+ *
+ * `disambiguator` is the owning thread's title, reusing the existing
+ * file/folder "· <context>" row affordance (`UnifiedWorkspaceNode.disambiguator`,
+ * rendered generically by `UnifiedWorkspaceRow.tsx` for any node kind) instead
+ * of inventing a new label format. Only meaningful when hoisting to root
+ * (`parentId === null`, the only case any caller passes it): a nested live
+ * child still sits right under its own thread row, which already gives it
+ * context. Terminal labels in particular are frequently NOT unique on their
+ * own — every thread's first terminal is "Terminal 1" (`nextTerminalId`
+ * numbers per-thread, not globally) — so without this, several unrelated
+ * threads' first terminals would show up at root as identical, colliding
+ * "Terminal 1" rows with no way to tell them apart.
+ */
 function buildLiveChildrenForThread(
   threadId: string,
-  parentId: string,
+  parentId: string | null,
   depth: number,
   ctx: BuildContext,
+  disambiguator?: string,
 ): UnifiedWorkspaceNode[] {
   const terminals = ctx.terminalsByThread.get(threadId) ?? [];
   const tabs = ctx.previewTabsByThread.get(threadId) ?? [];
@@ -544,10 +571,10 @@ function buildLiveChildrenForThread(
   return merged.map((entry) => {
     if (entry.kind === "terminal") {
       const terminal = terminals.find((t) => t.terminalId === entry.localId)!;
-      return buildTerminalNode(terminal, threadId, parentId, depth, ctx);
+      return buildTerminalNode(terminal, threadId, parentId, depth, ctx, disambiguator);
     }
     const tab = tabs.find((t) => t.tabId === entry.localId)!;
-    return buildBrowserNode(tab, threadId, parentId, depth, ctx);
+    return buildBrowserNode(tab, threadId, parentId, depth, ctx, disambiguator);
   });
 }
 
@@ -699,36 +726,6 @@ function buildNode(
   };
 }
 
-function buildSyntheticThreadNode(
-  thread: UnifiedWorkspaceThreadInput,
-  ctx: BuildContext,
-): UnifiedWorkspaceNode {
-  const qualifiedId = ctx.qualify(makeThreadWorkspaceItemId(thread.threadId));
-  return {
-    id: qualifiedId,
-    kind: "thread",
-    label: thread.title,
-    parentId: null,
-    depth: 0,
-    children: buildLiveChildrenForThread(thread.threadId, qualifiedId, 1, ctx),
-    isLive: false,
-    isAmbient: false,
-    isBroken: false,
-    canHaveChildren: true,
-    canMove: true,
-    canRename: false,
-    canRemove: false,
-    activation: { kind: "thread", threadId: thread.threadId },
-    status: {
-      kind: "thread",
-      threadId: thread.threadId,
-      hasPendingApprovals: thread.hasPendingApprovals,
-      hasPendingUserInput: thread.hasPendingUserInput,
-    },
-    tooltip: thread.title,
-  };
-}
-
 function buildSyntheticCommandNode(script: ProjectScript, ctx: BuildContext): UnifiedWorkspaceNode {
   return {
     id: ctx.qualify(makeCommandWorkspaceItemId(script.id)),
@@ -791,11 +788,15 @@ export function buildUnifiedWorkspaceTree(
     });
   }
 
-  const placedThreadIds = new Set<string>();
+  // Threads never render as tree rows regardless of placement (see
+  // `computeHiddenEntries`), so there is no "placed vs. unplaced" distinction
+  // left to track for them — every eligible thread is treated identically
+  // below. Commands are unaffected: a placed (non-hidden) command entry still
+  // renders normally, so `placedScriptIds` still suppresses its synthetic
+  // root fallback exactly as before.
   const placedScriptIds = new Set<string>();
   for (const [id, entry] of entriesById) {
     if (hidden.has(id)) continue;
-    if (entry.kind === "thread") placedThreadIds.add(entry.threadId);
     if (entry.kind === "command") placedScriptIds.add(entry.scriptId);
   }
 
@@ -835,18 +836,24 @@ export function buildUnifiedWorkspaceTree(
   // gated by `expandedAmbientDirs` inside `buildAmbientChildren` itself.
   const ambientRootNodes = buildAmbientChildren("", null, 0, ctx);
 
-  const unplacedThreads = input.threads.filter(
-    (thread) =>
-      thread.archivedAt === null &&
-      thread.deletedAt === null &&
-      !placedThreadIds.has(thread.threadId),
+  // Thread nodes never render (the classic thread-list card owns thread
+  // display now), but a thread's live terminal/browser-tab children must not
+  // disappear with it — hoist them to project-root level instead, in the
+  // same relative order synthetic thread rows used to render in
+  // (`sortThreads`). Applies to every eligible thread regardless of whether
+  // it also has a (now-invisible) layout placement: a placement no longer
+  // produces any row to hoist "from" a specific position, so placed and
+  // unplaced threads are treated identically here. A thread with no live
+  // terminal/tab contributes nothing, same as before.
+  const eligibleThreads = input.threads.filter(
+    (thread) => thread.archivedAt === null && thread.deletedAt === null,
   );
-  const sortedUnplacedThreads = sortThreads(
-    unplacedThreads.map((thread) => ({ ...thread, id: thread.threadId })),
+  const sortedEligibleThreads = sortThreads(
+    eligibleThreads.map((thread) => ({ ...thread, id: thread.threadId })),
     input.threadSortOrder,
   );
-  const syntheticThreadNodes = sortedUnplacedThreads.map((thread) =>
-    buildSyntheticThreadNode(thread, ctx),
+  const hoistedThreadLiveNodes = sortedEligibleThreads.flatMap((thread) =>
+    buildLiveChildrenForThread(thread.threadId, null, 0, ctx, thread.title),
   );
 
   const unplacedScripts = input.scripts.filter((script) => !placedScriptIds.has(script.id));
@@ -855,7 +862,12 @@ export function buildUnifiedWorkspaceTree(
   );
 
   return {
-    roots: [...rankedRoots, ...ambientRootNodes, ...syntheticCommandNodes, ...syntheticThreadNodes],
+    roots: [
+      ...rankedRoots,
+      ...ambientRootNodes,
+      ...syntheticCommandNodes,
+      ...hoistedThreadLiveNodes,
+    ],
     diagnostics,
   };
 }
