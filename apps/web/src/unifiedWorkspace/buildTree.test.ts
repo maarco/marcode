@@ -203,7 +203,7 @@ describe("buildUnifiedWorkspaceTree — basic shape", () => {
     expect(roots.map((n) => n.id)).toEqual([q("f-a"), q("f-b")]);
   });
 
-  it("nests a thread under a folder and preserves depth", () => {
+  it("does not render a thread placed under a folder — thread nodes never render, the folder has no children", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         layout: [
@@ -216,15 +216,8 @@ describe("buildUnifiedWorkspaceTree — basic shape", () => {
     expect(roots).toHaveLength(1);
     const folder = roots[0]!;
     expect(folder.depth).toBe(0);
-    expect(folder.children).toHaveLength(1);
-    expect(folder.children[0]).toMatchObject({
-      id: q("thread:t1"),
-      kind: "thread",
-      label: "Fix bug",
-      parentId: q("folder-1"),
-      depth: 1,
-      activation: { kind: "thread", threadId: "t1" },
-    });
+    expect(folder.children).toEqual([]);
+    expect(flattenUnifiedWorkspaceNodes(roots).some((n) => n.kind === "thread")).toBe(false);
   });
 });
 
@@ -336,7 +329,7 @@ describe("buildUnifiedWorkspaceTree — stale and archived entries", () => {
 });
 
 describe("buildUnifiedWorkspaceTree — synthetic root entries", () => {
-  it("every unarchived, non-deleted thread appears exactly once, even unplaced", () => {
+  it("no unarchived, non-deleted thread ever renders as a node — thread rows are gone, even unplaced", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         threads: [
@@ -345,43 +338,78 @@ describe("buildUnifiedWorkspaceTree — synthetic root entries", () => {
         ],
       }),
     );
-    const threadNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread");
-    expect(threadNodes).toHaveLength(2);
-    // Most-recently-updated first, matching the existing sidebar sort.
-    expect(threadNodes.map((n) => n.activation)).toEqual([
-      { kind: "thread", threadId: "t2" },
-      { kind: "thread", threadId: "t1" },
-    ]);
+    expect(roots).toEqual([]);
+    expect(flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread")).toHaveLength(0);
   });
 
-  it("does not duplicate a thread that is both placed and live", () => {
+  it("does not duplicate a placed thread's live terminal — hoisted exactly once regardless of layout placement", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         layout: [threadEntry({ id: "thread:t1", parentId: null, rank: "a0", threadId: "t1" })],
         threads: [thread({ threadId: "t1" })],
+        terminals: [
+          {
+            threadId: "t1",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+        ],
       }),
     );
     const threadNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread");
-    expect(threadNodes).toHaveLength(1);
+    expect(threadNodes).toHaveLength(0);
+    const terminalNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "terminal");
+    expect(terminalNodes).toHaveLength(1);
   });
 
-  it("synthetic commands render in script-array order, before synthetic threads", () => {
+  it("synthetic commands render in script-array order, before hoisted thread terminals", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         scripts: [script({ id: "s2", name: "Second" }), script({ id: "s1", name: "First" })],
         threads: [thread({ threadId: "t1" })],
+        terminals: [
+          {
+            threadId: "t1",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+        ],
       }),
     );
-    expect(roots.map((n) => n.kind)).toEqual(["command", "command", "thread"]);
-    expect(roots.map((n) => n.label)).toEqual(["Second", "First", "t1"]);
+    expect(roots.map((n) => n.kind)).toEqual(["command", "command", "terminal"]);
+    expect(roots.map((n) => n.label)).toEqual(["Second", "First", "Terminal 1"]);
   });
 
-  it("archived/deleted threads do not produce synthetic root entries", () => {
+  it("archived/deleted threads do not produce synthetic root entries, nor hoist their (hypothetical) live terminals", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         threads: [
           thread({ threadId: "archived", archivedAt: "2026-01-01T00:00:00.000Z" }),
           thread({ threadId: "deleted", deletedAt: "2026-01-01T00:00:00.000Z" }),
+        ],
+        terminals: [
+          {
+            threadId: "archived",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+          {
+            threadId: "deleted",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
         ],
       }),
     );
@@ -390,10 +418,10 @@ describe("buildUnifiedWorkspaceTree — synthetic root entries", () => {
 });
 
 describe("buildUnifiedWorkspaceTree — live resources", () => {
-  it("attaches live terminal and browser nodes under their owning thread, ordered by update time", () => {
+  it("hoists live terminal and browser nodes for a thread to project root, ordered by update time, disambiguated by thread title", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
-        threads: [thread({ threadId: "t1" })],
+        threads: [thread({ threadId: "t1", title: "Fix bug" })],
         terminals: [
           {
             threadId: "t1",
@@ -416,20 +444,26 @@ describe("buildUnifiedWorkspaceTree — live resources", () => {
         ],
       }),
     );
-    const threadNode = roots[0]!;
-    expect(threadNode.children.map((n) => n.kind)).toEqual(["browser", "terminal"]);
-    expect(threadNode.children[0]).toMatchObject({
+    expect(flattenUnifiedWorkspaceNodes(roots).some((n) => n.kind === "thread")).toBe(false);
+    expect(roots.map((n) => n.kind)).toEqual(["browser", "terminal"]);
+    expect(roots[0]).toMatchObject({
       kind: "browser",
       label: "Example",
       isLive: true,
       canMove: false,
+      parentId: null,
+      depth: 0,
+      disambiguator: "Fix bug",
       status: { kind: "browser", tabId: "tab-1", loading: false },
       activation: { kind: "browser", threadId: "t1", tabId: "tab-1" },
     });
-    expect(threadNode.children[1]).toMatchObject({
+    expect(roots[1]).toMatchObject({
       kind: "terminal",
       label: "Terminal 2",
       isLive: true,
+      parentId: null,
+      depth: 0,
+      disambiguator: "Fix bug",
       status: { kind: "terminal", terminalId: "term-2", running: true },
       activation: { kind: "terminal", threadId: "t1", terminalId: "term-2" },
     });
@@ -451,7 +485,7 @@ describe("buildUnifiedWorkspaceTree — live resources", () => {
         ],
       }),
     );
-    expect(roots[0]!.children[0]).toMatchObject({ status: { kind: "port", port: 5173 } });
+    expect(roots[0]).toMatchObject({ kind: "terminal", status: { kind: "port", port: 5173 } });
   });
 });
 
@@ -561,16 +595,26 @@ describe("buildUnifiedWorkspaceTree — ambient disk nodes (spec override of §4
     expect(roots.map((n) => n.label)).toEqual(["a-dir", "b-dir", "a.ts", "z.ts"]);
   });
 
-  it("renders ambient roots after ranked/persisted roots and before synthetic commands/threads", () => {
+  it("renders ambient roots after ranked/persisted roots and before synthetic commands/hoisted thread terminals", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         layout: [fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: "attached.ts" })],
         scripts: [script({ id: "s1" })],
         threads: [thread({ threadId: "t1" })],
+        terminals: [
+          {
+            threadId: "t1",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+        ],
         ambientEntries: [ambientEntry("ambient.ts")],
       }),
     );
-    expect(roots.map((n) => n.kind)).toEqual(["file", "file", "command", "thread"]);
+    expect(roots.map((n) => n.kind)).toEqual(["file", "file", "command", "terminal"]);
     expect(roots.map((n) => n.isAmbient)).toEqual([false, true, false, false]);
   });
 
@@ -630,7 +674,7 @@ describe("buildUnifiedWorkspaceTree — ambient nodes are lazy, one directory le
     expect(dirC.children).toEqual([]); // ...but not itself expanded — no cascade
   });
 
-  it("counts persisted and ambient direct children once before ambient expansion", () => {
+  it("counts ambient direct children once before expansion — a thread placed under the folder contributes none, since it never renders", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         layout: [
@@ -649,8 +693,8 @@ describe("buildUnifiedWorkspaceTree — ambient nodes are lazy, one directory le
 
     expect(roots[0]).toMatchObject({
       kind: "folder",
-      children: [expect.objectContaining({ kind: "thread" })],
-      directChildCount: 3,
+      children: [],
+      directChildCount: 2,
     });
   });
 
@@ -723,28 +767,52 @@ describe("buildUnifiedWorkspaceTree — attached path wins over its ambient proj
   });
 });
 
-describe("buildUnifiedWorkspaceTree — regression: threads still appear exactly once alongside ambient nodes", () => {
-  it("an unplaced thread appears exactly once even when ambient nodes are present", () => {
+describe("buildUnifiedWorkspaceTree — regression: thread rows never render, even alongside ambient nodes", () => {
+  it("an unplaced thread's live terminal still appears exactly once, hoisted to root, when ambient nodes are present", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         threads: [thread({ threadId: "t1" })],
+        terminals: [
+          {
+            threadId: "t1",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+        ],
         ambientEntries: [ambientEntry("a.ts"), ambientEntry("b-dir", "directory")],
       }),
     );
     const threadNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread");
-    expect(threadNodes).toHaveLength(1);
+    expect(threadNodes).toHaveLength(0);
+    const terminalNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "terminal");
+    expect(terminalNodes).toHaveLength(1);
   });
 
-  it("a placed (attached) thread still appears exactly once when ambient nodes share the tree", () => {
+  it("a placed (attached) thread's live terminal still appears exactly once when ambient nodes share the tree", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         layout: [threadEntry({ id: "thread:t1", parentId: null, rank: "a0", threadId: "t1" })],
         threads: [thread({ threadId: "t1" })],
+        terminals: [
+          {
+            threadId: "t1",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: false,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+        ],
         ambientEntries: [ambientEntry("a.ts")],
       }),
     );
     const threadNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "thread");
-    expect(threadNodes).toHaveLength(1);
+    expect(threadNodes).toHaveLength(0);
+    const terminalNodes = flattenUnifiedWorkspaceNodes(roots).filter((n) => n.kind === "terminal");
+    expect(terminalNodes).toHaveLength(1);
   });
 });
 
@@ -909,7 +977,7 @@ describe("buildUnifiedWorkspaceTree — disambiguator for a persisted entry rend
     expect(src.children[0]!.disambiguator).toBeUndefined();
   });
 
-  it("does not disambiguate a file nested under a thread — no disk context to compare against", () => {
+  it("a file placed under a thread reparents to project root — thread nodes never render — and disambiguates there like any other root file", () => {
     const { roots } = buildUnifiedWorkspaceTree(
       baseInput({
         layout: [
@@ -924,9 +992,44 @@ describe("buildUnifiedWorkspaceTree — disambiguator for a persisted entry rend
         threads: [thread({ threadId: "t1" })],
       }),
     );
-    const threadNode = roots.find((n) => n.kind === "thread")!;
-    expect(threadNode.children[0]).toMatchObject({ label: "README.md" });
-    expect(threadNode.children[0]!.disambiguator).toBeUndefined();
+    expect(roots).toHaveLength(1);
+    expect(roots[0]).toMatchObject({
+      id: q("f1"),
+      kind: "file",
+      label: "README.md",
+      parentId: null,
+      disambiguator: ".plans",
+    });
+  });
+});
+
+describe("buildUnifiedWorkspaceTree — regression pin: thread rows removed, terminals must survive", () => {
+  it("a project with a thread that has a live terminal produces a tree containing the terminal but NOT the thread", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [fileEntry({ id: "f1", parentId: null, rank: "a0", relativePath: "README.md" })],
+        threads: [thread({ threadId: "t1", title: "Fix login bug" })],
+        terminals: [
+          {
+            threadId: "t1",
+            terminalId: "term-1",
+            label: "",
+            hasRunningSubprocess: true,
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            discoveredPort: null,
+          },
+        ],
+      }),
+    );
+    const allNodes = flattenUnifiedWorkspaceNodes(roots);
+    expect(allNodes.some((n) => n.kind === "thread")).toBe(false);
+    const terminalNode = allNodes.find((n) => n.kind === "terminal");
+    expect(terminalNode).toMatchObject({
+      kind: "terminal",
+      label: "Terminal 1",
+      parentId: null,
+      activation: { kind: "terminal", threadId: "t1", terminalId: "term-1" },
+    });
   });
 });
 

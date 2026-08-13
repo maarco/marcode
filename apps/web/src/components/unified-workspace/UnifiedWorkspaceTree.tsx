@@ -555,9 +555,6 @@ export const UnifiedWorkspaceTree = forwardRef<
         case "move-to":
           setMoveDialogNode(node);
           return;
-        case "new-child-thread":
-          controller.createThread({ parentId: node.id });
-          return;
         case "rename":
           startRename(node);
           return;

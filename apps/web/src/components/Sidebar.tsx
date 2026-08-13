@@ -524,7 +524,10 @@ const SidebarDraftRow = memo(function SidebarDraftRow(props: {
               </button>
             </span>
           </div>
-          <div className="mt-0.5 truncate text-sm font-medium text-foreground/90">{preview}</div>
+          {/* Same 12px title register as a committed thread card: a draft card
+              sits directly beside them in the list, so a 14px preview here
+              would make the two card kinds disagree on their own heading size. */}
+          <div className="mt-0.5 truncate text-xs font-medium text-foreground/90">{preview}</div>
         </div>
       </div>
     </li>
@@ -1058,12 +1061,18 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
       onBlur={handleRenameBlur}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
-      className="min-w-0 flex-1 rounded-sm border border-input bg-card px-1 text-sm font-medium text-card-foreground outline-none focus:border-foreground"
+      className="min-w-0 flex-1 rounded-sm border border-input bg-card px-1 text-xs font-medium text-card-foreground outline-none focus:border-foreground"
     />
   ) : (
     <span
       className={cn(
-        "min-w-0 flex-1 text-sm transition-opacity motion-reduce:transition-none",
+        // `text-xs`, not upstream's `text-sm`: this title was the only 14px
+        // text in the sidebar. Its own siblings (project name, relative time,
+        // branch) and every section header around it are 12px, and Marcode
+        // parks the workspace tree directly above at 11px mono — so the title
+        // read as an outlier rather than a hierarchy. The rename input above
+        // matches, or the row would resize while you type in it.
+        "min-w-0 flex-1 text-xs transition-opacity motion-reduce:transition-none",
         shouldRecede ? "font-normal" : "font-medium",
         variant === "card"
           ? cn(
@@ -1334,7 +1343,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                   actions on hover/keyboard focus or while the popover is open. Keeping
                   the hidden state out of flow lets the project label reclaim
                   space without either state overlapping it. */}
-              <span className="group/sidebar-status-slot relative ml-auto flex h-5 min-w-8 shrink-0 items-stretch justify-end text-xs">
+              {/* 11px, a step under the 12px title register: this slot is
+                  metadata, but "Working" renders bold in the info colour next
+                  to a spinner, so at an equal size it out-shouts the thread
+                  title it belongs to. The relative-time fallback shares the
+                  slot and so shares the size — otherwise a row would resize
+                  its own corner the moment a run started. */}
+              <span className="group/sidebar-status-slot relative ml-auto flex h-5 min-w-8 shrink-0 items-stretch justify-end text-[11px]">
                 {/* Read-only status labels yield to the hover actions. Woke is
                     itself an action, so it stays pointer-enabled and visible
                     while the other controls appear beside it. */}
@@ -1359,7 +1374,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                           topStatus.className,
                         )}
                       >
-                        <AlarmClockIcon aria-hidden className="size-4 shrink-0" />
+                        <AlarmClockIcon aria-hidden className="size-3.5 shrink-0" />
                         <span role="status">{topStatus.label}</span>
                       </button>
                     ) : (
@@ -1370,9 +1385,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                         )}
                       >
                         {topStatus.icon === "working" ? (
-                          <CircleDashedIcon aria-hidden className="size-4 shrink-0" />
+                          <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />
                         ) : topStatus.icon === "done" ? (
-                          <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
+                          <CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />
                         ) : null}
                         {/* The label alone is the live region: a role="status"
                             wrapper around the ticking duration would make
