@@ -411,6 +411,9 @@ function resolveGitQuickActionIconComponent(
     return providerIcon;
   }
   if (quickAction.label === "Commit") return RecordCircleFilled;
+  // A disabled push action only carries a label, so it needs the same upload
+  // glyph the enabled `run_action`/`push` branch above resolves to.
+  if (quickAction.label === "Push") return Export3Filled;
   return InfoCircleFilled;
 }
 
