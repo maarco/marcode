@@ -70,7 +70,7 @@ export class DesktopEnvironment extends Context.Service<
     readonly linuxApplicationsDir: string;
     readonly appImagePath: Option.Option<string>;
     readonly userDataDirName: string;
-    readonly legacyUserDataDirName: string;
+    readonly legacyUserDataDirNames: readonly string[];
     readonly defaultDesktopSettings: DesktopAppSettings.DesktopSettings;
     readonly runtimeInfo: DesktopRuntimeInfo;
     readonly resolvePickFolderDefaultPath: (rawOptions: unknown) => Option.Option<string>;
@@ -79,8 +79,9 @@ export class DesktopEnvironment extends Context.Service<
   }
 >()("@t3tools/desktop/app/DesktopEnvironment") {}
 
-// Marcode is the user-facing desktop brand. Keep the legacy T3 Code names
-// below for migration and compatibility paths; they are not menu labels.
+// Marcode is the user-facing desktop brand. Keep the legacy T3 Code and
+// Marcode (Alpha) names below for migration and compatibility paths; they
+// are not menu labels.
 const APP_BASE_NAME = "Marcode";
 
 function resolveDesktopAppStageLabel(input: {
@@ -91,7 +92,7 @@ function resolveDesktopAppStageLabel(input: {
     return "Dev";
   }
 
-  return isNightlyDesktopVersion(input.appVersion) ? "Nightly" : "Alpha";
+  return isNightlyDesktopVersion(input.appVersion) ? "Nightly" : "";
 }
 
 function resolveDesktopAppBranding(input: {
@@ -102,7 +103,7 @@ function resolveDesktopAppBranding(input: {
   return {
     baseName: APP_BASE_NAME,
     stageLabel,
-    displayName: `${APP_BASE_NAME} (${stageLabel})`,
+    displayName: stageLabel === "" ? APP_BASE_NAME : `${APP_BASE_NAME} (${stageLabel})`,
   };
 }
 
@@ -171,7 +172,13 @@ const make = Effect.fn("desktop.environment.make")(function* (
     t3Home: config.marcodeHome,
   });
   const userDataDirName = isDevelopment ? "marcode-dev" : "marcode";
-  const legacyUserDataDirName = isDevelopment ? "T3 Code (Dev)" : "T3 Code (Alpha)";
+  // Both prior product names, oldest first: the pre-Marcode "T3 Code" brand,
+  // then "Marcode (Alpha)" from before the (Alpha) suffix was dropped. A
+  // given install only ever matches one of these — resolveUserDataPath keeps
+  // using whichever legacy directory already exists on disk.
+  const legacyUserDataDirNames = isDevelopment
+    ? ["T3 Code (Dev)", "Marcode (Dev)"]
+    : ["T3 Code (Alpha)", "Marcode (Alpha)"];
   const linuxApplicationsDir = path.join(
     Option.getOrElse(config.xdgDataHome, () => path.join(homeDirectory, ".local", "share")),
     "applications",
@@ -222,7 +229,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
     linuxApplicationsDir,
     appImagePath: config.appImagePath,
     userDataDirName,
-    legacyUserDataDirName,
+    legacyUserDataDirNames,
     defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
     runtimeInfo: resolveDesktopRuntimeInfo({
       platform: input.platform,

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
+  formatAppDisplayName,
   resolveServerBackedAppDisplayName,
   resolveServerBackedAppStageLabel,
 } from "./branding.logic";
@@ -76,7 +77,7 @@ describe("branding logic", () => {
     expect(
       resolveServerBackedAppStageLabel({
         primaryServerVersion: "0.0.28-nightly.20260616.12",
-        fallbackStageLabel: "Alpha",
+        fallbackStageLabel: "",
       }),
     ).toBe("Nightly");
   });
@@ -85,8 +86,8 @@ describe("branding logic", () => {
     expect(
       resolveServerBackedAppDisplayName({
         baseName: "Marcode",
-        fallbackDisplayName: "Marcode (Alpha)",
-        fallbackStageLabel: "Alpha",
+        fallbackDisplayName: "Marcode",
+        fallbackStageLabel: "",
         primaryServerVersion: "0.0.28-nightly.20260616.12",
       }),
     ).toBe("Marcode (Nightly)");
@@ -96,21 +97,38 @@ describe("branding logic", () => {
     expect(
       resolveServerBackedAppDisplayName({
         baseName: "Marcode",
-        fallbackDisplayName: "Marcode (Alpha)",
-        fallbackStageLabel: "Alpha",
+        fallbackDisplayName: "Marcode",
+        fallbackStageLabel: "",
         primaryServerVersion: "0.0.27",
       }),
-    ).toBe("Marcode (Alpha)");
+    ).toBe("Marcode");
   });
 
   it("keeps the fallback display name for malformed nightly primary server versions", () => {
     expect(
       resolveServerBackedAppDisplayName({
         baseName: "Marcode",
-        fallbackDisplayName: "Marcode (Alpha)",
-        fallbackStageLabel: "Alpha",
+        fallbackDisplayName: "Marcode",
+        fallbackStageLabel: "",
         primaryServerVersion: "0.0.28-nightly.20260616",
       }),
-    ).toBe("Marcode (Alpha)");
+    ).toBe("Marcode");
+  });
+});
+
+describe("formatAppDisplayName", () => {
+  it("renders the bare base name for an empty (GA/stable) stage label", () => {
+    expect(formatAppDisplayName({ baseName: "Marcode", stageLabel: "" })).toBe("Marcode");
+  });
+
+  it("renders the bare base name for the latest hosted channel label", () => {
+    expect(formatAppDisplayName({ baseName: "Marcode", stageLabel: "latest" })).toBe("Marcode");
+  });
+
+  it("appends a parenthetical for any other stage label", () => {
+    expect(formatAppDisplayName({ baseName: "Marcode", stageLabel: "Dev" })).toBe("Marcode (Dev)");
+    expect(formatAppDisplayName({ baseName: "Marcode", stageLabel: "Nightly" })).toBe(
+      "Marcode (Nightly)",
+    );
   });
 });

@@ -184,4 +184,62 @@ describe("terminal session reducers", () => {
 
     expect(state.buffer).toBe("🙂");
   });
+
+  it("never cuts inside a CSI sequence", () => {
+    // Byte budget lands the cut inside "\x1b[31m" (on the "1"). A naive
+    // byte-level trim would leave "1mhello" — an orphaned CSI parameter and
+    // final byte rendering as literal text. The whole sequence must be
+    // dropped instead.
+    const state = applyTerminalAttachStreamEvent(
+      EMPTY_TERMINAL_BUFFER_STATE,
+      {
+        type: "output",
+        threadId: TARGET.threadId,
+        terminalId: TARGET.terminalId,
+        data: "\x1b[31mhello",
+      },
+      7,
+    );
+
+    expect(state.buffer).toBe("hello");
+  });
+
+  it("never cuts inside an OSC sequence", () => {
+    // Byte budget lands the cut inside "\x1b]0;title\x07" (on the second
+    // "t"). A naive trim would leave "title\x07rest" rendering as literal
+    // text on screen.
+    const state = applyTerminalAttachStreamEvent(
+      EMPTY_TERMINAL_BUFFER_STATE,
+      {
+        type: "output",
+        threadId: TARGET.threadId,
+        terminalId: TARGET.terminalId,
+        data: "\x1b]0;title\x07rest",
+      },
+      10,
+    );
+
+    expect(state.buffer).toBe("rest");
+  });
+
+  it("never cuts inside a bare ESC sequence, and drops orphaned repeats cleanly", () => {
+    // ESC M (Reverse Index) has no parameterized multi-line form, so a
+    // shell repeats it once per line — exactly the shape that produces a
+    // grouped run of a single stripped final byte if the cut lands mid
+    // sequence. Byte budget lands on the "M" of the second "\x1bM": a naive
+    // trim would leave "M\x1bMtail", a bare orphaned "M" ahead of a clean
+    // sequence.
+    const state = applyTerminalAttachStreamEvent(
+      EMPTY_TERMINAL_BUFFER_STATE,
+      {
+        type: "output",
+        threadId: TARGET.threadId,
+        terminalId: TARGET.terminalId,
+        data: "\x1bM\x1bM\x1bMtail",
+      },
+      7,
+    );
+
+    expect(state.buffer).toBe("\x1bMtail");
+  });
 });

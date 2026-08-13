@@ -90,6 +90,15 @@ import {
   resolveTerminalFontSizePreference,
   TYPOGRAPHY_ADVANCED_STORAGE_KEY,
 } from "../appearanceFonts";
+// Required, not cosmetic: xterm.js relies on this stylesheet to hide its own
+// internal scaffolding (char-width measurement scratchpad, the offscreen IME
+// helper textarea, the composition-view popup, decoration/accessibility
+// layers). Without it those elements render inline with default browser
+// styles instead of being hidden — see the "333...MMM" garbage-above-prompt
+// bug: `.xterm-char-measure-element` renders 32 repeats of a probe character
+// per font weight/style variant while measuring cell width, and this rule is
+// the only thing that keeps that scratchpad hidden.
+import "@xterm/xterm/css/xterm.css";
 
 const MIN_DRAWER_HEIGHT = 180;
 const MAX_DRAWER_HEIGHT_RATIO = 0.75;

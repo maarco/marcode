@@ -111,7 +111,12 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --glass-saturation: 1.08;
 }
 
-[data-slot="sidebar-wrapper"] {
+/* Declared on the root, not on the sidebar wrapper: Marcode renders no sidebar
+   on settings and usage, so a wrapper-scoped variable resolves to nothing there
+   and the titlebar content lands under the native window controls. `.wco` also
+   lands on the root element, so its `--workspace-controls-left` override still
+   feeds this calc. */
+:root {
   --workspace-titlebar-content-left: calc(
     var(--workspace-controls-left) + var(--workspace-titlebar-control-size) +
       var(--workspace-titlebar-control-gap)
@@ -900,6 +905,20 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 @utility pr-safe {
   padding-right: max(env(safe-area-inset-right), 0px);
+}
+
+/* Scrollbar-less scroll container: the track is hidden, the scrolling itself
+   is not — for chrome that scrolls as an affordance (overflow fades, drag
+   handles) rather than as a document the reader browses with a bar. Same
+   three declarations `.turn-chip-strip` uses inline, promoted to a utility
+   because the floating pill nav now needs the identical treatment on both
+   its mobile rail and its desktop dock row. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Grain texture for chrome surfaces that float above the body (see the

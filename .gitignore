@@ -15,6 +15,10 @@ build/
 release/
 release-mock/
 .t3
+# Marcode's worktree-local dev state. The dev runner defaults a linked worktree
+# here, and tooling already documents it as ignored — `.t3` alone is upstream's
+# name and never got renamed with the rest of the fork.
+.marcode
 .idea/
 apps/web/.playwright
 apps/web/playwright-report
