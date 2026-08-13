@@ -1343,7 +1343,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                   actions on hover/keyboard focus or while the popover is open. Keeping
                   the hidden state out of flow lets the project label reclaim
                   space without either state overlapping it. */}
-              <span className="group/sidebar-status-slot relative ml-auto flex h-5 min-w-8 shrink-0 items-stretch justify-end text-xs">
+              {/* 11px, a step under the 12px title register: this slot is
+                  metadata, but "Working" renders bold in the info colour next
+                  to a spinner, so at an equal size it out-shouts the thread
+                  title it belongs to. The relative-time fallback shares the
+                  slot and so shares the size — otherwise a row would resize
+                  its own corner the moment a run started. */}
+              <span className="group/sidebar-status-slot relative ml-auto flex h-5 min-w-8 shrink-0 items-stretch justify-end text-[11px]">
                 {/* Read-only status labels yield to the hover actions. Woke is
                     itself an action, so it stays pointer-enabled and visible
                     while the other controls appear beside it. */}
@@ -1368,7 +1374,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                           topStatus.className,
                         )}
                       >
-                        <AlarmClockIcon aria-hidden className="size-4 shrink-0" />
+                        <AlarmClockIcon aria-hidden className="size-3.5 shrink-0" />
                         <span role="status">{topStatus.label}</span>
                       </button>
                     ) : (
@@ -1379,9 +1385,9 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                         )}
                       >
                         {topStatus.icon === "working" ? (
-                          <CircleDashedIcon aria-hidden className="size-4 shrink-0" />
+                          <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />
                         ) : topStatus.icon === "done" ? (
-                          <CircleCheckIcon aria-hidden className="size-4 shrink-0" />
+                          <CircleCheckIcon aria-hidden className="size-3.5 shrink-0" />
                         ) : null}
                         {/* The label alone is the live region: a role="status"
                             wrapper around the ticking duration would make
