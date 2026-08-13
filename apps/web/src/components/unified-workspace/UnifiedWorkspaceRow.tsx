@@ -357,7 +357,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
   const handleFocus = useCallback(() => onFocusRow(node.id), [node.id, onFocusRow]);
 
   const handlePrClick = useCallback(
-    (event: MouseEvent<HTMLButtonElement>) => {
+    (event: MouseEvent<HTMLAnchorElement>) => {
       if (!threadExtras?.prStatus) return;
       onOpenPrLink(event, threadExtras.prStatus.url);
     },
@@ -571,17 +571,26 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
           <Tooltip>
             <TooltipTrigger
               render={
-                <button
-                  type="button"
+                // A real link, like upstream's flat-list badge: cmd/ctrl+click and
+                // middle-click then reach the host through the browser's own
+                // handling (`useOpenPrLink` detects the anchor and leaves its
+                // default action alone). A plain click still opens the change
+                // request inside Marcode. `onPointerDown` keeps the badge from
+                // starting a dnd-kit row drag.
+                <a
+                  href={threadExtras.prStatus.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   aria-label={threadExtras.prStatus.tooltip}
                   className={cn(
                     "inline-flex items-center justify-center rounded-sm outline-hidden focus-visible:ring-1 focus-visible:ring-ring",
                     threadExtras.prStatus.colorClass,
                   )}
+                  onPointerDown={(event) => event.stopPropagation()}
                   onClick={handlePrClick}
                 >
                   <ChangeRequestStatusIcon className="size-3" />
-                </button>
+                </a>
               }
             />
             <TooltipPopup side="top">{threadExtras.prStatus.tooltip}</TooltipPopup>
