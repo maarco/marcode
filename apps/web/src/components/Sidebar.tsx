@@ -136,6 +136,7 @@ import {
   sortPinnedThreadsForSidebar,
   sortSettledThreadsForSidebar,
   sortThreadsForSidebar,
+  shouldRenderFlatThreadList,
 } from "./Sidebar.logic";
 // ── Marcode fork seam ────────────────────────────────────────────────────
 // The unified workspace tree lives entirely in this Marcode-owned component.
@@ -1983,6 +1984,11 @@ export default function Sidebar() {
   const [threadSearchQuery, setThreadSearchQuery] = useState("");
   const [activeSearchResultIndex, setActiveSearchResultIndex] = useState(0);
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
+  const showUnifiedWorkspaceTree = !isSearchingThreads && workspaceSectionProject !== null;
+  const showFlatThreadList = shouldRenderFlatThreadList({
+    isSearchingThreads,
+    unifiedWorkspaceTreeMounted: showUnifiedWorkspaceTree,
+  });
   const searchableThreads = useMemo(
     () => [...pinnedThreads, ...activeThreads, ...snoozedThreads, ...settledThreads],
     [activeThreads, pinnedThreads, settledThreads, snoozedThreads],
@@ -3421,11 +3427,31 @@ export default function Sidebar() {
             )
           ) : null}
           {/* ── Marcode fork seam: unified workspace tree ──
-              Renders above upstream's thread sections so their pinning,
-              drafts and drag-order keep working untouched; this adds the
-              project's attached files/folders, URL shortcuts, commands and
-              live terminals/browser tabs, with the Add-item menu. */}
-          {!isSearchingThreads && workspaceSectionProject ? (
+              Project-scoped mode gives the Marcode tree sole ownership of
+              persistent thread rows plus attached workspace resources.
+              The upstream flat list remains the fallback for All projects,
+              search, and the explicit legacy setting; drafts stay mounted
+              separately because they are not persisted thread shells yet. */}
+          {showUnifiedWorkspaceTree ? (
+            <TooltipProvider
+              key="sidebar-draft-tooltips-150"
+              delay={150}
+              closeDelay={0}
+              timeout={400}
+            >
+              <ul role="list" className="flex flex-col gap-px">
+                <SidebarDraftBlock
+                  projectDisplayNameByKey={projectDisplayNameByKey}
+                  projectCwdByKey={projectCwdByKey}
+                  projectFaviconPathByKey={projectFaviconPathByKey}
+                  scopedProjectKeys={scopedProjectKeys}
+                  routeDraftId={routeDraftIdForRows}
+                  onNavigateToDraft={navigateToDraft}
+                />
+              </ul>
+            </TooltipProvider>
+          ) : null}
+          {showUnifiedWorkspaceTree && workspaceSectionProject ? (
             <SidebarProjectWorkspaceSection
               environmentId={workspaceSectionProject.environmentId}
               projectId={workspaceSectionProject.projectId}
@@ -3435,7 +3461,7 @@ export default function Sidebar() {
               activeRouteThreadKey={routeThreadKey}
             />
           ) : null}
-          {!isSearchingThreads ? (
+          {showFlatThreadList ? (
             <TooltipProvider
               key="sidebar-thread-tooltips-150"
               delay={150}
@@ -3694,7 +3720,7 @@ export default function Sidebar() {
               </ul>
             </TooltipProvider>
           ) : null}
-          {!isSearchingThreads &&
+          {showFlatThreadList &&
           visibleDraftSessionCount === 0 &&
           pinnedThreads.length +
             activeThreads.length +

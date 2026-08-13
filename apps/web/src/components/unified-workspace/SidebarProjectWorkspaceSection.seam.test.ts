@@ -30,6 +30,11 @@ describe("unified workspace sidebar fork seam", () => {
     expect(sidebarSource).toContain("isUnifiedWorkspaceSidebarEnabled");
   });
 
+  it("keeps the upstream flat thread list mutually exclusive with the tree", () => {
+    expect(sidebarSource).toContain("const showFlatThreadList = shouldRenderFlatThreadList");
+    expect(sidebarSource).toContain("{showFlatThreadList ? (");
+  });
+
   it("marks the seam so the next merge conflict is obvious", () => {
     expect(sidebarSource).toContain("Marcode fork seam");
   });

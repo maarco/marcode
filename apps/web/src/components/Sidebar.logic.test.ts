@@ -25,6 +25,7 @@ import {
   formatWorkingDurationLabel,
   shouldNavigateAfterProjectRemoval,
   shouldClearThreadSelectionOnMouseDown,
+  shouldRenderFlatThreadList,
   shouldRenderUnifiedWorkspaceTree,
   sortLogicalProjectsForSidebar,
   sortSettledThreadsForSidebar,
@@ -1678,6 +1679,35 @@ describe("shouldRenderUnifiedWorkspaceTree", () => {
         projectExpanded: true,
         hasPinnedCollapsedThread: false,
         projectMemberCount: 0,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldRenderFlatThreadList", () => {
+  it("keeps the upstream list as the fallback outside the unified tree", () => {
+    expect(
+      shouldRenderFlatThreadList({
+        isSearchingThreads: false,
+        unifiedWorkspaceTreeMounted: false,
+      }),
+    ).toBe(true);
+  });
+
+  it("does not duplicate persistent threads under the unified tree", () => {
+    expect(
+      shouldRenderFlatThreadList({
+        isSearchingThreads: false,
+        unifiedWorkspaceTreeMounted: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps search results on the flat search path", () => {
+    expect(
+      shouldRenderFlatThreadList({
+        isSearchingThreads: true,
+        unifiedWorkspaceTreeMounted: false,
       }),
     ).toBe(false);
   });
