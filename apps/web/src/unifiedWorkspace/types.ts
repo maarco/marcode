@@ -71,15 +71,21 @@ export type UnifiedWorkspaceNode = {
   /** Full path/URL for tooltips and copy actions. */
   tooltip?: string;
   /**
-   * Set on a file/folder node whose on-disk parent directory differs from
-   * where it's actually rendered in the tree — e.g. an attached file placed
-   * at the project root while its real path is `.plans/README.md` sits next
-   * to an unrelated ambient root `README.md`. The immediate real parent's
-   * basename (e.g. `.plans`), for a short "· .plans" hint next to the label
-   * so two same-named rows are tellable apart without printing a full path
-   * inline. Never set on an ambient node (it's always exactly where its own
-   * disk path says) or on a node with no disk-path context to compare
-   * against (nested under a thread/command/url).
+   * Short "· <context>" hint rendered next to the label so two
+   * similar-looking rows are tellable apart, without printing a full path
+   * inline. Two distinct uses:
+   *  - File/folder: set when the on-disk parent directory differs from
+   *    where the node is actually rendered in the tree — e.g. an attached
+   *    file placed at the project root while its real path is
+   *    `.plans/README.md` sits next to an unrelated ambient root
+   *    `README.md`. The value is the immediate real parent's basename (e.g.
+   *    `.plans`). Never set on an ambient node (it's always exactly where
+   *    its own disk path says) or on a node with no disk-path context to
+   *    compare against (nested under a thread/command/url).
+   *  - Terminal/browser: set to the owning thread's title when the live
+   *    node is hoisted to project-root level — thread nodes never render,
+   *    so a hoisted node has no visible thread row nearby to explain which
+   *    thread it belongs to (see `buildTree.ts`'s `buildLiveChildrenForThread`).
    */
   disambiguator?: string;
 };

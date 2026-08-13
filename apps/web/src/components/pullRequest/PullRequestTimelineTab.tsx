@@ -17,6 +17,7 @@ import { formatRelativeTimeLabel } from "~/timestampFormat";
 
 import { Button } from "../ui/button";
 import { Collapsible, CollapsiblePanel, CollapsibleTrigger } from "../ui/collapsible";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import {
   buildPullRequestTimeline,
   groupPullRequestTimelineConversations,
@@ -116,15 +117,22 @@ function ReviewStateBadge({ state }: { state: string }) {
 
 function OpenOnHostButton({ url, onOpen }: { url: string | null; onOpen: (url: string) => void }) {
   return url === null ? null : (
-    <Button
-      size="icon-xs"
-      variant="ghost"
-      className="-mr-1 -mt-1 shrink-0 text-muted-foreground"
-      aria-label="Open activity on host"
-      onClick={() => onOpen(url)}
-    >
-      <ExternalLinkIcon className="size-3" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            size="icon-xs"
+            variant="ghost"
+            className="-mr-1 -mt-1 shrink-0 text-muted-foreground"
+            aria-label="Open activity on host"
+            onClick={() => onOpen(url)}
+          />
+        }
+      >
+        <ExternalLinkIcon className="size-3" />
+      </TooltipTrigger>
+      <TooltipPopup side="top">Open activity on host</TooltipPopup>
+    </Tooltip>
   );
 }
 

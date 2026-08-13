@@ -406,7 +406,6 @@ export type UnifiedWorkspaceContextMenuActionId =
   | "copy-relative-path"
   | "add-to-chat"
   | "move-to"
-  | "new-child-thread"
   | "rename"
   | "remove"
   | "run"
@@ -485,9 +484,10 @@ export function buildUnifiedWorkspaceContextMenuItems(input: {
   if (node.canMove && canMutate) {
     items.push({ id: "move-to", label: "Move to…" });
   }
-  if (node.canHaveChildren && canMutate) {
-    items.push({ id: "new-child-thread", label: "New child thread" });
-  }
+  // No "New child thread" here: threads no longer render as tree nodes, so the
+  // thread it created could never appear as this node's child. It would still
+  // be created — just silently, in the thread list below the tree — which
+  // reads as the command having failed.
   if (node.canRename && canMutate) {
     items.push({ id: "rename", label: "Rename" });
   }

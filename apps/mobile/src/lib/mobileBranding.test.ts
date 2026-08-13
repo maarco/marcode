@@ -6,8 +6,8 @@ describe("resolveMobileStageLabel", () => {
   it.each([
     ["development", "Dev"],
     ["preview", "Nightly"],
-    ["production", "Alpha"],
-    [undefined, "Alpha"],
+    ["production", ""],
+    [undefined, ""],
   ])("maps %s builds to %s", (appVariant, expected) => {
     expect(resolveMobileStageLabel(appVariant)).toBe(expected);
   });

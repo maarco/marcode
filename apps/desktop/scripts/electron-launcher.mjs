@@ -15,7 +15,7 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
-export const APP_DISPLAY_NAME = isDevelopment ? "Marcode (Dev)" : "Marcode (Alpha)";
+export const APP_DISPLAY_NAME = isDevelopment ? "Marcode (Dev)" : "Marcode";
 export const APP_BUNDLE_ID = isDevelopment
   ? `app.marcode.desktop.dev.${devBundleIdSuffix || "local"}`
   : "app.marcode.desktop";

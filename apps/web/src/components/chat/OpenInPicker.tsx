@@ -310,6 +310,14 @@ export const OpenInPicker = memo(function OpenInPicker({
       <Popover>
         <PopoverTrigger
           openOnHover
+          // Base UI's hover trigger defaults `closeDelay` to 0ms, so leaving this
+          // icon — even while heading straight for the card 4px below — closed
+          // the popup before the pointer arrived. `PillNavHoverCard` solved the
+          // same transit gap for every other pill in this row with a 220ms open
+          // delay and a 120ms close grace; this is the one control that hadn't
+          // picked those up yet.
+          delay={220}
+          closeDelay={120}
           render={
             <button
               type="button"
@@ -330,19 +338,33 @@ export const OpenInPicker = memo(function OpenInPicker({
                 disabled={!openInCwd}
                 aria-label={`Open in ${label}`}
                 title={openInCwd ? `Open in ${label}` : "This thread has no working directory yet."}
-                className={pillMenuRowClass()}
+                className={cn(pillMenuRowClass(), "relative overflow-hidden")}
                 onClick={() => openInEditor(value)}
               >
+                {/* Oversized, low-contrast watermark of the same glyph, the same
+                    treatment PillNavHoverCard gives its cards, scaled down to a
+                    menu row. `text-foreground/10` instead of a hardcoded hex: it
+                    rides the same paired foreground/popover tokens the row text
+                    below already uses, so it reads at one faint weight in both
+                    themes without a separate dark: class. `overflow-hidden` on
+                    the row (above) crops it to that row instead of bleeding into
+                    the next one — rows here sit flush with no gap between them. */}
                 <Icon
                   aria-hidden="true"
-                  className={cn("size-4 shrink-0", getOpenInIconClass(kind))}
+                  className="-right-3 -bottom-3 pointer-events-none absolute size-12 text-foreground/10"
                 />
-                <span className="flex-1 truncate">{label}</span>
-                {value === preferredEditor && openFavoriteEditorShortcutLabel ? (
-                  <span className="text-[10px] text-foreground/40 dark:text-white/40">
-                    {openFavoriteEditorShortcutLabel}
-                  </span>
-                ) : null}
+                <span className="relative flex min-w-0 flex-1 items-center gap-2">
+                  <Icon
+                    aria-hidden="true"
+                    className={cn("size-4 shrink-0", getOpenInIconClass(kind))}
+                  />
+                  <span className="flex-1 truncate">{label}</span>
+                  {value === preferredEditor && openFavoriteEditorShortcutLabel ? (
+                    <span className="text-[10px] text-foreground/40 dark:text-white/40">
+                      {openFavoriteEditorShortcutLabel}
+                    </span>
+                  ) : null}
+                </span>
               </button>
             ))}
           </div>

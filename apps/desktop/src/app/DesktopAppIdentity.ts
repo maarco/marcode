@@ -4,6 +4,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
@@ -48,22 +49,59 @@ const normalizeCommitHash = (value: string): Option.Option<string> => {
 export const resolveUserDataPath = Effect.gen(function* () {
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
-  const legacyPath = environment.path.join(
-    environment.appDataDirectory,
-    environment.legacyUserDataDirName,
+
+  // Check every prior product name's userData directory, oldest first, and
+  // keep using the first one that already exists on disk. This is a
+  // continuous "stay put if found" check (not a one-time copy), so an
+  // install that matched a legacy name keeps using it on every launch.
+  //
+  // The checks run CONCURRENTLY, not sequentially: this effect runs before
+  // DesktopClerk creates the Clerk bridge (see DesktopClerk.ts), which
+  // synchronously calls Electron's protocol.registerSchemesAsPrivileged —
+  // an API that must be called before Electron's "ready" event fires, on
+  // the real (unmocked) filesystem. Each extra sequential await here is
+  // extra wall-clock time for "ready" to win that race, and that race is
+  // real: it cost a startup crash once already (see git blame / the
+  // regression test below) when this loop briefly checked candidates one
+  // at a time. Probing concurrently keeps resolution to roughly one
+  // filesystem round-trip no matter how many legacy names get added.
+  //
+  // Effect.result (never fails) rather than letting fs.exists fail the
+  // forEach directly: this keeps the outcome deterministic regardless of
+  // concurrency — we pick the first-by-priority-order match or failure
+  // ourselves from the settled results, instead of depending on which
+  // concurrent fiber happens to fail first.
+  const legacyPaths = environment.legacyUserDataDirNames.map((legacyUserDataDirName) =>
+    environment.path.join(environment.appDataDirectory, legacyUserDataDirName),
   );
-  const legacyPathExists = yield* fileSystem.exists(legacyPath).pipe(
-    Effect.mapError(
-      (cause) =>
-        new DesktopUserDataPathResolutionError({
-          legacyPath,
-          cause,
-        }),
-    ),
+  // Pair each probe with its own path up front (rather than indexing back into
+  // legacyPaths by position afterward) so every path stays a plain `string` —
+  // noUncheckedIndexedAccess types `array[i]` as `string | undefined`, and
+  // that undefined would otherwise leak into the resolved userData path.
+  const probes = yield* Effect.forEach(
+    legacyPaths,
+    (legacyPath) =>
+      Effect.result(fileSystem.exists(legacyPath)).pipe(
+        Effect.map((probe) => [legacyPath, probe] as const),
+      ),
+    { concurrency: "unbounded" },
   );
-  return legacyPathExists
-    ? legacyPath
-    : environment.path.join(environment.appDataDirectory, environment.userDataDirName);
+
+  for (const [legacyPath, probe] of probes) {
+    if (Result.isFailure(probe)) {
+      return yield* new DesktopUserDataPathResolutionError({
+        legacyPath,
+        cause: probe.failure,
+      });
+    }
+  }
+
+  const matched = probes.find(([, probe]) => Result.isSuccess(probe) && probe.success);
+  if (matched !== undefined) {
+    return matched[0];
+  }
+
+  return environment.path.join(environment.appDataDirectory, environment.userDataDirName);
 }).pipe(Effect.withSpan("desktop.appIdentity.resolveUserDataPath"));
 
 export const make = Effect.gen(function* () {

@@ -1,10 +1,4 @@
-import {
-  FilePlusIcon,
-  FolderPlusIcon,
-  Link2Icon,
-  SquareTerminalIcon,
-  SquarePenIcon,
-} from "lucide-react";
+import { FilePlusIcon, FolderPlusIcon, Link2Icon, SquareTerminalIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState, type ReactElement } from "react";
 import type { UnifiedWorkspaceController } from "../../unifiedWorkspace/types";
 import { Button } from "../ui/button";
@@ -18,7 +12,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Input } from "../ui/input";
-import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { toastManager } from "../ui/toast";
 import { UnifiedWorkspaceAttachDialog } from "./UnifiedWorkspaceAttachDialog";
 import {
@@ -29,7 +23,15 @@ import {
 
 /**
  * The project-root / node "Add item" menu (§9). Copy is exact:
- * "New thread", "Attach file", "Attach folder", "Add URL shortcut", "Add command".
+ * "Attach file", "Attach folder", "Add URL shortcut", "Add command".
+ *
+ * No "New thread" item here: thread nodes never render in the tree (the
+ * classic thread-list card owns thread display), so the one thing that made
+ * creating a thread from *this* menu different from Sidebar.tsx's primary
+ * "New thread" button — seeding a contextual tree placement via the
+ * currently-focused row — can no longer have any visible effect. Keeping a
+ * second "New thread" entry here with that context silently dropped would
+ * just be a confusing, purposeless duplicate of the primary control.
  *
  * `onAddCommand` reuses the existing `ProjectScriptsControl` editor — nothing
  * here builds a second script-creation form. Sidebar.tsx wires whatever it
@@ -40,7 +42,6 @@ export interface UnifiedWorkspaceAddMenuProps {
   readonly parentId: string | null;
   readonly canMutate: boolean;
   readonly trigger: ReactElement;
-  readonly onNewThread: (parentId: string | null) => void;
   readonly onAttachFile: (parentId: string | null) => void;
   readonly onAttachFolder: (parentId: string | null) => void;
   readonly onAddUrlShortcut: (parentId: string | null) => void;
@@ -52,7 +53,6 @@ export function UnifiedWorkspaceAddMenu(props: UnifiedWorkspaceAddMenuProps) {
     parentId,
     canMutate,
     trigger,
-    onNewThread,
     onAttachFile,
     onAttachFolder,
     onAddUrlShortcut,
@@ -63,11 +63,6 @@ export function UnifiedWorkspaceAddMenu(props: UnifiedWorkspaceAddMenuProps) {
     <Menu>
       <MenuTrigger render={trigger} />
       <MenuPopup align="start" className="min-w-48">
-        <MenuItem onClick={() => onNewThread(parentId)}>
-          <SquarePenIcon className="size-3.5" />
-          New thread
-        </MenuItem>
-        <MenuSeparator />
         <MenuItem disabled={!canMutate} onClick={() => onAttachFile(parentId)}>
           <FilePlusIcon className="size-3.5" />
           Attach file
@@ -137,11 +132,6 @@ export function UnifiedWorkspaceAddMenuButton(props: UnifiedWorkspaceAddMenuButt
   const [addUrlOpen, setAddUrlOpen] = useState(false);
   const [addUrlLabel, setAddUrlLabel] = useState("");
   const [addUrlUrl, setAddUrlUrl] = useState("");
-
-  const handleNewThread = useCallback(
-    (nextParentId: string | null) => controller.createThread({ parentId: nextParentId }),
-    [controller],
-  );
 
   const handleAttachFile = useCallback((nextParentId: string | null) => {
     pendingParentIdRef.current = nextParentId;
@@ -223,7 +213,6 @@ export function UnifiedWorkspaceAddMenuButton(props: UnifiedWorkspaceAddMenuButt
         parentId={parentId}
         canMutate={controller.capabilities.canMutate}
         trigger={trigger}
-        onNewThread={handleNewThread}
         onAttachFile={handleAttachFile}
         onAttachFolder={handleAttachFolder}
         onAddUrlShortcut={handleOpenAddUrlDialog}

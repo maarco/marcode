@@ -22,6 +22,7 @@ import {
   Setting5Filled,
   SidebarLeftFilled,
 } from "@aliimam/icons";
+import { ChartNoAxesColumnIcon, GitPullRequestIcon } from "lucide-react";
 import type { ComponentType, CSSProperties, ReactElement } from "react";
 
 import { MarcodeMark } from "./MarcodeMark";
@@ -52,8 +53,13 @@ const UTILITY_COLOR = "#a1a1aa";
  * entry keeps its card even when its label or target path changes.
  *
  * Icons must match the glyph the pill itself renders, and must be the pack's
- * `*Filled` variant — the pill is filled-only. The one exception is the home
- * entry, which carries the brand mark (`MarcodeMark`) rather than a pack icon.
+ * `*Filled` variant — the pill is filled-only. Two kinds of entry break that
+ * rule on purpose, both because matching the pill wins over matching the
+ * pack: the home entry carries the brand mark (`MarcodeMark`) rather than a
+ * pack icon, and Pull Requests / Usage carry their `lucide-react` glyph
+ * because that is what `CATEGORIES` in FloatingPillNav renders for them —
+ * upstream entries kept on their original icon set rather than re-matched to
+ * an `@aliimam/icons` lookalike.
  */
 export const PILL_NAV_META = {
   "/": {
@@ -68,6 +74,13 @@ export const PILL_NAV_META = {
     description:
       "Authorize the CLI. Signs you in, then hands back a one-time code to paste into the terminal that asked for it.",
     icon: KeySquareFilled,
+    color: HOME_COLOR,
+  },
+  "/pull-requests": {
+    title: "Pull Requests",
+    description:
+      "Pull requests across every connected project, grouped into authored and reviewing. Filter by state or host, search across all of them, and open one into its own tab.",
+    icon: GitPullRequestIcon,
     color: HOME_COLOR,
   },
   "/settings": {
@@ -124,6 +137,13 @@ export const PILL_NAV_META = {
     description:
       "Threads you have archived. Search them, restore one back into its project, or delete it permanently.",
     icon: ClockFilled,
+    color: SETTINGS_COLOR,
+  },
+  "/usage": {
+    title: "Usage",
+    description:
+      "Cost and token usage across every provider and environment. Switch between the past day, week, month or quarter, and break it down by model or over time.",
+    icon: ChartNoAxesColumnIcon,
     color: SETTINGS_COLOR,
   },
   workspace: {

@@ -15,7 +15,10 @@ import { Button } from "../components/ui/button";
 import { SidebarInset } from "../components/ui/sidebar";
 import { isElectron } from "../env";
 import { cn } from "~/lib/utils";
-import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
+import {
+  COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+  SIDEBARLESS_TITLEBAR_INSET_CLASS,
+} from "~/workspaceTitlebar";
 
 function RestoreDefaultsButton({ onRestored }: { onRestored: () => void }) {
   const { changedSettingLabels, restoreDefaults } = useSettingsRestore(onRestored);
@@ -94,7 +97,7 @@ function SettingsContentLayout() {
           <div
             className={cn(
               "drag-region flex h-[52px] shrink-0 items-center px-5 transition-[padding-left] duration-200 ease-linear motion-reduce:transition-none wco:h-[env(titlebar-area-height)] wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
-              COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+              SIDEBARLESS_TITLEBAR_INSET_CLASS,
             )}
           >
             <div className="flex w-full items-center gap-2">

@@ -65,26 +65,28 @@ export function CompactBrandTitle(
       >
         Code
       </Text>
-      <View
-        style={{
-          backgroundColor: subtleColor,
-          borderRadius: 999,
-          paddingHorizontal: 6,
-          paddingVertical: 2,
-        }}
-      >
-        <Text
+      {stageLabel ? (
+        <View
           style={{
-            color: mutedColor,
-            fontFamily: "DMSans-Bold",
-            fontSize: 9,
-            letterSpacing: 0.9,
-            textTransform: "uppercase",
+            backgroundColor: subtleColor,
+            borderRadius: 999,
+            paddingHorizontal: 6,
+            paddingVertical: 2,
           }}
         >
-          {stageLabel}
-        </Text>
-      </View>
+          <Text
+            style={{
+              color: mutedColor,
+              fontFamily: "DMSans-Bold",
+              fontSize: 9,
+              letterSpacing: 0.9,
+              textTransform: "uppercase",
+            }}
+          >
+            {stageLabel}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
