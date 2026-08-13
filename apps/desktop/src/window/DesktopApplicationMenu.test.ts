@@ -129,7 +129,7 @@ describe("DesktopApplicationMenu", () => {
       yield* configureMenu(selectedAction, applicationMenuTemplate);
 
       const template = yield* Deferred.await(applicationMenuTemplate);
-      const applicationMenu = template.find((item) => item.label === "Marcode (Alpha)");
+      const applicationMenu = template.find((item) => item.label === "Marcode");
       assert.isDefined(applicationMenu);
       const fileMenu = template.find((item) => item.label === "File");
       assert.isDefined(fileMenu);

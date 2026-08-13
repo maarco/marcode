@@ -21,8 +21,12 @@ import {
 } from "@t3tools/shared/usageFormat";
 import { ScrollArea } from "../ui/scroll-area";
 import { SidebarInset } from "../ui/sidebar";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem } from "../WorkspaceBreadcrumb";
-import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "../../workspaceTitlebar";
+import {
+  COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+  SIDEBARLESS_TITLEBAR_INSET_CLASS,
+} from "../../workspaceTitlebar";
 import { UsageChartLegend, UsageProviderChart, type UsageChartMetric } from "./UsageProviderChart";
 import { PROVIDER_COLOR, PROVIDER_LABEL, PROVIDER_MARK, PROVIDER_ORDER } from "./usageProviders";
 
@@ -120,7 +124,7 @@ export function UsagePage() {
           <div
             className={cn(
               "drag-region flex h-[52px] shrink-0 items-center px-5 transition-[padding-left] duration-200 ease-linear motion-reduce:transition-none wco:h-[env(titlebar-area-height)] wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
-              COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+              SIDEBARLESS_TITLEBAR_INSET_CLASS,
             )}
           >
             <WorkspaceBreadcrumb ariaLabel="Usage breadcrumb">
@@ -156,14 +160,21 @@ export function UsagePage() {
                     </button>
                   ))}
                 </div>
-                <button
-                  type="button"
-                  onClick={refreshWindow}
-                  aria-label="Refresh usage"
-                  className="cursor-pointer rounded-md border border-border p-2 text-muted-foreground hover:text-foreground"
-                >
-                  <RefreshCwIcon className="size-3.5" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        onClick={refreshWindow}
+                        aria-label="Refresh usage"
+                        className="cursor-pointer rounded-md border border-border p-2 text-muted-foreground hover:text-foreground"
+                      />
+                    }
+                  >
+                    <RefreshCwIcon className="size-3.5" />
+                  </TooltipTrigger>
+                  <TooltipPopup side="bottom">Refresh usage data</TooltipPopup>
+                </Tooltip>
               </div>
             </div>
 

@@ -63,6 +63,7 @@ import { PanelLayoutControls } from "../components/chat/PanelLayoutControls";
 import { Button } from "../components/ui/button";
 import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../components/ui/menu";
 import { SidebarInset } from "../components/ui/sidebar";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { useLiveRefresh } from "../hooks/useLiveRefresh";
 import {
   pullRequestSurfaceId,
@@ -1282,14 +1283,21 @@ function ExpandableSearch({
     );
   }
   return (
-    <Button
-      size="icon-sm"
-      variant="ghost"
-      aria-label="Search pull requests"
-      onClick={() => onOpenChange(true)}
-    >
-      <SearchIcon className="size-4" />
-    </Button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            size="icon-sm"
+            variant="ghost"
+            aria-label="Search pull requests"
+            onClick={() => onOpenChange(true)}
+          />
+        }
+      >
+        <SearchIcon className="size-4" />
+      </TooltipTrigger>
+      <TooltipPopup side="bottom">Search pull requests</TooltipPopup>
+    </Tooltip>
   );
 }
 
@@ -1457,14 +1465,21 @@ function PullRequestsColumn({
             }}
           />
         ) : null}
-        <Button
-          size="icon-sm"
-          variant="ghost"
-          aria-label="Refresh pull requests"
-          onClick={onRefresh}
-        >
-          <RefreshCwIcon className={cn("size-4", refreshing && "animate-spin")} />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                aria-label="Refresh pull requests"
+                onClick={onRefresh}
+              />
+            }
+          >
+            <RefreshCwIcon className={cn("size-4", refreshing && "animate-spin")} />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">Refresh pull requests</TooltipPopup>
+        </Tooltip>
         {rightPanelControl}
       </header>
 

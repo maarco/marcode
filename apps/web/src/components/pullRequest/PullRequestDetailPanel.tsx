@@ -76,6 +76,7 @@ import {
   MenuTrigger,
 } from "../ui/menu";
 import { toastManager } from "../ui/toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { PullRequestDetailGhost, PullRequestTimelineGhost } from "./PullRequestGhosts";
 import { PullRequestActivityUnavailableState } from "./PullRequestActivityUnavailableState";
 import { DiffPanelLoadingState } from "../DiffPanelShell";
@@ -816,12 +817,19 @@ export function PullRequestDetailPanel({
           {detail ? (
             <>
               <Menu>
-                <MenuTrigger
-                  className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-                  aria-label="More pull request actions"
-                >
-                  <MoreHorizontalIcon className="size-4" />
-                </MenuTrigger>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <MenuTrigger
+                        className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+                        aria-label="More pull request actions"
+                      />
+                    }
+                  >
+                    <MoreHorizontalIcon className="size-4" />
+                  </TooltipTrigger>
+                  <TooltipPopup side="bottom">More pull request actions</TooltipPopup>
+                </Tooltip>
                 <MenuPopup align="end" side="bottom" className="min-w-72">
                   <MenuItem disabled={detailQuery.isPending} onClick={() => void refreshFromHost()}>
                     <RefreshCwIcon className="size-3.5" />
@@ -1001,14 +1009,21 @@ export function PullRequestDetailPanel({
             </>
           ) : null}
           {onClose ? (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label="Collapse pull request panel"
-              onClick={onClose}
-            >
-              <PanelRightIcon className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label="Collapse pull request panel"
+                    onClick={onClose}
+                  />
+                }
+              >
+                <PanelRightIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup side="bottom">Collapse pull request panel</TooltipPopup>
+            </Tooltip>
           ) : null}
         </div>
 

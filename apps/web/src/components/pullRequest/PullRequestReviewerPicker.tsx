@@ -122,13 +122,18 @@ export function PullRequestReviewerPicker({
 
   return (
     <Menu open={open} onOpenChange={setOpen}>
-      <MenuTrigger
-        render={
-          <Button size="icon-xs" variant="ghost" aria-label="Request a review">
-            <UserPlusIcon className="size-3.5" />
-          </Button>
-        }
-      />
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <MenuTrigger
+              render={<Button size="icon-xs" variant="ghost" aria-label="Request a review" />}
+            />
+          }
+        >
+          <UserPlusIcon className="size-3.5" />
+        </TooltipTrigger>
+        <TooltipPopup side="bottom">Request a review</TooltipPopup>
+      </Tooltip>
       <MenuPopup align="start" side="bottom" className="w-72 p-0">
         <div className="border-b border-border/60 p-2">
           <input

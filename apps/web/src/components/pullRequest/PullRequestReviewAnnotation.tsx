@@ -17,6 +17,7 @@ import { cn } from "~/lib/utils";
 
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { isCommentSubmitShortcut } from "../diffs/commentSubmitShortcut";
 import { PullRequestActorLabel } from "./pullRequestPresentation";
 import { PullRequestMarkdown } from "./PullRequestMarkdown";
@@ -61,15 +62,22 @@ export function PendingReviewCommentCard({
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <MessageSquareIcon className="size-3.5" />
         <span>Pending — sent when you submit the review</span>
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          className="ml-auto"
-          aria-label="Discard this comment"
-          onClick={onRemove}
-        >
-          <Trash2Icon className="size-3.5" />
-        </Button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                className="ml-auto"
+                aria-label="Discard this comment"
+                onClick={onRemove}
+              />
+            }
+          >
+            <Trash2Icon className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipPopup side="top">Discard this comment</TooltipPopup>
+        </Tooltip>
       </div>
       <p className="mt-2 whitespace-pre-wrap leading-relaxed">{comment.body}</p>
     </div>

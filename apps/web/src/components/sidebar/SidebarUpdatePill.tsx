@@ -50,7 +50,7 @@ function SidebarUpdateReleaseNotesTooltip({
           <div key={releaseNote.version}>
             {index > 0 && <Separator className="my-3 bg-border/60" />}
             <section>
-              <h3 className="text-muted-foreground text-xs leading-4 font-semibold">
+              <h3 className="text-muted-foreground text-xs leading-4 font-medium">
                 {index === 0 ? "What's changed" : `Changes in ${releaseNote.version}`}
               </h3>
               <ul className="mt-2 space-y-1.5 pl-4 text-xs leading-5 text-popover-foreground/90">

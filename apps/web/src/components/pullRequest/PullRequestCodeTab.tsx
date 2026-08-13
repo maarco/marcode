@@ -626,24 +626,31 @@ export function PullRequestCodeTab({
       // chevron follows it rather than recomputing the default here.
       const collapsed = item.collapsed === true;
       return (
-        <button
-          type="button"
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? "Expand diff" : "Collapse diff"}
-          className={cn(
-            "mr-1 inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground",
-          )}
-          onClick={(event) => {
-            event.stopPropagation();
-            toggleFile(item.id);
-          }}
-        >
-          {collapsed ? (
-            <ChevronRightIcon className="size-4" />
-          ) : (
-            <ChevronDownIcon className="size-4" />
-          )}
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-expanded={!collapsed}
+                aria-label={collapsed ? "Expand diff" : "Collapse diff"}
+                className={cn(
+                  "mr-1 inline-flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground",
+                )}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleFile(item.id);
+                }}
+              />
+            }
+          >
+            {collapsed ? (
+              <ChevronRightIcon className="size-4" />
+            ) : (
+              <ChevronDownIcon className="size-4" />
+            )}
+          </TooltipTrigger>
+          <TooltipPopup side="top">{collapsed ? "Expand diff" : "Collapse diff"}</TooltipPopup>
+        </Tooltip>
       );
     },
     [toggleFile],
@@ -811,16 +818,23 @@ export function PullRequestCodeTab({
       <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
         {reviewOpen ? (
           <div className="chat-composer-glass pointer-events-auto absolute inset-x-3 bottom-3 rounded-xl border border-border/60 shadow-lg">
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              aria-label="Close review"
-              className="absolute right-2 top-2"
-              onClick={() => setReviewOpen(false)}
-            >
-              <XIcon className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    type="button"
+                    size="icon-sm"
+                    variant="ghost"
+                    aria-label="Close review"
+                    className="absolute right-2 top-2"
+                    onClick={() => setReviewOpen(false)}
+                  />
+                }
+              >
+                <XIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup side="top">Close review</TooltipPopup>
+            </Tooltip>
             <PullRequestReviewBar
               environmentId={environmentId}
               reference={reference}
@@ -998,12 +1012,22 @@ export function PullRequestCodeTab({
             }
           }}
         >
-          <Toggle aria-label="Stacked diff view" value="stacked" variant="ghost">
-            <Rows3Icon className="size-3.5" />
-          </Toggle>
-          <Toggle aria-label="Split diff view" value="split" variant="ghost">
-            <Columns2Icon className="size-3.5" />
-          </Toggle>
+          <Tooltip>
+            <TooltipTrigger
+              render={<Toggle aria-label="Stacked diff view" value="stacked" variant="ghost" />}
+            >
+              <Rows3Icon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Stacked diff view</TooltipPopup>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={<Toggle aria-label="Split diff view" value="split" variant="ghost" />}
+            >
+              <Columns2Icon className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Split diff view</TooltipPopup>
+          </Tooltip>
         </ToggleGroup>
         <Tooltip>
           <TooltipTrigger

@@ -21,6 +21,7 @@ import {
   MenuSeparator,
   MenuTrigger,
 } from "../ui/menu";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 export interface PullRequestFilterOption<Value extends string> {
   readonly value: Value;
@@ -189,22 +190,29 @@ export function PullRequestFiltersMenu({
     state !== "open" || involvement !== "all" || host !== undefined || projectId !== undefined;
   return (
     <Menu>
-      <MenuTrigger
-        className={cn(
-          // The icon-button size that pairs with a full-height input, so the two read as one strip.
-          "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-input text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground sm:size-8",
-          filtered && "text-foreground",
-        )}
-        aria-label="Filter pull requests"
-      >
-        <ListFilterIcon className="size-4" />
-        {filtered ? (
-          <span
-            aria-hidden
-            className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
-          />
-        ) : null}
-      </MenuTrigger>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <MenuTrigger
+              className={cn(
+                // The icon-button size that pairs with a full-height input, so the two read as one strip.
+                "relative inline-flex size-9 shrink-0 items-center justify-center rounded-lg border border-input text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground sm:size-8",
+                filtered && "text-foreground",
+              )}
+              aria-label="Filter pull requests"
+            />
+          }
+        >
+          <ListFilterIcon className="size-4" />
+          {filtered ? (
+            <span
+              aria-hidden
+              className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-primary"
+            />
+          ) : null}
+        </TooltipTrigger>
+        <TooltipPopup side="bottom">Filter pull requests</TooltipPopup>
+      </Tooltip>
       <MenuPopup align="end" side="bottom" className="min-w-56">
         <PullRequestFilterRadioGroup
           label="State"

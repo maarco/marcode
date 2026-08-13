@@ -42,7 +42,7 @@ function MobileClientRow({ device }: { readonly device: RelayClientDeviceRecord 
               <h3 className="truncate text-sm font-semibold text-foreground">{device.label}</h3>
               <p className="text-xs text-muted-foreground">{mobileClientPlatformLabel(device)}</p>
             </div>
-            <p className="shrink-0 text-[11px] text-muted-foreground/75">
+            <p className="shrink-0 text-xs text-muted-foreground/75">
               {mobileClientUpdatedAtLabel(device.updatedAt)}
             </p>
           </div>
@@ -115,7 +115,7 @@ export function MobileClientsUserProfilePage() {
     <div className="flex min-h-[30rem] w-full flex-col bg-background text-foreground">
       <header className="flex flex-col gap-4 border-b px-6 py-5 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold tracking-[-0.01em]">Mobile clients</h2>
+          <h2 className="text-lg font-semibold tracking-[-0.025em]">Mobile clients</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Devices registered to receive Marcode Connect activity from your environments.
           </p>

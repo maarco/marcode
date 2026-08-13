@@ -22,7 +22,7 @@ import {
   Code1Filled,
   KeySquareFilled,
 } from "@aliimam/icons";
-import { ChartNoAxesColumnIcon, FlaskConicalIcon, GitPullRequestIcon } from "lucide-react";
+import { ChartNoAxesColumnIcon, GitPullRequestIcon } from "lucide-react";
 import { cn } from "../lib/utils";
 import { useEditorStore } from "../editor/editor-store";
 import { usePillNavPreferences, getPillNavShineGradient } from "../editor/pill-prefs";
@@ -114,6 +114,18 @@ const CATEGORIES: NavCategory[] = [
     color: "#f59e0b",
     children: [
       { href: "/connect", label: "Connect", icon: <KeySquareFilled className="h-4 w-4" /> },
+      // Upstream links /pull-requests from the sidebar footer they own and
+      // Marcode does not render, so this nav has to surface it. It sits here
+      // rather than under Settings because it is a workspace destination, not a
+      // preference — and `getActiveCategory` already resolves the route to this
+      // category, so anywhere else highlights the wrong pill. Their footer entry
+      // is gated on the environment's `pullRequests` capability; this one is
+      // not, because the route renders its own unavailable state.
+      {
+        href: "/pull-requests",
+        label: "Pull Requests",
+        icon: <GitPullRequestIcon className="h-4 w-4" />,
+      },
     ],
   },
   {
@@ -145,11 +157,6 @@ const CATEGORIES: NavCategory[] = [
         icon: <DocumentTextFilled className="h-4 w-4" />,
       },
       {
-        href: "/settings/beta",
-        label: "Beta",
-        icon: <FlaskConicalIcon className="h-4 w-4" />,
-      },
-      {
         href: "/settings/diagnostics",
         label: "Diagnostics",
         icon: <ActivityFilled className="h-4 w-4" />,
@@ -167,16 +174,6 @@ const CATEGORIES: NavCategory[] = [
         href: "/usage",
         label: "Usage",
         icon: <ChartNoAxesColumnIcon className="h-4 w-4" />,
-      },
-      // Same story as Usage: upstream links /pull-requests from the sidebar
-      // footer they own and Marcode does not render. Their footer entry is
-      // gated on the environment's `pullRequests` capability; this static
-      // entry is not, because the route renders its own unavailable state
-      // rather than depending on a caller-side gate.
-      {
-        href: "/pull-requests",
-        label: "Pull Requests",
-        icon: <GitPullRequestIcon className="h-4 w-4" />,
       },
     ],
   },
@@ -566,6 +563,34 @@ function getDockedStyle(pos: PillPosition): React.CSSProperties {
     transform: "translateY(-50%)",
     borderRadius: "24px 0 0 24px",
   };
+}
+
+// How far (px) the pill keeps from the nearest screen edge along its main
+// axis — enough that a wide pill never touches the window boundary, and a
+// top-docked one never reaches under the macOS traffic lights.
+const EDGE_MARGIN_PX = 20;
+
+/**
+ * The most the pill's main axis (width when docked top/bottom, height when
+ * docked left/right) can grow before either end would cross `EDGE_MARGIN_PX`
+ * short of the screen edge. Anchored to `offset` — the pill's own percentage
+ * along that axis, from `PillPosition` — rather than a flat viewport
+ * fraction: a pill dragged near one edge has less room on that side than a
+ * centred one does, and a flat cap would let it overrun the edge it sits
+ * closest to.
+ *
+ * Expressed in `vw`/`vh` rather than a `window.inner*` read so it tracks a
+ * live resize for free (no listener, no re-render) — the browser recomputes
+ * viewport units on its own. Dividing by `scale` undoes `pillScale`'s visual
+ * stretch (a CSS `transform`, which does not affect layout size) so the cap
+ * holds at any zoom level, not just 1x — both edges scale from the pill's
+ * own centre on this axis (see `scaleOrigin`), so the correction is uniform.
+ */
+function dockedMainAxisMaxExtent(offset: number, scale: number, unit: "vw" | "vh"): string {
+  const nearest = Math.min(offset, 100 - offset);
+  const factor = (2 * nearest) / scale;
+  const margin = (EDGE_MARGIN_PX * 2) / scale;
+  return `calc(${factor}${unit} - ${margin}px)`;
 }
 
 // ─── component ──────────────────────────────────────────────
@@ -1248,6 +1273,9 @@ export function FloatingPillNav() {
                 transition: isSnapping
                   ? "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)"
                   : "all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
+                ...(isVertical
+                  ? { maxHeight: dockedMainAxisMaxExtent(position.offset, pillScale, "vh") }
+                  : { maxWidth: dockedMainAxisMaxExtent(position.offset, pillScale, "vw") }),
               };
             })();
 
@@ -1256,8 +1284,12 @@ export function FloatingPillNav() {
   // category, so they are the first thing to go when the row is a 390px window
   // onto a much wider set of controls.
   const hasRecents = pillPrefs.showRecents && !isMobile && visibleRecents.length > 0;
-  // the fades are a horizontal-scroll affordance; a vertically docked pill
-  // stacks its controls instead and never scrolls sideways
+  // `RowEdgeFade` is a horizontal-scroll affordance (it renders as a vertical
+  // strip pinned to the row's left/right edge); a vertically docked pill
+  // never scrolls sideways, so it never earns one. It can still overflow and
+  // scroll on its own axis — see the column's `overflow-y-auto` above — just
+  // without a matching fade hint; a column that tall is rare enough that the
+  // gap reads as a reasonable place to stop, not a missing affordance.
   const showEdgeFades = !vert && !isDragging;
 
   return (
@@ -1316,17 +1348,26 @@ export function FloatingPillNav() {
           isMobile
             ? "max-w-full justify-start overflow-x-auto overflow-y-hidden overscroll-x-contain no-scrollbar border-b border-border/40 bg-background dark:bg-[#0a0a0a] pl-[max(env(safe-area-inset-left,0px),0.75rem)] pr-[max(env(safe-area-inset-right,0px),0.75rem)] py-2 pt-[calc(env(safe-area-inset-top,0px)+0.5rem)] backdrop-blur-none [-webkit-overflow-scrolling:touch] [&>*]:shrink-0"
             : vert
-              ? // Docked left/right: cross-axis is width, and `max-w-[100vw]` below
-                // is a main-axis (horizontal-dock) rule that does nothing to bound
-                // it, so a wide *line* stacked into this column — the portaled
-                // thread-action cluster, whose own row never learned to wrap (see
-                // GitActionsControl/ProjectScriptsControl) — dragged the whole
-                // column out to that line's width instead of staying icon-width.
-                // Cap to one icon column (w-8 + the pill's own px-2) and let lines
-                // wrap inside it instead of stretching it; no horizontal scroll in
-                // a vertical dock.
-                "max-w-12 overflow-x-hidden no-scrollbar"
-              : "max-w-[100vw] overflow-x-auto no-scrollbar",
+              ? // Docked left/right: cross-axis is width, and the main-axis cap
+                // below does nothing to bound it, so a wide *line* stacked into
+                // this column — the portaled thread-action cluster, whose own row
+                // never learned to wrap (see GitActionsControl/ProjectScriptsControl)
+                // — dragged the whole column out to that line's width instead of
+                // staying icon-width. Cap to one icon column (w-8 + the pill's own
+                // px-2) and let lines wrap inside it instead of stretching it; no
+                // horizontal scroll in a vertical dock. The main axis is height:
+                // `dockedMainAxisMaxExtent` sets the precise offset-aware cap
+                // inline while resting; this flat one is the floor for drag/summon,
+                // when that inline style is not in play — and `overflow-y-auto` is
+                // what makes a column taller than the screen reachable at all,
+                // rather than just spilling past the window edge unseen.
+                "max-w-12 overflow-x-hidden max-h-[calc(100vh-2.5rem)] overflow-y-auto no-scrollbar"
+              : // Horizontal dock: `dockedMainAxisMaxExtent` sets the precise
+                // offset-aware width cap inline while resting (see the style
+                // computation above); this flat one is the floor for drag/summon,
+                // and keeps even those transient states off the window edge
+                // instead of flush against — or past — it.
+                "max-w-[calc(100vw-2.5rem)] overflow-x-auto no-scrollbar",
         )}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
