@@ -9,6 +9,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   canSettle,
+  changeRequestAutoSettles,
   effectiveSettled,
   hasQueuedTurnStart,
   threadLastActivityAt,
@@ -18,6 +19,18 @@ import {
 const NOW = "2026-04-10T00:00:00.000Z";
 const FRESH = "2026-04-09T00:00:00.000Z";
 const STALE = "2026-04-06T23:59:59.999Z";
+
+describe("changeRequestAutoSettles", () => {
+  it.each([
+    ["open", true, false],
+    ["merged", true, true],
+    ["merged", false, false],
+    ["closed", false, true],
+    [null, false, false],
+  ] as const)("state=%s autoSettleOnMerge=%s returns %s", (state, autoSettleOnMerge, expected) => {
+    expect(changeRequestAutoSettles(state, autoSettleOnMerge)).toBe(expected);
+  });
+});
 
 function makeShell(input: {
   readonly settledOverride?: "settled" | "active" | null;
@@ -197,6 +210,58 @@ describe("effectiveSettled", () => {
         }),
       ).toBe(true);
     }
+  });
+
+  /**
+   * `autoSettleOnMerge` (upstream) and the warm window (Marcode) are two
+   * independent gates on the same path, and both have to hold for the PR state
+   * to settle a thread. Upstream's own version of this test asserted a closed
+   * PR settles a *recently active* thread; under Marcode's warm window it does
+   * not, so the flag's effect is pinned on an idle thread — where the two
+   * states genuinely diverge — and the warm case is pinned above.
+   */
+  it("can keep a merged change request active without disarming closed ones", () => {
+    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+    const idle = makeShell({ activityAt: "2026-04-09T22:59:59.999Z" });
+
+    expect(
+      effectiveSettled(recentlyActive, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "merged",
+      }),
+    ).toBe(false);
+
+    // Idle and merged, but the user turned merge auto-settle off.
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "merged",
+      }),
+    ).toBe(false);
+
+    // The flag governs merges only: a closed PR still settles once idle.
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(true);
+
+    // ...and the warm window still outranks it while the thread is hot.
+    expect(
+      effectiveSettled(recentlyActive, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(false);
   });
 
   it("never auto-settles a stale thread with an open change request", () => {

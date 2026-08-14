@@ -38,6 +38,11 @@ function TooltipPopup({
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
+        // ── Marcode fork seam ── upstream stacks tooltips above dropdowns with a
+        // `z-[140]` utility class; `portalOverlayTooltip` below is the same rule
+        // expressed through the floating-surface registry, as an inline style so
+        // no caller className can drop it. Adding the class back would be dead
+        // weight: the inline z-index always wins.
         className={cn(
           "pointer-events-none h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
           PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,

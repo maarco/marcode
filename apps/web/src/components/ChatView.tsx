@@ -27,6 +27,7 @@ import {
   type EnvironmentConnectionPresentation,
 } from "@t3tools/client-runtime/connection";
 import {
+  changeRequestAutoSettles,
   effectiveSettled,
   effectiveSnoozed,
   threadWokeAt,
@@ -128,11 +129,11 @@ import { buildTemporaryWorktreeBranchName } from "@t3tools/shared/git";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY } from "../rightPanelLayout";
 import {
-  pullRequestSurfaceId,
   selectActiveRightPanel,
   selectActiveRightPanelSurface,
   selectThreadRightPanelState,
   type RightPanelSurface,
+  updatePullRequestTabStatus,
   useRightPanelStore,
 } from "../rightPanelStore";
 import {
@@ -149,6 +150,7 @@ import {
   selectThreadPreviewMiniPlayer,
   usePreviewMiniPlayerStore,
 } from "../previewMiniPlayerStore";
+import { isThreadOwnPullRequest } from "./pullRequest/pullRequestDetail.logic";
 import { PullRequestDetailPanel } from "./pullRequest/PullRequestDetailPanel";
 import { PullRequestDetailGhost } from "./pullRequest/PullRequestGhosts";
 import { PullRequestsUnavailableState } from "./pullRequest/PullRequestsUnavailableState";
@@ -183,6 +185,7 @@ import {
 import { newDraftId, newMessageId, newThreadId } from "~/lib/utils";
 import { subscribeUnifiedWorkspaceCommandRun } from "~/unifiedWorkspace/activateNode";
 import { useBrowserHistoryStore } from "~/browserHistoryStore";
+import { registerFaviconProjectForThread } from "~/browserFaviconStore";
 import { getProviderModelCapabilities, resolveSelectableProvider } from "../providerModels";
 import { NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import {
@@ -1692,14 +1695,22 @@ function ChatViewContent(props: ChatViewProps) {
   const [pullRequestTabStatuses, setPullRequestTabStatuses] = useState<
     Record<string, PullRequestTabStatus>
   >({});
-  const handlePullRequestTabStatusChange = useCallback((status: PullRequestTabStatus) => {
-    const id = pullRequestSurfaceId(status);
-    setPullRequestTabStatuses((current) =>
-      current[id]?.state === status.state && current[id]?.isDraft === status.isDraft
-        ? current
-        : { ...current, [id]: status },
-    );
-  }, []);
+  // Keyed by the surface the panel is showing rather than by a key rebuilt from the status, so
+  // the tab is found again whether or not that surface was opened with an environment on it.
+  const activePullRequestSurfaceId =
+    activeRightPanelSurface?.kind === "pull-request" ? activeRightPanelSurface.id : undefined;
+  const handlePullRequestTabStatusChange = useCallback(
+    (status: PullRequestTabStatus) => {
+      const id = activePullRequestSurfaceId;
+      if (id === undefined) return;
+      setPullRequestTabStatuses((current) => updatePullRequestTabStatus(current, id, status));
+    },
+    [activePullRequestSurfaceId],
+  );
+  // ── Marcode fork seam ── upstream also derives an `activeFileSurface` here.
+  // Marcode retired the right-panel file surface (the floating Code editor owns
+  // file editing), so that union member does not exist; see
+  // `apps/web/src/rightPanelStore.ts` and its migration.
   const activePreviewState = useThreadPreviewState(activeThreadRef);
   const activePreviewMiniPlayer = usePreviewMiniPlayerStore((state) =>
     selectThreadPreviewMiniPlayer(state.byThreadKey, activeThreadRef),
@@ -1788,9 +1799,11 @@ function ChatViewContent(props: ChatViewProps) {
     });
   }, [activeThreadKey, existingOpenTerminalThreadKeys, terminalUiState.terminalOpen]);
   const latestTurnSettled = isLatestTurnSettled(activeLatestTurn, activeThread?.session ?? null);
-  const activeProjectRef = activeThread
-    ? scopeProjectRef(activeThread.environmentId, activeThread.projectId)
-    : null;
+  const activeProjectRef = useMemo(
+    () =>
+      activeThread ? scopeProjectRef(activeThread.environmentId, activeThread.projectId) : null,
+    [activeThread?.environmentId, activeThread?.projectId],
+  );
   const activeProject = useProject(activeProjectRef);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const clientSettingsHydrated = useClientSettingsHydrated();
@@ -1805,6 +1818,10 @@ function ChatViewContent(props: ChatViewProps) {
   // drive the environment picker in BranchToolbar.
   const allProjects = useProjects();
   const primaryEnvironmentId = primaryEnvironment?.environmentId ?? null;
+  useEffect(() => {
+    if (!activeThreadRef || !activeProjectRef) return;
+    registerFaviconProjectForThread(activeThreadRef, activeProjectRef);
+  }, [activeProjectRef, activeThreadRef]);
   useEffect(() => {
     if (!clientSettingsHydrated || !activeThreadRef || !activeProject) return;
     // Reuse the sidebar's grouping so history follows the project rows the user
@@ -4127,6 +4144,7 @@ function ChatViewContent(props: ChatViewProps) {
   // so the banner and the sidebar row never disagree.
   const activeThreadShell = useThreadShell(isServerThread ? activeThreadRef : null);
   const autoSettleAfterDays = useClientSettings((settings) => settings.sidebarAutoSettleAfterDays);
+  const autoSettleOnMerge = useClientSettings((settings) => settings.sidebarAutoSettleOnMerge);
   const activeThreadPr = resolveThreadPr({
     threadBranch: activeThread?.branch ?? null,
     gitStatus: gitStatusQuery.data ?? null,
@@ -4167,15 +4185,14 @@ function ChatViewContent(props: ChatViewProps) {
     if (activeThreadRef === null || activeThreadWokeAt === null) return;
     markThreadVisited(scopedThreadKey(activeThreadRef), activeThreadWokeAt);
   }, [activeThreadRef, activeThreadWokeAt, markThreadVisited]);
-  // Mirror of the sidebar's Woke pill for the open thread: same visit
-  // comparison, same merged/closed-PR suppression (finished work needs no
-  // wake-up call). Drives the dismissible composer banner below.
+  // Mirror of the sidebar's Woke pill for the open thread. It uses the same
+  // visit comparison and change request settle rule.
   const activeThreadLastVisitedAt = useUiStateStore((store) =>
     activeThreadKey === null ? undefined : store.threadLastVisitedAtById[activeThreadKey],
   );
   const activeThreadWokeVisible = useMemo(() => {
     if (activeThreadWokeAt === null) return false;
-    if (activeThreadPr?.state === "merged" || activeThreadPr?.state === "closed") return false;
+    if (changeRequestAutoSettles(activeThreadPr?.state, autoSettleOnMerge)) return false;
     const wokeAtMs = Date.parse(activeThreadWokeAt);
     if (Number.isNaN(wokeAtMs)) return false;
     // Having the thread open counts as a visit at completedAt (the effect
@@ -4197,18 +4214,21 @@ function ChatViewContent(props: ChatViewProps) {
     activeThreadLastVisitedAt,
     activeThreadPr?.state,
     activeThreadWokeAt,
+    autoSettleOnMerge,
   ]);
   const activeThreadSettled = useMemo(() => {
     if (activeThreadShell === null || !supportsSettlement) return false;
     return effectiveSettled(activeThreadShell, {
       now: `${nowMinute}:00.000Z`,
       autoSettleAfterDays,
+      autoSettleOnMerge,
       changeRequestState: activeThreadPr?.state ?? null,
     });
   }, [
     activeThreadPr?.state,
     activeThreadShell,
     autoSettleAfterDays,
+    autoSettleOnMerge,
     nowMinute,
     supportsSettlement,
   ]);
@@ -6151,11 +6171,23 @@ function ChatViewContent(props: ChatViewProps) {
           number: activeRightPanelSurface.number,
         }}
         context={
-          activeThreadPr?.number === activeRightPanelSurface.number &&
-          threadRepository === activeRightPanelSurface.repository
+          isThreadOwnPullRequest(
+            {
+              projectId: activeProject?.id ?? null,
+              repository: threadRepository,
+              number: activeThreadPr?.number ?? null,
+            },
+            {
+              projectId: activeRightPanelSurface.projectId,
+              repository: activeRightPanelSurface.repository,
+              number: activeRightPanelSurface.number,
+            },
+          )
             ? "thread"
             : "page"
         }
+        chromeVariant="collapse"
+        composerDraftTarget={composerDraftTarget}
         onStateChange={handlePullRequestTabStatusChange}
       />
     ) : activeRightPanelSurface?.kind === "agents" ? (
@@ -6576,6 +6608,7 @@ function ChatViewContent(props: ChatViewProps) {
           surfaces={rightPanelState.surfaces}
           activeSurfaceId={activeRightPanelSurface?.id ?? null}
           previewSessions={activePreviewState.sessions}
+          desktopByTabId={activePreviewState.desktopByTabId}
           terminalLabelsById={activeTerminalLabelsById}
           onActivate={activateRightPanelSurface}
           onCloseSurface={closeRightPanelSurface}
@@ -6602,10 +6635,15 @@ function ChatViewContent(props: ChatViewProps) {
         <RightPanelSheet open onClose={closePreviewPanel}>
           <RightPanelTabs
             mode="sheet"
-            layoutControls={panelToggleControls}
+            // Same effective inset as the closed-state titlebar controls
+            // (pr-3 in the tab bar plus this pixel equals the absolute
+            // right inset plus mr-px), so the cluster does not creep when
+            // the sheet opens.
+            layoutControls={<div className="mr-px flex items-center">{panelToggleControls}</div>}
             surfaces={rightPanelState.surfaces}
             activeSurfaceId={activeRightPanelSurface?.id ?? null}
             previewSessions={activePreviewState.sessions}
+            desktopByTabId={activePreviewState.desktopByTabId}
             terminalLabelsById={activeTerminalLabelsById}
             onActivate={activateRightPanelSurface}
             onCloseSurface={closeRightPanelSurface}
