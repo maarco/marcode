@@ -535,8 +535,8 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
             id: "url-1",
             parentId: null,
             rank: "b0",
-            label: "Local",
-            url: "http://localhost:3000",
+            label: "Docs",
+            url: "https://example.org/guide",
           }),
         ],
         scripts: [script({ id: "s1", name: "Build" })],
@@ -553,6 +553,30 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
     const commandNode = roots.find((n) => n.kind === "command")!;
     expect(commandNode.canRename).toBe(false);
     expect(commandNode.canRemove).toBe(true);
+  });
+
+  /**
+   * `faviconUrlForOrigin` discloses the host to Google's s2 endpoint, so it
+   * refuses private and loopback hosts. URL shortcuts are a Marcode-owned node
+   * kind that upstream never sees, and this is the only place the fork feeds
+   * user-supplied URLs into that helper — pinned here so a future sync cannot
+   * relax the guard and start leaking internal hostnames from the workspace
+   * tree.
+   */
+  it("asks no favicon provider about a private or loopback URL shortcut", () => {
+    for (const url of [
+      "http://localhost:3000",
+      "http://192.168.1.4:8080",
+      "https://box.internal",
+    ]) {
+      const { roots } = buildUnifiedWorkspaceTree(
+        baseInput({
+          layout: [urlEntry({ id: "url-1", parentId: null, rank: "a0", label: "Local", url })],
+        }),
+      );
+      const urlNode = roots.find((n) => n.kind === "url")!;
+      expect(urlNode.iconUrl).toBeUndefined();
+    }
   });
 });
 
