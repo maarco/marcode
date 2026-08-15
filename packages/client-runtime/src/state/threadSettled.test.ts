@@ -213,18 +213,36 @@ describe("effectiveSettled", () => {
   });
 
   it("can keep a merged change request active", () => {
+    // ── Marcode fork seam ──
+    // Upstream settles a closed change request the moment it closes, so their version of this
+    // test expects the recently-active closed case to be settled. Marcode holds merged *and*
+    // closed threads for CHANGE_REQUEST_SETTLE_IDLE_MS so a warm follow-up conversation is not
+    // buried (see the two warm-window tests above), so both stay active here.
     const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+    for (const changeRequestState of ["merged", "closed"] as const) {
+      expect(
+        effectiveSettled(recentlyActive, {
+          now: NOW,
+          autoSettleAfterDays: null,
+          autoSettleOnMerge: false,
+          changeRequestState,
+        }),
+      ).toBe(false);
+    }
+
+    // Past the warm window the flag is what separates them: a merged change request no longer
+    // settles, a closed one still does.
+    const idle = makeShell({ activityAt: "2026-04-09T22:59:59.999Z" });
     expect(
-      effectiveSettled(recentlyActive, {
+      effectiveSettled(idle, {
         now: NOW,
         autoSettleAfterDays: null,
         autoSettleOnMerge: false,
         changeRequestState: "merged",
       }),
     ).toBe(false);
-
     expect(
-      effectiveSettled(recentlyActive, {
+      effectiveSettled(idle, {
         now: NOW,
         autoSettleAfterDays: null,
         autoSettleOnMerge: false,

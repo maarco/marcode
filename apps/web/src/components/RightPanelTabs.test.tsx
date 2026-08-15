@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off - Regression coverage reads the component source to pin a removed surface.
 import * as NodeFS from "node:fs";
 
 import type { DesktopPreviewFavicon, PreviewSessionSnapshot } from "@t3tools/contracts";
