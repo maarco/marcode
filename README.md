@@ -31,7 +31,21 @@ Tip: Use `npx t3@latest --help` for the full CLI reference.
 
 ### Run from source
 
-Install [Vite+](https://vite.plus/guide/) and the project dependencies:
+Marcode builds with [Vite+](https://vite.plus/guide/), so install the global `vp` command first.
+
+macOS / Linux:
+
+```bash
+curl -fsSL https://vite.plus | bash
+```
+
+Windows:
+
+```bash
+irm https://vite.plus/ps1 | iex
+```
+
+Then install the project dependencies and start the dev stack:
 
 ```bash
 vp i
@@ -49,6 +63,9 @@ Published desktop builds will appear in [Marcode Releases](https://github.com/ma
 ## Status
 
 Marcode is early and under active development. Expect bugs and incomplete surfaces.
+
+Marcode has no Arch/AUR channel. The `t3code-bin` and `t3code-nightly-bin` packages under
+[`packaging/aur`](./packaging/aur) are upstream's and install T3 Code, not Marcode.
 
 ## Documentation
 

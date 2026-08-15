@@ -858,6 +858,16 @@ jobs:
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
+  # ── Marcode fork seam ──
+  # Upstream wires a `publish_aur` job here that calls .github/workflows/publish-aur.yml and
+  # publishes the `t3code-bin` / `t3code-nightly-bin` AUR packages. Those packages carry upstream's
+  # identity and download upstream's release assets, so publishing them from a Marcode release would
+  # ship T3 Code to anyone running `yay -S t3code-bin`. Marcode has no AUR channel of its own yet and
+  # no AUR_SSH_PRIVATE_KEY, so the job is deliberately not wired into this pipeline.
+  # `packaging/aur/**` and `publish-aur.yml` stay upstream-shaped and unmodified so future syncs do
+  # not conflict there; `scripts/release-workflow.test.ts` pins this removal so a sync that re-adds
+  # the job fails loudly instead of silently.
+
   deploy_web:
     name: Deploy hosted web app
     needs: [preflight, relay_public_config, release]

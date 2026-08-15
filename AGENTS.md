@@ -14,7 +14,7 @@ bringing in upstream correctness, security, protocol, dependency, and operationa
 - After frontend feature development or any user-visible frontend behavior change, the primary agent must run one integrated verification pass for each affected client surface after integrating the work:
   - Web: use the `test-t3-app` skill. Launch one isolated environment, authenticate through the printed pairing URL, and verify the affected flow in the controlled browser.
   - Mobile: use the `test-t3-mobile` skill. Connect one representative iOS Simulator or Android Emulator available on the host to one isolated environment. On compatible macOS hosts, prefer iOS for cross-platform changes.
-  - Subagents must not independently launch dev servers or repeat integrated client verification unless their delegated task explicitly requires it.
+  - Subagents must not independently launch dev servers or repeat integrated client verification unless their delegated task explicitly requires it. Ask permission before doing computer use or spinning up browsers.
   - Stop dev servers, watchers, and other long-running verification processes when focused verification is complete.
 
 ## Dev Servers
@@ -170,6 +170,7 @@ Full glossary with file links: `docs/internals/glossary.md`
 - Body: the problem in a sentence or two, then how you fixed it.
 - One concern per PR. If the description says "also", split it.
 - UI changes need before/after images. Motion or timing needs a short video.
+- When babysitting: poll checks and comments newer than the last push, verify each bot finding against the source, fix real ones, dismiss false positives with a written reason. Stay quiet when nothing is new. Stop when the bots are green on the latest commit.
 
 ## Taste
 

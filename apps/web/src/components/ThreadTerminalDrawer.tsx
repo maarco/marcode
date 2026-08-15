@@ -26,6 +26,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { Button } from "~/components/ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 // Terminal chrome is filled-icon only, one family. Lucide outlines used to be
@@ -488,7 +489,10 @@ export function TerminalViewport({
   const selectionPointerRef = useRef<{ x: number; y: number } | null>(null);
   const selectionGestureActiveRef = useRef(false);
   const selectionActionRequestIdRef = useRef(0);
-  const selectionActionMenuOpenRef = useRef(false);
+  // Holds the request id of the selection popup currently on screen, so a
+  // popup that was superseded (but whose menu promise has not settled yet)
+  // cannot be mistaken for the active flow.
+  const openSelectionMenuRequestIdRef = useRef<number | null>(null);
   const selectionActionTimerRef = useRef<number | null>(null);
   const keybindingsRef = useRef(keybindings);
   const runtimeEnvKey = useMemo(() => runtimeEnvSignature(runtimeEnv), [runtimeEnv]);
@@ -687,12 +691,17 @@ export function TerminalViewport({
       };
     };
 
+    // ── Marcode fork seam ──
+    // Marcode keeps the xterm surface (for its search addon) where upstream runs Ghostty, so
+    // upstream's terminal work lands here as a hand port. Ported so far: the request-id popup
+    // tracking below. Not ported: upstream's right-click context menu with Paste (#5240), which
+    // depends on the Ghostty surface owning the clipboard read to claim the paste race.
     const showSelectionAction = async () => {
       if (!localApi) {
         clearSelectionAction();
         return;
       }
-      if (selectionActionMenuOpenRef.current) {
+      if (openSelectionMenuRequestIdRef.current !== null) {
         return;
       }
       const nextAction = readSelectionAction();
@@ -701,7 +710,7 @@ export function TerminalViewport({
         return;
       }
       const requestId = ++selectionActionRequestIdRef.current;
-      selectionActionMenuOpenRef.current = true;
+      openSelectionMenuRequestIdRef.current = requestId;
       const clicked = await localApi.contextMenu
         .show(
           [
@@ -711,7 +720,9 @@ export function TerminalViewport({
           nextAction.position,
         )
         .finally(() => {
-          selectionActionMenuOpenRef.current = false;
+          if (openSelectionMenuRequestIdRef.current === requestId) {
+            openSelectionMenuRequestIdRef.current = null;
+          }
         });
       if (requestId !== selectionActionRequestIdRef.current || clicked === null) {
         return;
@@ -2006,13 +2017,9 @@ export default function ThreadTerminalDrawer({
         </div>
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 px-4 py-6 text-center text-sm text-muted-foreground">
           <p>No terminal sessions for this thread yet.</p>
-          <button
-            type="button"
-            className="rounded-md border border-border/80 bg-background px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
-            onClick={onNewTerminalAction}
-          >
+          <Button size="xs" variant="outline" onClick={onNewTerminalAction}>
             {newTerminalActionLabel}
-          </button>
+          </Button>
         </div>
       </aside>
     );

@@ -38,6 +38,8 @@ function TooltipPopup({
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
+        // No `z-[140]`: the stacking order comes from portalOverlayStyle below, which is
+        // Marcode's single source for floating-layer z-indexes.
         className={cn(
           "pointer-events-none h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
           PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
