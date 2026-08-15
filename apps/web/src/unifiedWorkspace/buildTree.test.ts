@@ -535,8 +535,8 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
             id: "url-1",
             parentId: null,
             rank: "b0",
-            label: "Local",
-            url: "http://localhost:3000",
+            label: "Docs",
+            url: "https://example.org/docs",
           }),
         ],
         scripts: [script({ id: "s1", name: "Build" })],
@@ -553,6 +553,27 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
     const commandNode = roots.find((n) => n.kind === "command")!;
     expect(commandNode.canRename).toBe(false);
     expect(commandNode.canRemove).toBe(true);
+  });
+
+  // `faviconUrlForOrigin` refuses to build a Google s2 URL for a private host, so a URL
+  // shortcut pointing at a dev server must render its fallback glyph rather than leak the
+  // hostname. The tree is a caller of that rule, so pin it here too.
+  it("does not ask Google for a favicon for a private-host url shortcut", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          urlEntry({
+            id: "url-local",
+            parentId: null,
+            rank: "a0",
+            label: "Local",
+            url: "http://localhost:3000",
+          }),
+        ],
+      }),
+    );
+    const urlNode = roots.find((n) => n.kind === "url")!;
+    expect(urlNode.iconUrl).toBeUndefined();
   });
 });
 
