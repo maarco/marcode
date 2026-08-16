@@ -535,8 +535,8 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
             id: "url-1",
             parentId: null,
             rank: "b0",
-            label: "Local",
-            url: "http://localhost:3000",
+            label: "Docs",
+            url: "https://example.org/docs",
           }),
         ],
         scripts: [script({ id: "s1", name: "Build" })],
@@ -553,6 +553,38 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
     const commandNode = roots.find((n) => n.kind === "command")!;
     expect(commandNode.canRename).toBe(false);
     expect(commandNode.canRemove).toBe(true);
+  });
+
+  // `faviconUrlForOrigin` resolves icons through Google's s2 endpoint, so the
+  // hostname of every URL shortcut it accepts leaves the machine. A shortcut
+  // pointing at a dev server or an intranet host must therefore render its
+  // fallback glyph instead — asserted here because the leak is invisible in
+  // the UI, which shows a globe either way.
+  it("does not resolve favicons for private URL shortcut hosts", () => {
+    const { roots } = buildUnifiedWorkspaceTree(
+      baseInput({
+        layout: [
+          urlEntry({
+            id: "url-local",
+            parentId: null,
+            rank: "a0",
+            label: "Local",
+            url: "http://localhost:3000",
+          }),
+          urlEntry({
+            id: "url-intranet",
+            parentId: null,
+            rank: "b0",
+            label: "Intranet",
+            url: "https://wiki.internal",
+          }),
+        ],
+      }),
+    );
+    for (const node of roots) {
+      expect(node.kind).toBe("url");
+      expect(node.iconUrl).toBeUndefined();
+    }
   });
 });
 
