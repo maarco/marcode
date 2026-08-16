@@ -77,7 +77,12 @@ function SidebarControl() {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [keybindings, toggleSidebar]);
 
-  // the floating pill nav's workspace category toggles the sidebar via this event
+  // ── Marcode fork seam ──
+  // Upstream renders a fixed SidebarTrigger in the titlebar here and keeps
+  // refining its stage-backdrop styling. Marcode moved that control into
+  // FloatingPillNav, so this component contributes only the keybinding above
+  // and the pill nav's toggle event below. Rendering upstream's trigger would
+  // ship a second, duplicate sidebar toggle.
   useEffect(() => {
     const onToggle = () => toggleSidebar();
     window.addEventListener(TOGGLE_SIDEBAR_EVENT, onToggle);

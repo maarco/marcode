@@ -38,6 +38,10 @@ function TooltipPopup({
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
+        // Upstream carries the tooltip's stacking order as a `z-*` utility (they
+        // bumped it to `z-[140]`). Marcode stacks portaled overlays inline from
+        // FLOATING_SURFACE_Z below, which always beats a caller's stray `z-*`,
+        // so the utility class stays off this element on purpose.
         className={cn(
           "pointer-events-none h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
           PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,

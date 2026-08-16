@@ -49,12 +49,14 @@ function AlertDialogViewport({ className, style, ...props }: AlertDialogPrimitiv
 function AlertDialogPopup({
   className,
   bottomStickOnMobile = true,
+  portalContainer,
   ...props
 }: AlertDialogPrimitive.Popup.Props & {
   bottomStickOnMobile?: boolean;
+  portalContainer?: AlertDialogPrimitive.Portal.Props["container"];
 }) {
   return (
-    <AlertDialogPortal>
+    <AlertDialogPortal container={portalContainer}>
       <AlertDialogBackdrop />
       <AlertDialogViewport
         className={cn(bottomStickOnMobile && "max-sm:grid-rows-[1fr_auto] max-sm:p-0 max-sm:pt-12")}

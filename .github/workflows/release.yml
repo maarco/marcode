@@ -858,6 +858,17 @@ jobs:
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
+  # Upstream publishes the `t3code-bin` / `t3code-nightly-bin` AUR packages from
+  # this pipeline. Marcode does not own those AUR names, and the PKGBUILDs under
+  # packaging/aur point their sources at pingdotgg/t3code releases, so calling
+  # publish-aur.yml here would either fail on the missing AUR_SSH_PRIVATE_KEY or
+  # push upstream's package. The reusable workflow and packaging/aur are kept
+  # unmodified so the next upstream sync does not conflict on them; only this
+  # call site is removed. Restore this job if Marcode ever publishes its own
+  # AUR package, with Marcode package names and source URLs.
+  #
+  # publish_aur: see packaging/aur — intentionally not wired into Marcode releases.
+
   deploy_web:
     name: Deploy hosted web app
     needs: [preflight, relay_public_config, release]

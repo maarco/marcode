@@ -9,6 +9,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   canSettle,
+  changeRequestAutoSettles,
   effectiveSettled,
   hasQueuedTurnStart,
   threadLastActivityAt,
@@ -18,6 +19,18 @@ import {
 const NOW = "2026-04-10T00:00:00.000Z";
 const FRESH = "2026-04-09T00:00:00.000Z";
 const STALE = "2026-04-06T23:59:59.999Z";
+
+describe("changeRequestAutoSettles", () => {
+  it.each([
+    ["open", true, false],
+    ["merged", true, true],
+    ["merged", false, false],
+    ["closed", false, true],
+    [null, false, false],
+  ] as const)("state=%s autoSettleOnMerge=%s returns %s", (state, autoSettleOnMerge, expected) => {
+    expect(changeRequestAutoSettles(state, autoSettleOnMerge)).toBe(expected);
+  });
+});
 
 function makeShell(input: {
   readonly settledOverride?: "settled" | "active" | null;
@@ -196,6 +209,44 @@ describe("effectiveSettled", () => {
           changeRequestState,
         }),
       ).toBe(true);
+    }
+  });
+
+  it("can keep a merged change request active", () => {
+    const idle = makeShell({ activityAt: "2026-04-09T22:59:59.999Z" });
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "merged",
+      }),
+    ).toBe(false);
+
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(true);
+  });
+
+  // Marcode layers a warm window on top of upstream's change-request settle:
+  // the PR state is a completion signal, not a reason to bury a conversation
+  // the user is still having. Pin both halves so a future upstream sync that
+  // drops the idle guard fails here instead of silently settling warm threads.
+  it("holds a warm thread active even when its change request already settled", () => {
+    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+    for (const changeRequestState of ["merged", "closed"] as const) {
+      expect(
+        effectiveSettled(recentlyActive, {
+          now: NOW,
+          autoSettleAfterDays: null,
+          changeRequestState,
+        }),
+      ).toBe(false);
     }
   });
 

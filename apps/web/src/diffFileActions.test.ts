@@ -2,7 +2,7 @@ import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { openDiffFilePrimaryAction } from "./diffFileActions";
+import { openDiffFilePrimaryAction, resolveDiffPathForWorkspace } from "./diffFileActions";
 import { fileKey, useEditorStore } from "./editor/editor-store";
 
 const THREAD_REF = scopeThreadRef(
@@ -75,4 +75,76 @@ describe("openDiffFilePrimaryAction", () => {
     expect(openInEditor).toHaveBeenCalledWith("apps/web/src/components/DiffPanel.tsx");
     expect(useEditorStore.getState().panes[0]!.openPaths).toEqual([]);
   });
+
+  it("opens repository-relative diff files from a nested project", () => {
+    const openInEditor = vi.fn();
+
+    openDiffFilePrimaryAction({
+      threadRef: THREAD_REF,
+      filePath: "frontend/Dockerfile",
+      activeCwd: "/repo/frontend",
+      repositoryRoot: "/repo",
+      openInEditor,
+    });
+
+    const key = fileKey(THREAD_REF.environmentId, "/repo/frontend/Dockerfile");
+    const state = useEditorStore.getState();
+    expect(state.panes[0]!.openPaths).toEqual([key]);
+    expect(state.fileCache.get(key)).toMatchObject({
+      cwd: "/repo/frontend",
+      relativePath: "Dockerfile",
+    });
+    expect(openInEditor).not.toHaveBeenCalled();
+  });
+
+  it("preserves repository-relative paths in a separate worktree", () => {
+    expect(
+      resolveDiffPathForWorkspace({
+        filePath: "frontend/Dockerfile",
+        workspaceRoot: "/worktrees/feature",
+        repositoryRoot: "/repo",
+      }),
+    ).toBe("frontend/Dockerfile");
+  });
+
+  it("handles Windows roots and mixed diff separators", () => {
+    expect(
+      resolveDiffPathForWorkspace({
+        filePath: "Frontend/src\\index.ts",
+        workspaceRoot: "C:\\repo\\frontend",
+        repositoryRoot: "C:\\repo",
+      }),
+    ).toBe("src/index.ts");
+  });
+
+  it.each([
+    { workspaceRoot: "/frontend", repositoryRoot: "/" },
+    { workspaceRoot: "C:\\frontend", repositoryRoot: "C:\\" },
+  ])("handles filesystem roots: $repositoryRoot", ({ workspaceRoot, repositoryRoot }) => {
+    expect(
+      resolveDiffPathForWorkspace({
+        filePath: "frontend/index.ts",
+        workspaceRoot,
+        repositoryRoot,
+      }),
+    ).toBe("index.ts");
+  });
+
+  it.each(["backend/server.ts", "frontend2/app.ts", "frontend/../secret.ts", "C:secret.ts"])(
+    "does not open an out-of-project diff path: %s",
+    (filePath) => {
+      const openInEditor = vi.fn();
+
+      openDiffFilePrimaryAction({
+        threadRef: THREAD_REF,
+        filePath,
+        activeCwd: "/repo/frontend",
+        repositoryRoot: "/repo",
+        openInEditor,
+      });
+
+      expect(useEditorStore.getState().panes[0]!.openPaths).toEqual([]);
+      expect(openInEditor).not.toHaveBeenCalled();
+    },
+  );
 });
