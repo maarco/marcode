@@ -36,9 +36,13 @@ const environmentLayer = (input: {
     Layer.provide(
       Layer.mergeAll(
         NodeServices.layer,
+        // Marcode renames both of these from upstream's `T3CODE_*`. Setting the
+        // upstream names here leaves `marcodeHome` unset, so the desktop state
+        // dir resolves off this temp tree and the sweep assertions below never
+        // see the directories they set up.
         DesktopConfig.layerTest({
-          T3CODE_HOME: input.baseDir,
-          T3CODE_MODE: "desktop",
+          MARCODE_HOME: input.baseDir,
+          MARCODE_MODE: "desktop",
         }),
       ),
     ),
@@ -243,8 +247,8 @@ describe("DesktopWslServerTree", () => {
         });
         yield* fileSystem.writeFileString(path.join(serverRoot, "apps/server/dist/bin.mjs"), "x");
 
-        // T3CODE_HOME is set to tempDir, so the desktop state dir resolves to
-        // <tempDir>/userdata (no .t3 segment).
+        // MARCODE_HOME is set to tempDir, so the desktop state dir resolves to
+        // <tempDir>/userdata (no .marcode segment).
         const treeRoot = path.join(tempDir, "userdata", "wsl-server-tree");
         yield* fileSystem.makeDirectory(path.join(treeRoot, "1.0.0"), { recursive: true });
         yield* fileSystem.makeDirectory(path.join(treeRoot, "1.2.3.partial"), { recursive: true });
