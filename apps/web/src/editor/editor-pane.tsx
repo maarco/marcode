@@ -1,4 +1,5 @@
 import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { useParams } from "@tanstack/react-router";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
@@ -640,13 +641,20 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         {/* browser-preview handoff — .html/.pdf only, mutually exclusive with
             the markdown toggle above, so they never contend for the slot. */}
         {showBrowserPreviewAction && (
-          <button
-            onClick={handleOpenInBrowser}
-            title="Open in browser preview"
-            className="absolute top-2 right-4 z-10 px-2 py-0.5 rounded-md bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] text-[9px] font-mono text-white/40 hover:text-white/60 hover:bg-white/8 transition-all cursor-pointer select-none"
-          >
-            open ↗
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={handleOpenInBrowser}
+                  aria-label="Open in browser preview"
+                  className="absolute top-2 right-4 z-10 px-2 py-0.5 rounded-md bg-white/5 shadow-[0_0_0_1px_rgba(255,255,255,0.06)] text-[9px] font-mono text-white/40 hover:text-white/60 hover:bg-white/8 transition-all cursor-pointer select-none"
+                />
+              }
+            >
+              open ↗
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Open in browser preview</TooltipPopup>
+          </Tooltip>
         )}
 
         {/* floating save indicator - offset right when a top-right action button is present */}

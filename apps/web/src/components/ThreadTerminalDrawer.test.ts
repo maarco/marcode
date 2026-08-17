@@ -3,9 +3,13 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   isTerminalFindShortcut,
   resolveTerminalSelectionActionPosition,
+  shouldClearTerminalSelectionAction,
+  shouldHandleTerminalExit,
   shouldHandleTerminalSelectionMouseUp,
+  terminalContextMenuItems,
   terminalFindShortcutLabel,
   terminalSelectionActionDelayForClickCount,
+  terminalSelectionMenuItems,
   visibleTerminalPlacementOptions,
 } from "./ThreadTerminalDrawer";
 
@@ -136,5 +140,84 @@ describe("isTerminalFindShortcut", () => {
   it("labels the shortcut for the actual platform", () => {
     expect(terminalFindShortcutLabel("MacIntel")).toBe("⌘F");
     expect(terminalFindShortcutLabel("Win32")).toBe("Ctrl+Shift+F");
+  });
+});
+
+// Marcode keeps xterm in ThreadTerminalDrawer while upstream runs the Ghostty
+// surface, so upstream's right-click paste flow (#5240) is re-applied by hand
+// every sync. These pin the parts that are implementation-independent, so a
+// sync that drops the ported behavior fails here instead of silently reverting.
+describe("terminalSelectionMenuItems", () => {
+  it("offers only the selection actions, always enabled", () => {
+    expect(terminalSelectionMenuItems()).toEqual([
+      { id: "add-to-chat", label: "Add to chat" },
+      { id: "copy", label: "Copy" },
+    ]);
+  });
+});
+
+describe("terminalContextMenuItems", () => {
+  it("always offers Paste, because the canvas never gets a usable native entry", () => {
+    expect(terminalContextMenuItems({ hasSelection: false })).toEqual([
+      { id: "add-to-chat", label: "Add to chat", disabled: true },
+      { id: "copy", label: "Copy", disabled: true },
+      { id: "paste", label: "Paste" },
+    ]);
+  });
+
+  it("enables the selection actions once a selection exists", () => {
+    expect(terminalContextMenuItems({ hasSelection: true })).toEqual([
+      { id: "add-to-chat", label: "Add to chat", disabled: false },
+      { id: "copy", label: "Copy", disabled: false },
+      { id: "paste", label: "Paste" },
+    ]);
+  });
+});
+
+describe("shouldClearTerminalSelectionAction", () => {
+  it("cancels a pending popup timer", () => {
+    expect(
+      shouldClearTerminalSelectionAction({
+        timerPending: true,
+        openMenuRequestId: null,
+        currentRequestId: 3,
+      }),
+    ).toBe(true);
+  });
+
+  it("cancels an open popup that is still current", () => {
+    expect(
+      shouldClearTerminalSelectionAction({
+        timerPending: false,
+        openMenuRequestId: 3,
+        currentRequestId: 3,
+      }),
+    ).toBe(true);
+  });
+
+  it("leaves a superseded popup alone so a newer right-click flow survives", () => {
+    expect(
+      shouldClearTerminalSelectionAction({
+        timerPending: false,
+        openMenuRequestId: 3,
+        currentRequestId: 4,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("shouldHandleTerminalExit", () => {
+  it("handles a fresh exit", () => {
+    expect(shouldHandleTerminalExit("exited", "running", false)).toBe(true);
+    expect(shouldHandleTerminalExit("closed", "running", false)).toBe(true);
+  });
+
+  it("ignores an exit already handled or already synchronized", () => {
+    expect(shouldHandleTerminalExit("exited", "running", true)).toBe(false);
+    expect(shouldHandleTerminalExit("exited", "exited", false)).toBe(false);
+  });
+
+  it("ignores a live status", () => {
+    expect(shouldHandleTerminalExit("running", "starting", false)).toBe(false);
   });
 });

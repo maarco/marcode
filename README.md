@@ -38,6 +38,12 @@ vp i
 vp run dev
 ```
 
+On Windows, install Vite+ with PowerShell first:
+
+```powershell
+irm https://vite.plus/ps1 | iex
+```
+
 For the desktop development surface:
 
 ```bash
@@ -49,6 +55,11 @@ Published desktop builds will appear in [Marcode Releases](https://github.com/ma
 ## Status
 
 Marcode is early and under active development. Expect bugs and incomplete surfaces.
+
+Marcode publishes no Arch packages of its own. The `packaging/aur` sources and the
+`Publish AUR package` workflow are carried from upstream for the `t3code-bin` and
+`t3code-nightly-bin` packages, and stay disabled here — see
+[upstream sync](./docs/operations/upstream-sync.md).
 
 ## Documentation
 

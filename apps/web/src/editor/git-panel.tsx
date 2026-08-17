@@ -10,6 +10,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { vcsEnvironment } from "~/state/vcs";
 import { useGitStackedAction } from "~/state/sourceControlActions";
 import { randomUUID } from "~/lib/utils";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -51,15 +52,19 @@ function FileRow({
       onClick={() => onFileClick(file.path)}
     >
       <span className="text-[9px] font-mono font-bold w-3 shrink-0 text-yellow-400/70">M</span>
-      <span
-        className="flex-1 text-[11px] font-mono text-foreground/60 dark:text-white/60 truncate"
-        title={file.path}
-      >
-        {file.path.split("/").pop() ?? file.path}
-        {dir && (
-          <span className="ml-1 text-[9px] text-foreground/25 dark:text-white/25">{dir}</span>
-        )}
-      </span>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <span className="flex-1 text-[11px] font-mono text-foreground/60 dark:text-white/60 truncate" />
+          }
+        >
+          {file.path.split("/").pop() ?? file.path}
+          {dir && (
+            <span className="ml-1 text-[9px] text-foreground/25 dark:text-white/25">{dir}</span>
+          )}
+        </TooltipTrigger>
+        <TooltipPopup side="bottom">{file.path}</TooltipPopup>
+      </Tooltip>
       {/* insertion / deletion stats — flat working-tree model has no staged split */}
       <span className="text-[9px] font-mono shrink-0">
         {file.insertions > 0 && <span className="text-emerald-400/70">+{file.insertions}</span>}
@@ -68,27 +73,41 @@ function FileRow({
       {hovered && (
         <div className="flex items-center gap-0.5 shrink-0">
           {included ? (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleInclude(file.path, false);
-              }}
-              title="Exclude from commit"
-              className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-yellow-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
-            >
-              <MinusFilled className="h-3 w-3" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleInclude(file.path, false);
+                    }}
+                    aria-label="Exclude from commit"
+                    className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-yellow-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+                  />
+                }
+              >
+                <MinusFilled className="h-3 w-3" />
+              </TooltipTrigger>
+              <TooltipPopup side="left">Exclude from commit</TooltipPopup>
+            </Tooltip>
           ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleInclude(file.path, true);
-              }}
-              title="Include in commit"
-              className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-emerald-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
-            >
-              <AddFilled className="h-3 w-3" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleInclude(file.path, true);
+                    }}
+                    aria-label="Include in commit"
+                    className="flex items-center justify-center w-5 h-5 rounded text-foreground/30 dark:text-white/30 hover:text-emerald-400/80 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors"
+                  />
+                }
+              >
+                <AddFilled className="h-3 w-3" />
+              </TooltipTrigger>
+              <TooltipPopup side="left">Include in commit</TooltipPopup>
+            </Tooltip>
           )}
         </div>
       )}
@@ -115,13 +134,20 @@ function SectionHeader({
       <div className="flex items-center gap-1">
         <span className="text-[10px] text-foreground/25 dark:text-white/25 font-mono">{count}</span>
         {onIncludeAll && (
-          <button
-            onClick={onIncludeAll}
-            title="Include all"
-            className="text-[9px] text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors"
-          >
-            include all
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={onIncludeAll}
+                  aria-label="Include all"
+                  className="text-[9px] text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 px-1.5 py-0.5 rounded transition-colors"
+                />
+              }
+            >
+              include all
+            </TooltipTrigger>
+            <TooltipPopup side="left">Include all</TooltipPopup>
+          </Tooltip>
         )}
       </div>
     </div>
@@ -339,50 +365,78 @@ export function GitPanel({ workspacePath }: GitPanelProps) {
       {/* header: view tabs + actions */}
       <div className="flex items-center justify-between px-3 py-1.5 shrink-0">
         <div className="flex items-center gap-0.5">
-          <button
-            onClick={() => setActiveView("status")}
-            title="Changes"
-            className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors ${
-              activeView === "status"
-                ? "text-foreground/80 dark:text-white/80 bg-foreground/10 dark:bg-white/10"
-                : "text-foreground/30 dark:text-white/30 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5"
-            }`}
-          >
-            <span className="font-mono">{totalChanges}</span>
-          </button>
-          <button
-            onClick={() => setActiveView("stash")}
-            title="Stashes"
-            className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
-              activeView === "stash"
-                ? "text-foreground/80 dark:text-white/80 bg-foreground/10 dark:bg-white/10"
-                : "text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5"
-            }`}
-          >
-            <BoxFilled className="h-3 w-3" />
-          </button>
-          <button
-            onClick={() => setActiveView("log")}
-            title="Log"
-            className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
-              activeView === "log"
-                ? "text-foreground/80 dark:text-white/80 bg-foreground/10 dark:bg-white/10"
-                : "text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5"
-            }`}
-          >
-            <ClockFilled className="h-3 w-3" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={() => setActiveView("status")}
+                  aria-label="Changes"
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] transition-colors ${
+                    activeView === "status"
+                      ? "text-foreground/80 dark:text-white/80 bg-foreground/10 dark:bg-white/10"
+                      : "text-foreground/30 dark:text-white/30 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5"
+                  }`}
+                />
+              }
+            >
+              <span className="font-mono">{totalChanges}</span>
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Changes</TooltipPopup>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={() => setActiveView("stash")}
+                  aria-label="Stashes"
+                  className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
+                    activeView === "stash"
+                      ? "text-foreground/80 dark:text-white/80 bg-foreground/10 dark:bg-white/10"
+                      : "text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5"
+                  }`}
+                />
+              }
+            >
+              <BoxFilled className="h-3 w-3" />
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Stashes</TooltipPopup>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={() => setActiveView("log")}
+                  aria-label="Log"
+                  className={`flex items-center justify-center w-6 h-6 rounded transition-colors ${
+                    activeView === "log"
+                      ? "text-foreground/80 dark:text-white/80 bg-foreground/10 dark:bg-white/10"
+                      : "text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5"
+                  }`}
+                />
+              }
+            >
+              <ClockFilled className="h-3 w-3" />
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Log</TooltipPopup>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-1">
           {activeView === "status" && (
-            <button
-              onClick={handleManualRefresh}
-              disabled={actionPending}
-              title="Refresh"
-              className="flex items-center justify-center w-6 h-6 rounded text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
-            >
-              <Refresh2Filled className="h-3 w-3" />
-            </button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    onClick={handleManualRefresh}
+                    disabled={actionPending}
+                    aria-label="Refresh"
+                    className="flex items-center justify-center w-6 h-6 rounded text-foreground/25 dark:text-white/25 hover:text-foreground/60 dark:hover:text-white/60 hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors disabled:opacity-40"
+                  />
+                }
+              >
+                <Refresh2Filled className="h-3 w-3" />
+              </TooltipTrigger>
+              <TooltipPopup side="left">Refresh</TooltipPopup>
+            </Tooltip>
           )}
         </div>
       </div>

@@ -25,6 +25,8 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import type { VcsStash } from "@t3tools/contracts";
 
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+
 // ── types ──────────────────────────────────────────────────────────────────
 
 interface StashSelectorProps {
@@ -165,20 +167,27 @@ function StashRow({
       */}
       <div className="flex-1 min-w-0 flex flex-col gap-0.5">
         <div className="flex items-center gap-2 min-w-0">
-          <span
-            className="flex-1 min-w-0 text-[10px] text-foreground/70 dark:text-white/70 truncate"
-            title={stash.message}
-          >
-            {stash.message}
-          </span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="flex-1 min-w-0 text-[10px] text-foreground/70 dark:text-white/70 truncate" />
+              }
+            >
+              {stash.message}
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">{stash.message}</TooltipPopup>
+          </Tooltip>
         </div>
         <div className="flex items-center gap-2 min-w-0 text-[9px]">
           <span className="shrink-0 font-mono text-foreground/40 dark:text-white/40">
             {stash.id}
           </span>
-          <span className="min-w-0 text-cyan-400/60 truncate" title={stash.branch}>
-            {stash.branch}
-          </span>
+          <Tooltip>
+            <TooltipTrigger render={<span className="min-w-0 text-cyan-400/60 truncate" />}>
+              {stash.branch}
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">{stash.branch}</TooltipPopup>
+          </Tooltip>
           <span className="shrink-0 ml-auto text-foreground/25 dark:text-white/25">
             {formatStashDate(stash.date)}
           </span>

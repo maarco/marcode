@@ -5,6 +5,7 @@ import { FLOATING_SURFACE_Z } from "~/editor/floating-surface-z";
 import { pillIconButtonClass } from "./FloatingPillNav";
 import { usePillNavPreferences, getPillNavShineGradient } from "~/editor/pill-prefs";
 import { cn } from "~/lib/utils";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 /**
  * Window chrome for the floating terminal — drag, resize, persisted geometry.
@@ -358,30 +359,44 @@ export function FloatingTerminalShell({
         {/* Mobile is already pinned to the safe area — a maximize toggle there
             is a control that cannot change anything, so it is not rendered. */}
         {!isMobile && (
-          <button
-            type="button"
-            className={pillIconButtonClass(maximized)}
-            title={maximized ? "Restore Terminal Panel" : "Maximize Terminal Panel"}
-            aria-label={maximized ? "Restore Terminal Panel" : "Maximize Terminal Panel"}
-            aria-pressed={maximized}
-            onClick={() => setMaximized((v) => !v)}
-          >
-            {maximized ? (
-              <Maximize4Filled className="size-4" />
-            ) : (
-              <Maximize3Filled className="size-4" />
-            )}
-          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className={pillIconButtonClass(maximized)}
+                  aria-label={maximized ? "Restore Terminal Panel" : "Maximize Terminal Panel"}
+                  aria-pressed={maximized}
+                  onClick={() => setMaximized((v) => !v)}
+                />
+              }
+            >
+              {maximized ? (
+                <Maximize4Filled className="size-4" />
+              ) : (
+                <Maximize3Filled className="size-4" />
+              )}
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">
+              {maximized ? "Restore Terminal Panel" : "Maximize Terminal Panel"}
+            </TooltipPopup>
+          </Tooltip>
         )}
-        <button
-          type="button"
-          className={pillIconButtonClass()}
-          title="Close Terminal Panel"
-          aria-label="Close Terminal Panel"
-          onClick={onClose}
-        >
-          <CloseCircleFilled className="size-4" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                className={pillIconButtonClass()}
+                aria-label="Close Terminal Panel"
+                onClick={onClose}
+              />
+            }
+          >
+            <CloseCircleFilled className="size-4" />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">Close Terminal Panel</TooltipPopup>
+        </Tooltip>
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">{children}</div>

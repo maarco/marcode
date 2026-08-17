@@ -9,6 +9,7 @@ import {
   DropdownMenuGroup,
 } from "./ui-dropdown-menu";
 import { cn } from "~/lib/utils";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { showToast } from "./toast";
 import { useEditorStore } from "./editor-store";
 import { useEnvironmentQuery } from "~/state/query";
@@ -259,7 +260,6 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
         <DropdownMenuTrigger asChild>
           <button
             className="flex items-center gap-1.5 px-2 py-1 rounded-sm hover:bg-foreground/5 dark:hover:bg-white/5 transition-colors focus:outline-none focus:ring-1 focus:ring-foreground/10 dark:focus:ring-white/10"
-            title="Switch branch"
             aria-label="Switch git branch"
             aria-expanded={isOpen}
             aria-haspopup="menu"
@@ -464,7 +464,6 @@ function BranchItem({
           {isCurrent && (
             <span
               className="w-1.5 h-1.5 rounded-full bg-emerald-400 flex-shrink-0"
-              title="Current branch"
               aria-hidden="true"
             />
           )}
@@ -482,35 +481,47 @@ function BranchItem({
 
       {/* Action button: Checkout for remote, Delete for local */}
       {isRemote ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onCheckout?.();
-          }}
-          className={cn(
-            "flex-shrink-0 p-1 rounded-sm transition-colors",
-            "text-foreground/25 dark:text-white/25 hover:text-emerald-400/80 hover:bg-emerald-500/5",
-          )}
-          title={`Checkout ${branch.name} as local branch`}
-          aria-label={`Checkout remote branch ${branch.name} as a local branch`}
-        >
-          <ArrowRightFilled className="h-3 w-3" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCheckout?.();
+                }}
+                className={cn(
+                  "flex-shrink-0 p-1 rounded-sm transition-colors",
+                  "text-foreground/25 dark:text-white/25 hover:text-emerald-400/80 hover:bg-emerald-500/5",
+                )}
+                aria-label={`Checkout remote branch ${branch.name} as a local branch`}
+              />
+            }
+          >
+            <ArrowRightFilled className="h-3 w-3" />
+          </TooltipTrigger>
+          <TooltipPopup side="left">{`Checkout ${branch.name} as local branch`}</TooltipPopup>
+        </Tooltip>
       ) : onDelete && !isCurrent ? (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(branch.name);
-          }}
-          className={cn(
-            "flex-shrink-0 p-1 rounded-sm transition-colors",
-            "text-foreground/25 dark:text-white/25 hover:text-red-400/60 hover:bg-red-500/5",
-          )}
-          title={`Delete ${branch.name}`}
-          aria-label={`Delete branch ${branch.name}`}
-        >
-          <TrashFilled className="h-3 w-3" />
-        </button>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete(branch.name);
+                }}
+                className={cn(
+                  "flex-shrink-0 p-1 rounded-sm transition-colors",
+                  "text-foreground/25 dark:text-white/25 hover:text-red-400/60 hover:bg-red-500/5",
+                )}
+                aria-label={`Delete branch ${branch.name}`}
+              />
+            }
+          >
+            <TrashFilled className="h-3 w-3" />
+          </TooltipTrigger>
+          <TooltipPopup side="left">{`Delete ${branch.name}`}</TooltipPopup>
+        </Tooltip>
       ) : null}
     </DropdownMenuItem>
   );

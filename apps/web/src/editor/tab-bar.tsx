@@ -7,6 +7,7 @@ import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { flushProjectFile, flushProjectFileRef } from "~/state/projectFileState";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 import { showToast } from "./toast";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 
 /** Last path segment, for the cross-workspace badge (see `isCrossWorkspace` below). */
 function lastPathSegment(path: string): string {
@@ -171,7 +172,6 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
               role="button"
               tabIndex={0}
               draggable
-              title={isCrossWorkspace ? file.path : undefined}
               onDragStart={(e) => handleDragStart(e, index)}
               onDragOver={(e) => handleDragOver(e, index)}
               onDrop={(e) => handleDrop(e, index)}
@@ -218,38 +218,49 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
                     ))}
                   </span>
                   {isCrossWorkspace && workspaceLabel && (
-                    <span
-                      className="shrink-0 px-1 py-px rounded-sm bg-white/[0.06] text-[8px] font-mono text-white/35"
-                      title={file.cwd}
-                    >
-                      {workspaceLabel}
-                    </span>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <span className="shrink-0 px-1 py-px rounded-sm bg-white/[0.06] text-[8px] font-mono text-white/35" />
+                        }
+                      >
+                        {workspaceLabel}
+                      </TooltipTrigger>
+                      <TooltipPopup side="bottom">{file.path}</TooltipPopup>
+                    </Tooltip>
                   )}
                 </>
               )}
               {dirty && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (file.environmentId && file.cwd && file.relativePath) {
-                      void flushProjectFile(file.environmentId, file.cwd, file.relativePath);
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (file.environmentId && file.cwd && file.relativePath) {
+                            void flushProjectFile(file.environmentId, file.cwd, file.relativePath);
+                          }
+                        }}
+                        aria-label="Save"
+                        className="shrink-0 opacity-0 group-hover:opacity-80 hover:opacity-100 transition-all text-amber-400/70 hover:text-amber-400"
+                      />
                     }
-                  }}
-                  className="shrink-0 opacity-0 group-hover:opacity-80 hover:opacity-100 transition-all text-amber-400/70 hover:text-amber-400"
-                  title="Save (Cmd+S)"
-                >
-                  <svg
-                    viewBox="0 0 16 16"
-                    className="h-3 w-3"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
                   >
-                    <path d="M3 3h7l3 3v7H3V3z" />
-                    <path d="M5 3v3h5V3" />
-                    <path d="M5 9h6v4H5V9z" />
-                  </svg>
-                </button>
+                    <svg
+                      viewBox="0 0 16 16"
+                      className="h-3 w-3"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                    >
+                      <path d="M3 3h7l3 3v7H3V3z" />
+                      <path d="M5 3v3h5V3" />
+                      <path d="M5 9h6v4H5V9z" />
+                    </svg>
+                  </TooltipTrigger>
+                  <TooltipPopup side="bottom">Save (Cmd+S)</TooltipPopup>
+                </Tooltip>
               )}
               <button
                 onClick={(e) => {

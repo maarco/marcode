@@ -34,6 +34,8 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import type { ProjectEntry } from "@t3tools/contracts";
 
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
+
 /** Extract a user-facing message from a settled atom command result. */
 function resultErrorMessage(result: AtomCommandResult<unknown, unknown>): string | null {
   if (result._tag === "Success") return null;
@@ -684,47 +686,81 @@ export function FileTree({
 
       {/* tree toolbar */}
       <div className="flex items-center gap-1 px-2 py-0.5 shrink-0">
-        <button
-          onClick={() => handleCreateFile(workspacePath)}
-          className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
-          title="New file"
-        >
-          <AddFilled className="h-3 w-3" />
-        </button>
-        <button
-          onClick={() => handleCreateFolder(workspacePath)}
-          className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
-          title="New folder"
-        >
-          <FolderAddFilled className="h-3 w-3" />
-        </button>
-        <button
-          onClick={collapseAll}
-          className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
-          title="Collapse all"
-        >
-          <ArrowDown1Filled className="h-3 w-3 rotate-90" />
-        </button>
-        {activeBarePath && (
-          <button
-            onClick={revealActiveFile}
-            className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
-            title="Reveal active file"
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={() => handleCreateFile(workspacePath)}
+                aria-label="New file"
+                className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
+              />
+            }
           >
-            <LocationCrossFilled className="h-3 w-3" />
-          </button>
+            <AddFilled className="h-3 w-3" />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">New file</TooltipPopup>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={() => handleCreateFolder(workspacePath)}
+                aria-label="New folder"
+                className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
+              />
+            }
+          >
+            <FolderAddFilled className="h-3 w-3" />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">New folder</TooltipPopup>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                onClick={collapseAll}
+                aria-label="Collapse all"
+                className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
+              />
+            }
+          >
+            <ArrowDown1Filled className="h-3 w-3 rotate-90" />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">Collapse all</TooltipPopup>
+        </Tooltip>
+        {activeBarePath && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  onClick={revealActiveFile}
+                  aria-label="Reveal active file"
+                  className="flex items-center justify-center w-5 h-5 rounded-sm text-white/25 hover:text-white/50 hover:bg-white/[0.04] transition-colors"
+                />
+              }
+            >
+              <LocationCrossFilled className="h-3 w-3" />
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">Reveal active file</TooltipPopup>
+          </Tooltip>
         )}
         {/* the index itself can be truncated (more entries than were listed),
             distinct from a single file's 1MB read cap. A silently-partial
             tree looks like a complete listing — this is the only signal for
             it, since the pill is the only file surface now. */}
         {entriesQuery.data?.truncated && (
-          <span
-            className="ml-auto shrink-0 px-1 text-[10px] font-mono text-amber-400/70"
-            title="This workspace has more files than the tree is showing."
-          >
-            partial
-          </span>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span className="ml-auto shrink-0 px-1 text-[10px] font-mono text-amber-400/70" />
+              }
+            >
+              partial
+            </TooltipTrigger>
+            <TooltipPopup side="bottom">
+              This workspace has more files than the tree is showing.
+            </TooltipPopup>
+          </Tooltip>
         )}
       </div>
 

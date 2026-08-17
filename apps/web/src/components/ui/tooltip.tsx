@@ -38,6 +38,9 @@ function TooltipPopup({
       <TooltipPrimitive.Positioner
         align={align}
         anchor={anchor}
+        // Upstream pins tooltips above dropdowns with `z-[140]`. Marcode already
+        // encodes that ordering in FLOATING_SURFACE_Z.portalOverlayTooltip below,
+        // applied inline so it outranks any stray `z-*` class in the cascade.
         className={cn(
           "pointer-events-none h-(--positioner-height) w-(--positioner-width) max-w-(--available-width) transition-[top,left,right,bottom,transform] data-instant:transition-none",
           PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,

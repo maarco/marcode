@@ -9,6 +9,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   canSettle,
+  changeRequestAutoSettles,
   effectiveSettled,
   hasQueuedTurnStart,
   threadLastActivityAt,
@@ -18,6 +19,18 @@ import {
 const NOW = "2026-04-10T00:00:00.000Z";
 const FRESH = "2026-04-09T00:00:00.000Z";
 const STALE = "2026-04-06T23:59:59.999Z";
+
+describe("changeRequestAutoSettles", () => {
+  it.each([
+    ["open", true, false],
+    ["merged", true, true],
+    ["merged", false, false],
+    ["closed", false, true],
+    [null, false, false],
+  ] as const)("state=%s autoSettleOnMerge=%s returns %s", (state, autoSettleOnMerge, expected) => {
+    expect(changeRequestAutoSettles(state, autoSettleOnMerge)).toBe(expected);
+  });
+});
 
 function makeShell(input: {
   readonly settledOverride?: "settled" | "active" | null;
@@ -197,6 +210,49 @@ describe("effectiveSettled", () => {
         }),
       ).toBe(true);
     }
+  });
+
+  // Upstream's auto-settle-on-merge switch (#5880) composed with Marcode's warm
+  // window. Upstream asserts the `closed` half against a recently active shell;
+  // here that thread is still warm, so the idle shell is what proves a close
+  // still settles regardless of the switch. The warm-window rule itself is
+  // pinned by the two tests above.
+  it("can keep a merged change request active, and never suppresses a close", () => {
+    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+    const idle = makeShell({ activityAt: "2026-04-09T22:59:59.999Z" });
+
+    // Disabling auto-settle-on-merge drops the merge signal entirely, so even a
+    // fully idle thread stays active on it.
+    for (const shell of [recentlyActive, idle]) {
+      expect(
+        effectiveSettled(shell, {
+          now: NOW,
+          autoSettleAfterDays: null,
+          autoSettleOnMerge: false,
+          changeRequestState: "merged",
+        }),
+      ).toBe(false);
+    }
+
+    // The switch is merge-only: a close still settles once the thread is idle...
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(true);
+
+    // ...and is still held off while the follow-up conversation is warm.
+    expect(
+      effectiveSettled(recentlyActive, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(false);
   });
 
   it("never auto-settles a stale thread with an open change request", () => {

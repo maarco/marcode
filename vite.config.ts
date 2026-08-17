@@ -121,6 +121,7 @@ export default defineConfig({
       "marcode/no-global-process-runtime": "error",
       "marcode/no-inline-schema-compile": "warn",
       "marcode/no-manual-effect-runtime-in-tests": "error",
+      "marcode/no-native-title-tooltip": "error",
       "marcode/namespace-node-imports": "error",
     },
     options: {

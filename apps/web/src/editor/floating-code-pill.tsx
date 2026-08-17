@@ -11,6 +11,7 @@ import {
 } from "@aliimam/icons";
 import { FLOATING_SURFACE_Z } from "./floating-surface-z";
 import { cn } from "~/lib/utils";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { isHitTestSuppressed } from "~/lib/modalLayer";
 import { useEditorStore } from "./editor-store";
 import { useWorkspace } from "./workspace";
@@ -36,16 +37,25 @@ function SidebarIcon({
   children: React.ReactNode;
 }) {
   return (
-    <button
-      onClick={onClick}
-      title={title}
-      className={cn(
-        "flex items-center justify-center w-7 h-7 rounded-full transition-colors",
-        active ? "text-white/80 bg-white/10" : "text-white/30 hover:text-white/60 hover:bg-white/5",
-      )}
-    >
-      {children}
-    </button>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            onClick={onClick}
+            aria-label={title}
+            className={cn(
+              "flex items-center justify-center w-7 h-7 rounded-full transition-colors",
+              active
+                ? "text-white/80 bg-white/10"
+                : "text-white/30 hover:text-white/60 hover:bg-white/5",
+            )}
+          />
+        }
+      >
+        {children}
+      </TooltipTrigger>
+      <TooltipPopup side="right">{title}</TooltipPopup>
+    </Tooltip>
   );
 }
 
@@ -546,13 +556,20 @@ export function FloatingCodePill() {
               >
                 <div className="flex items-center gap-2 sm:gap-3">
                   {isMobile && (
-                    <button
-                      onClick={() => setSidebarVisible((v) => !v)}
-                      className="flex items-center justify-center w-8 h-8 rounded-full text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
-                      title="Toggle file tree"
-                    >
-                      <DocumentFilled className="h-4 w-4" />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            onClick={() => setSidebarVisible((v) => !v)}
+                            aria-label="Toggle file tree"
+                            className="flex items-center justify-center w-8 h-8 rounded-full text-white/40 hover:text-white/70 hover:bg-white/10 transition-colors"
+                          />
+                        }
+                      >
+                        <DocumentFilled className="h-4 w-4" />
+                      </TooltipTrigger>
+                      <TooltipPopup side="bottom">Toggle file tree</TooltipPopup>
+                    </Tooltip>
                   )}
                   <div className="flex items-center gap-2">
                     <CodeFilled className="h-4 w-4 text-cyan-400/80" />
@@ -574,48 +591,70 @@ export function FloatingCodePill() {
                   <span className="text-[10px] text-white/15 font-mono hidden sm:inline">
                     cmd+shift+e
                   </span>
-                  <button
-                    onClick={togglePin}
-                    className={cn(
-                      "hidden sm:flex items-center justify-center w-6 h-6 rounded-full transition-colors",
-                      isPinned
-                        ? "text-cyan-400/80 bg-cyan-400/10 hover:bg-cyan-400/20"
-                        : "text-white/30 hover:text-white/60 hover:bg-white/5",
-                    )}
-                    title={
-                      isPinned
-                        ? "Unpin (click outside will close)"
-                        : "Pin (stay open while navigating)"
-                    }
-                  >
-                    <AttachCircleFilled
-                      className="h-4 w-4"
-                      style={isPinned ? { transform: "rotate(45deg)" } : undefined}
-                    />
-                  </button>
-                  <button
-                    onClick={() => splitRight(activePaneId)}
-                    className="hidden sm:flex items-center justify-center w-6 h-6 rounded-full text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
-                    title="Split editor right (Cmd+\)"
-                  >
-                    <svg
-                      viewBox="0 0 16 16"
-                      className="h-4 w-4"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          onClick={togglePin}
+                          aria-label={isPinned ? "Unpin" : "Pin"}
+                          aria-pressed={isPinned}
+                          className={cn(
+                            "hidden sm:flex items-center justify-center w-6 h-6 rounded-full transition-colors",
+                            isPinned
+                              ? "text-cyan-400/80 bg-cyan-400/10 hover:bg-cyan-400/20"
+                              : "text-white/30 hover:text-white/60 hover:bg-white/5",
+                          )}
+                        />
+                      }
                     >
-                      <rect x="1" y="2" width="14" height="12" rx="2" />
-                      <line x1="8" y1="2" x2="8" y2="14" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={closeOverlay}
-                    className="flex items-center justify-center w-8 h-8 sm:w-6 sm:h-6 rounded-full text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
-                    title="Close (Esc)"
-                  >
-                    <CloseCircleFilled className="h-5 w-5 sm:h-4 sm:w-4" />
-                  </button>
+                      <AttachCircleFilled
+                        className="h-4 w-4"
+                        style={isPinned ? { transform: "rotate(45deg)" } : undefined}
+                      />
+                    </TooltipTrigger>
+                    <TooltipPopup side="bottom">
+                      {isPinned
+                        ? "Unpin (click outside will close)"
+                        : "Pin (stay open while navigating)"}
+                    </TooltipPopup>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          onClick={() => splitRight(activePaneId)}
+                          aria-label="Split editor right"
+                          className="hidden sm:flex items-center justify-center w-6 h-6 rounded-full text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
+                        />
+                      }
+                    >
+                      <svg
+                        viewBox="0 0 16 16"
+                        className="h-4 w-4"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                      >
+                        <rect x="1" y="2" width="14" height="12" rx="2" />
+                        <line x1="8" y1="2" x2="8" y2="14" />
+                      </svg>
+                    </TooltipTrigger>
+                    <TooltipPopup side="bottom">{"Split editor right (Cmd+\\)"}</TooltipPopup>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          onClick={closeOverlay}
+                          aria-label="Close"
+                          className="flex items-center justify-center w-8 h-8 sm:w-6 sm:h-6 rounded-full text-white/30 hover:text-white/60 hover:bg-white/5 transition-colors"
+                        />
+                      }
+                    >
+                      <CloseCircleFilled className="h-5 w-5 sm:h-4 sm:w-4" />
+                    </TooltipTrigger>
+                    <TooltipPopup side="bottom">Close (Esc)</TooltipPopup>
+                  </Tooltip>
                 </div>
               </motion.div>
 
@@ -856,22 +895,29 @@ export function FloatingCodePill() {
                     >
                       {!isMobile && !sidebarVisible && (
                         <div className="shrink-0 flex items-center">
-                          <button
-                            onClick={() => setSidebarVisible(true)}
-                            className="flex items-center justify-center w-7 h-7 shrink-0 ml-1 rounded-full text-cyan-400/80 bg-cyan-400/10 hover:bg-cyan-400/20 transition-colors"
-                            title="Show sidebar"
-                          >
-                            <svg
-                              viewBox="0 0 16 16"
-                              className="h-3.5 w-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
+                          <Tooltip>
+                            <TooltipTrigger
+                              render={
+                                <button
+                                  onClick={() => setSidebarVisible(true)}
+                                  aria-label="Show sidebar"
+                                  className="flex items-center justify-center w-7 h-7 shrink-0 ml-1 rounded-full text-cyan-400/80 bg-cyan-400/10 hover:bg-cyan-400/20 transition-colors"
+                                />
+                              }
                             >
-                              <rect x="1" y="2" width="14" height="12" rx="2" />
-                              <line x1="5.5" y1="2" x2="5.5" y2="14" />
-                            </svg>
-                          </button>
+                              <svg
+                                viewBox="0 0 16 16"
+                                className="h-3.5 w-3.5"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="1.5"
+                              >
+                                <rect x="1" y="2" width="14" height="12" rx="2" />
+                                <line x1="5.5" y1="2" x2="5.5" y2="14" />
+                              </svg>
+                            </TooltipTrigger>
+                            <TooltipPopup side="bottom">Show sidebar</TooltipPopup>
+                          </Tooltip>
                         </div>
                       )}
                       <SplitContainer rootPath={projectRoot} />

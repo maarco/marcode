@@ -858,6 +858,21 @@ jobs:
           fail_on_unmatched_files: true
           token: ${{ github.token }}
 
+  publish_aur:
+    name: Publish AUR package
+    needs: [preflight, release]
+    # Marcode fork seam: upstream's packaging/aur publishes the `t3code-bin` and
+    # `t3code-nightly-bin` AUR packages, which Marcode does not own. The upstream
+    # job is carried unchanged but stays opt-in, so a Marcode release neither
+    # pushes to upstream's AUR repositories nor fails on a missing AUR secret.
+    # Set the repository variable PUBLISH_AUR=true once Marcode maintains its own.
+    if: ${{ !failure() && !cancelled() && needs.preflight.result == 'success' && needs.release.result == 'success' && vars.PUBLISH_AUR == 'true' }}
+    uses: ./.github/workflows/publish-aur.yml
+    with:
+      release_tag: ${{ needs.preflight.outputs.tag }}
+    secrets:
+      AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+
   deploy_web:
     name: Deploy hosted web app
     needs: [preflight, relay_public_config, release]

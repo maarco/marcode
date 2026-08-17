@@ -87,6 +87,9 @@ describe("hasDeployChanges", () => {
   });
 });
 
+// Marcode fork seam: upstream dropped this block as redundant in #6267. It stays
+// because it is the only assertion that pins the MARCODE_-prefixed relay env keys,
+// so an upstream rename back to T3CODE_ fails here instead of merging silently.
 describe("reconcileRootEnvRelayUrl", () => {
   it("adds the relay URL to an empty root env file", () => {
     expect(reconcileRootEnvRelayUrl("", "https://relay.example.test")).toBe(
