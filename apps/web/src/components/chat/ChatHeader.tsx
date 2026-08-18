@@ -16,6 +16,7 @@ import ProjectScriptsControl, {
 } from "../ProjectScriptsControl";
 import { OpenInPicker } from "./OpenInPicker";
 import { usePillNavNarrow } from "../FloatingPillNav";
+import { useRemoteOpenState, type RemoteOpenMode } from "../../remoteOpen";
 import { usePrimaryEnvironmentId } from "../../state/environments";
 import { useT3ProjectFileScripts } from "~/hooks/useT3ProjectFileScripts";
 
@@ -63,12 +64,19 @@ export function shouldShowOpenInPicker(input: {
   readonly activeProjectName: string | undefined;
   readonly activeThreadEnvironmentId: EnvironmentId;
   readonly primaryEnvironmentId: EnvironmentId | null;
+  readonly remoteOpenMode: RemoteOpenMode;
 }): boolean {
-  return (
-    Boolean(input.activeProjectName) &&
+  if (!input.activeProjectName) return false;
+  if (
     input.primaryEnvironmentId !== null &&
     input.activeThreadEnvironmentId === input.primaryEnvironmentId
-  );
+  ) {
+    return true;
+  }
+  // Remote environments get the picker in deep-link mode (or its explicit
+  // "no SSH route" state). Non-primary local backends (e.g. WSL) keep it
+  // hidden, matching pre-remote behavior.
+  return input.remoteOpenMode !== "local-exec";
 }
 
 /** Thread action cluster (scripts / open-in / git) — portaled into the pill nav by ChatView. */
@@ -98,10 +106,12 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
     activeThreadEnvironmentId,
     activeProjectScripts ? activeProjectCwd : null,
   );
+  const remoteOpenState = useRemoteOpenState(activeThreadEnvironmentId);
   const showOpenInPicker = shouldShowOpenInPicker({
     activeProjectName,
     activeThreadEnvironmentId,
     primaryEnvironmentId,
+    remoteOpenMode: remoteOpenState.mode,
   });
   // Upstream added a thread action menu + inline rename on the chat header
   // title. Marcode's header shows only the title (this cluster is portaled

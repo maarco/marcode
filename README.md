@@ -31,7 +31,21 @@ Tip: Use `npx t3@latest --help` for the full CLI reference.
 
 ### Run from source
 
-Install [Vite+](https://vite.plus/guide/) and the project dependencies:
+Install [Vite+](https://vite.plus/guide/) and the project dependencies.
+
+On macOS and Linux:
+
+```bash
+curl -fsSL https://vite.plus | bash
+```
+
+On Windows:
+
+```bash
+irm https://vite.plus/ps1 | iex
+```
+
+Then:
 
 ```bash
 vp i

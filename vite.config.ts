@@ -121,6 +121,13 @@ export default defineConfig({
       "marcode/no-global-process-runtime": "error",
       "marcode/no-inline-schema-compile": "warn",
       "marcode/no-manual-effect-runtime-in-tests": "error",
+      // ── Marcode fork seam ──
+      // Upstream ships this rule at "error" after migrating their own surfaces.
+      // Marcode-only surfaces (floating editor, floating terminal shell, git
+      // actions, open-in picker) still carry native `title` tooltips upstream
+      // never had, so the rule lands at "warn" here and reports on all of them.
+      // Raise it back to "error" once those surfaces are migrated to Tooltip.
+      "marcode/no-native-title-tooltip": "warn",
       "marcode/namespace-node-imports": "error",
     },
     options: {
