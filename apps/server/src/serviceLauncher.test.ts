@@ -1,3 +1,8 @@
+// @effect-diagnostics nodeBuiltinImport:off - the fork-boundary sweep below
+// reads this package's own source tree, not runtime state.
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
+
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
@@ -37,6 +42,34 @@ it("reads the base dir from the variable Marcode's systemd unit exports", () => 
   );
   assert.throws(() => resolveLauncherBaseDir({ T3CODE_HOME: "/home/theo/.t3" }), /MARCODE_HOME/);
   assert.throws(() => resolveLauncherBaseDir({ MARCODE_HOME: "   " }), /MARCODE_HOME/);
+});
+
+// The whole server tree must agree on the home variable, not just the launcher.
+// Upstream keeps adding new readers of its own T3CODE_HOME (the macOS launch
+// agent's EnvironmentVariables dict, `t3 triage`), and those merge cleanly and
+// then silently resolve the wrong base dir on Marcode. Sweeping the source here
+// makes the next one fail loudly instead.
+it("never reads upstream's T3CODE_HOME anywhere in the server source", () => {
+  const serverSrc = import.meta.dirname;
+  const offenders: string[] = [];
+  for (const entry of NodeFS.readdirSync(serverSrc, { recursive: true, withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith(".ts")) continue;
+    const entryPath = NodePath.join(entry.parentPath, entry.name);
+    // This file names the variable on purpose, to assert its absence.
+    if (entryPath === import.meta.filename) continue;
+    for (const [index, line] of NodeFS.readFileSync(entryPath, "utf8").split("\n").entries()) {
+      // Only flag reads of the variable, not prose that mentions the name or a
+      // test that names it to assert its absence (marcode-home-guard:allow).
+      if (
+        /T3CODE_HOME/.test(line) &&
+        !/^\s*(?:\/\/|\*|\/\*)/.test(line) &&
+        !line.includes("marcode-home-guard:allow")
+      ) {
+        offenders.push(`${NodePath.relative(serverSrc, entryPath)}:${index + 1}`);
+      }
+    }
+  }
+  assert.deepEqual(offenders, [], `use MARCODE_HOME instead: ${offenders.join(", ")}`);
 });
 
 it("orders exact semantic versions without treating build metadata as precedence", () => {
