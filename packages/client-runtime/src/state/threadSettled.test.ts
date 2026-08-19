@@ -9,6 +9,7 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   canSettle,
+  changeRequestAutoSettles,
   effectiveSettled,
   hasQueuedTurnStart,
   threadLastActivityAt,
@@ -18,6 +19,18 @@ import {
 const NOW = "2026-04-10T00:00:00.000Z";
 const FRESH = "2026-04-09T00:00:00.000Z";
 const STALE = "2026-04-06T23:59:59.999Z";
+
+describe("changeRequestAutoSettles", () => {
+  it.each([
+    ["open", true, false],
+    ["merged", true, true],
+    ["merged", false, false],
+    ["closed", false, true],
+    [null, false, false],
+  ] as const)("state=%s autoSettleOnMerge=%s returns %s", (state, autoSettleOnMerge, expected) => {
+    expect(changeRequestAutoSettles(state, autoSettleOnMerge)).toBe(expected);
+  });
+});
 
 function makeShell(input: {
   readonly settledOverride?: "settled" | "active" | null;
@@ -197,6 +210,44 @@ describe("effectiveSettled", () => {
         }),
       ).toBe(true);
     }
+  });
+
+  it("can keep a merged change request active", () => {
+    // Past Marcode's warm window, so the only thing separating these two
+    // assertions is autoSettleOnMerge: a merged PR stops being a settle
+    // signal, a closed PR still settles the idle thread.
+    const idle = makeShell({ activityAt: "2026-04-09T22:59:59.999Z" });
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "merged",
+      }),
+    ).toBe(false);
+
+    expect(
+      effectiveSettled(idle, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(true);
+  });
+
+  it("keeps a warm closed-PR thread active even with autoSettleOnMerge off", () => {
+    // Marcode's warm window outranks both PR-state settle signals: a
+    // follow-up conversation stays visible for an hour after the PR closes.
+    const recentlyActive = makeShell({ activityAt: "2026-04-09T23:59:59.999Z" });
+    expect(
+      effectiveSettled(recentlyActive, {
+        now: NOW,
+        autoSettleAfterDays: null,
+        autoSettleOnMerge: false,
+        changeRequestState: "closed",
+      }),
+    ).toBe(false);
   });
 
   it("never auto-settles a stale thread with an open change request", () => {

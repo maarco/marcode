@@ -535,6 +535,17 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
             id: "url-1",
             parentId: null,
             rank: "b0",
+            label: "Docs",
+            url: "https://example.com",
+          }),
+          // Google's favicon service cannot resolve private/loopback hosts, so
+          // upstream's isPublicFaviconHost filters them out (feat #5644). This
+          // localhost node pins that: it must carry no iconUrl, so a future
+          // sync that loosens the filter conflicts loudly here.
+          urlEntry({
+            id: "url-2",
+            parentId: null,
+            rank: "b1",
             label: "Local",
             url: "http://localhost:3000",
           }),
@@ -547,9 +558,11 @@ describe("buildUnifiedWorkspaceTree — leaf capability flags", () => {
       expect(node.isLive).toBe(false);
       expect(node.canMove).toBe(true);
     }
-    const urlNode = roots.find((n) => n.kind === "url")!;
+    const urlNode = roots.find((n) => n.kind === "url" && n.label === "Docs")!;
     expect(urlNode.canRename).toBe(true);
     expect(urlNode.iconUrl).toContain("google.com/s2/favicons");
+    const localUrlNode = roots.find((n) => n.kind === "url" && n.label === "Local")!;
+    expect(localUrlNode.iconUrl).toBeUndefined();
     const commandNode = roots.find((n) => n.kind === "command")!;
     expect(commandNode.canRename).toBe(false);
     expect(commandNode.canRemove).toBe(true);
