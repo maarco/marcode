@@ -1,15 +1,24 @@
 import { memo } from "react";
 import { type PendingApproval } from "../../session-logic";
+import { cn } from "~/lib/utils";
 
 interface ComposerPendingApprovalPanelProps {
   approval: PendingApproval;
   pendingCount: number;
+  className?: string;
 }
 
 export const ComposerPendingApprovalPanel = memo(function ComposerPendingApprovalPanel({
   approval,
   pendingCount,
+  className,
 }: ComposerPendingApprovalPanelProps) {
+  const fallbackLabel =
+    approval.requestKind === "command"
+      ? "Command approval"
+      : approval.requestKind === "file-read"
+        ? "File read approval"
+        : "File change approval";
   const approvalSummary =
     approval.requestKind === "command"
       ? "Command approval requested"
@@ -24,7 +33,10 @@ export const ComposerPendingApprovalPanel = memo(function ComposerPendingApprova
         : "File change";
 
   return (
-    <div className="min-w-0 px-4 py-3.5 sm:px-5 sm:py-4">
+    <div
+      className={cn("min-w-0 px-4 py-3.5 sm:px-5 sm:py-4", className)}
+      aria-label={fallbackLabel}
+    >
       <div className="flex flex-wrap items-center gap-2">
         <span className="uppercase text-[10px] font-semibold tracking-[0.08em]">
           PENDING APPROVAL

@@ -46,7 +46,11 @@ import {
 import { CHAT_LIST_ANCHOR_OFFSET } from "@t3tools/shared/chatList";
 import { projectScriptCwd, projectScriptRuntimeEnv } from "@t3tools/shared/projectScripts";
 import { truncate } from "@t3tools/shared/String";
-import { nextTerminalId, resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
+import {
+  getTerminalLabel,
+  nextTerminalId,
+  resolveTerminalSessionLabel,
+} from "@t3tools/shared/terminalLabels";
 import { Debouncer } from "@tanstack/react-pacer";
 import { useAtomValue } from "@effect/atom-react";
 import {
@@ -141,6 +145,7 @@ import {
   setActivePreviewTab,
   useThreadPreviewState,
 } from "../previewStateStore";
+import { previewRuntimeTabId } from "../browser/previewRuntimeTabId";
 import { addBrowserSurface } from "./preview/addBrowserSurface";
 import { closePreviewSession } from "./preview/closePreviewSession";
 import { ThreadPreviewMiniPlayer } from "./preview/ThreadPreviewMiniPlayer";
@@ -174,7 +179,6 @@ import {
   WifiOffIcon,
 } from "lucide-react";
 import { cn, randomHex } from "~/lib/utils";
-import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { stackedThreadToast, toastManager } from "./ui/toast";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
 import { type NewProjectScriptInput } from "./ProjectScriptsControl";
@@ -197,8 +201,12 @@ import {
 } from "../hooks/useSettings";
 import { useNowMinute } from "../hooks/useNowMinute";
 import { resolveAppModelSelectionForInstance } from "../modelSelection";
+import { confirmTerminalClose, isTerminalCloseConfirmPending } from "../lib/terminalCloseConfirm";
 import { getTerminalFocusOwner } from "../lib/terminalFocus";
-import { preventRepeatedTerminalCloseShortcut } from "../lib/terminalCloseShortcut";
+import {
+  preventRepeatedTerminalCloseShortcut,
+  preventTerminalCloseShortcut,
+} from "../lib/terminalCloseShortcut";
 import { resolveNewDraftStartFromOrigin } from "../lib/chatThreadActions";
 import {
   derivePhysicalProjectKey,
@@ -266,6 +274,7 @@ import { usePillNavPreferences } from "~/editor/pill-prefs";
 import { PanelLayoutControls, RightPanelMaximizeControl } from "./chat/PanelLayoutControls";
 import { type ExpandedImagePreview } from "./chat/ExpandedImagePreview";
 import { NoActiveThreadState } from "./NoActiveThreadState";
+import { WorkspacePageHeader } from "./WorkspacePageHeader";
 import {
   resolveEffectiveEnvMode,
   resolveLocalCheckoutBranchMismatch,
@@ -557,8 +566,10 @@ function useLocalDispatchState(input: {
   threadError: string | null | undefined;
 }) {
   const [localDispatch, setLocalDispatch] = useState<LocalDispatchSnapshot | null>(null);
-  const latestUserMessageId =
-    input.activeThread?.messages.findLast((message) => message.role === "user")?.id ?? null;
+  const latestUserMessage = input.activeThread?.messages.findLast(
+    (message) => message.role === "user",
+  );
+  const latestUserMessageId = latestUserMessage?.id ?? null;
 
   const resetLocalDispatch = useCallback(() => {
     setLocalDispatch(null);
@@ -608,6 +619,7 @@ function useLocalDispatchState(input: {
     beginLocalDispatch,
     resetLocalDispatch,
     localDispatchStartedAt: activeLocalDispatch?.startedAt ?? null,
+    latestUserMessageAt: latestUserMessage?.createdAt ?? null,
     isPreparingWorktree: activeLocalDispatch?.preparingWorktree ?? false,
     isSendBusy: activeLocalDispatch !== null,
   };
@@ -1726,6 +1738,14 @@ function ChatViewContent(props: ChatViewProps) {
     [activePullRequestSurfaceId],
   );
   const activePreviewState = useThreadPreviewState(activeThreadRef);
+  const activePreviewServerEpoch = activePreviewState.serverEpoch;
+  const resolvePreviewRuntimeTabId = useMemo(
+    () =>
+      activeThreadRef
+        ? (tabId: string) => previewRuntimeTabId(activeThreadRef, activePreviewServerEpoch, tabId)
+        : undefined,
+    [activeThreadRef, activePreviewServerEpoch],
+  );
   const activePreviewMiniPlayer = usePreviewMiniPlayerStore((state) =>
     selectThreadPreviewMiniPlayer(state.byThreadKey, activeThreadRef),
   );
@@ -2361,6 +2381,7 @@ function ChatViewContent(props: ChatViewProps) {
     beginLocalDispatch,
     resetLocalDispatch,
     localDispatchStartedAt,
+    latestUserMessageAt,
     isPreparingWorktree,
     isSendBusy,
   } = useLocalDispatchState({
@@ -2376,6 +2397,7 @@ function ChatViewContent(props: ChatViewProps) {
     activeLatestTurn,
     activeThread?.session ?? null,
     localDispatchStartedAt,
+    latestUserMessageAt,
   );
   useEffect(() => {
     attachmentPreviewHandoffByMessageIdRef.current = attachmentPreviewHandoffByMessageId;
@@ -3506,6 +3528,24 @@ function ChatViewContent(props: ChatViewProps) {
     },
     [activeRightPanelSurface, activeThreadRef, closeTerminalMutation, storeCloseTerminal],
   );
+  const requestCloseTerminal = useCallback(
+    (terminalId: string) => {
+      const label = activeTerminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId);
+      void confirmTerminalClose([label]).then((confirmed) => {
+        if (confirmed) closeTerminal(terminalId);
+      });
+    },
+    [activeTerminalLabelsById, closeTerminal],
+  );
+  const requestClosePanelTerminal = useCallback(
+    (terminalId: string) => {
+      const label = activeTerminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId);
+      void confirmTerminalClose([label]).then((confirmed) => {
+        if (confirmed) closePanelTerminal(terminalId);
+      });
+    },
+    [activeTerminalLabelsById, closePanelTerminal],
+  );
   const activateRightPanelSurface = useCallback(
     (surface: RightPanelSurface) => {
       if (!activeThreadRef) return;
@@ -3580,11 +3620,33 @@ function ChatViewContent(props: ChatViewProps) {
   const closeRightPanelSurface = useCallback(
     (surface: RightPanelSurface) => {
       if (!activeThreadRef) return;
-      cleanupRightPanelSurfaces([surface]);
-      useRightPanelStore.getState().closeSurface(activeThreadRef, surface.id);
-      syncActivePreviewSurface();
+      const finishClose = () => {
+        cleanupRightPanelSurfaces([surface]);
+        useRightPanelStore.getState().closeSurface(activeThreadRef, surface.id);
+        syncActivePreviewSurface();
+      };
+      if (surface.kind !== "terminal") {
+        finishClose();
+        return;
+      }
+      const activeLabel =
+        activeTerminalLabelsById.get(surface.activeTerminalId) ??
+        getTerminalLabel(surface.activeTerminalId);
+      const otherLabels = surface.terminalIds
+        .filter((terminalId) => terminalId !== surface.activeTerminalId)
+        .map(
+          (terminalId) => activeTerminalLabelsById.get(terminalId) ?? getTerminalLabel(terminalId),
+        );
+      void confirmTerminalClose([activeLabel, ...otherLabels]).then((confirmed) => {
+        if (confirmed) finishClose();
+      });
     },
-    [activeThreadRef, cleanupRightPanelSurfaces, syncActivePreviewSurface],
+    [
+      activeThreadRef,
+      activeTerminalLabelsById,
+      cleanupRightPanelSurfaces,
+      syncActivePreviewSurface,
+    ],
   );
   const closeOtherRightPanelSurfaces = useCallback(
     (surface: RightPanelSurface) => {
@@ -4157,6 +4219,14 @@ function ChatViewContent(props: ChatViewProps) {
   // partition (same shell, same capability gate, same PR auto-settle input)
   // so the banner and the sidebar row never disagree.
   const activeThreadShell = useThreadShell(isServerThread ? activeThreadRef : null);
+  const activeComposerTasksProgress =
+    activeLatestTurn !== null && !latestTurnSettled
+      ? (activeThreadShell?.planProgress ?? null)
+      : null;
+  const activeComposerTaskSteps =
+    activeComposerTasksProgress && activePlan && activePlan.turnId === activeLatestTurn?.turnId
+      ? activePlan.steps
+      : null;
   const autoSettleAfterDays = useClientSettings((settings) => settings.sidebarAutoSettleAfterDays);
   const autoSettleOnMerge = useClientSettings((settings) => settings.sidebarAutoSettleOnMerge);
   const activeThreadPr = resolveDisplayedThreadPr({
@@ -4173,6 +4243,18 @@ function ChatViewContent(props: ChatViewProps) {
   }, [activeThreadPr, openThreadPullRequest]);
   const pullRequestSurfaceAvailable =
     supportsPullRequests && activeThreadPr !== null && threadRepository !== null;
+  // Primitive slice of the displayed PR for the settle-rule memos below:
+  // resolveDisplayedThreadPr returns a fresh object every render, so memoize
+  // on the fields the rules read instead of the object identity.
+  const activeThreadPrState = activeThreadPr?.state ?? null;
+  const activeThreadPrUpdatedAt = activeThreadPr?.updatedAt ?? null;
+  const activeThreadChangeRequest = useMemo(
+    () =>
+      activeThreadPrState === null
+        ? null
+        : { state: activeThreadPrState, updatedAt: activeThreadPrUpdatedAt },
+    [activeThreadPrState, activeThreadPrUpdatedAt],
+  );
   const supportsSettlement = serverConfig?.environment.capabilities.threadSettlement === true;
   const supportsSnooze = serverConfig?.environment.capabilities.threadSnooze === true;
   const nowMinute = useNowMinute();
@@ -4208,7 +4290,14 @@ function ChatViewContent(props: ChatViewProps) {
   );
   const activeThreadWokeVisible = useMemo(() => {
     if (activeThreadWokeAt === null) return false;
-    if (changeRequestAutoSettles(activeThreadPr?.state, autoSettleOnMerge)) return false;
+    if (
+      changeRequestAutoSettles(activeThreadChangeRequest, {
+        autoSettleOnMerge,
+        thread: activeThreadShell,
+      })
+    ) {
+      return false;
+    }
     const wokeAtMs = Date.parse(activeThreadWokeAt);
     if (Number.isNaN(wokeAtMs)) return false;
     // Having the thread open counts as a visit at completedAt (the effect
@@ -4228,7 +4317,8 @@ function ChatViewContent(props: ChatViewProps) {
   }, [
     activeLatestTurn?.completedAt,
     activeThreadLastVisitedAt,
-    activeThreadPr?.state,
+    activeThreadChangeRequest,
+    activeThreadShell,
     activeThreadWokeAt,
     autoSettleOnMerge,
   ]);
@@ -4238,10 +4328,10 @@ function ChatViewContent(props: ChatViewProps) {
       now: `${nowMinute}:00.000Z`,
       autoSettleAfterDays,
       autoSettleOnMerge,
-      changeRequestState: activeThreadPr?.state ?? null,
+      changeRequest: activeThreadChangeRequest,
     });
   }, [
-    activeThreadPr?.state,
+    activeThreadChangeRequest,
     activeThreadShell,
     autoSettleAfterDays,
     autoSettleOnMerge,
@@ -4473,13 +4563,13 @@ function ChatViewContent(props: ChatViewProps) {
       ),
       title: working
         ? liveCount > 0
-          ? `${liveCount} ${liveCount === 1 ? "agent" : "agents"} working in the background`
-          : "Background work running"
-        : "Monitoring in the background",
+          ? `${liveCount} ${liveCount === 1 ? "agent" : "agents"} working`
+          : "Background work"
+        : "Monitoring",
       actions: (
         <Button
           size="xs"
-          variant="outline"
+          variant="ghost"
           disabled={isStoppingBackgroundWork}
           onClick={() => void handleStopBackgroundWork()}
         >
@@ -4641,7 +4731,6 @@ function ChatViewContent(props: ChatViewProps) {
     systemComposerBannerItems,
     wokeThreadBannerItem,
   ]);
-
   useEffect(() => {
     setPendingServerThreadEnvMode(null);
     setPendingServerThreadBranch(undefined);
@@ -4723,6 +4812,13 @@ function ChatViewContent(props: ChatViewProps) {
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
       if (preventRepeatedTerminalCloseShortcut(event, keybindings)) {
+        event.stopPropagation();
+        return;
+      }
+      // While a close confirmation is open, terminal focus has moved to the
+      // dialog, so a deliberate second close shortcut would otherwise fall
+      // through to the native window/tab close accelerator.
+      if (isTerminalCloseConfirmPending() && preventTerminalCloseShortcut(event, keybindings)) {
         event.stopPropagation();
         return;
       }
@@ -4809,11 +4905,11 @@ function ChatViewContent(props: ChatViewProps) {
         event.preventDefault();
         event.stopPropagation();
         if (terminalFocusOwner === "right-panel" && activeRightPanelSurface?.kind === "terminal") {
-          closePanelTerminal(activeRightPanelSurface.activeTerminalId);
+          requestClosePanelTerminal(activeRightPanelSurface.activeTerminalId);
           return;
         }
         if (!terminalUiState.terminalOpen) return;
-        closeTerminal(terminalUiState.activeTerminalId);
+        requestCloseTerminal(terminalUiState.activeTerminalId);
         return;
       }
 
@@ -4862,8 +4958,8 @@ function ChatViewContent(props: ChatViewProps) {
     terminalUiState.terminalOpen,
     terminalUiState.activeTerminalId,
     activeThreadId,
-    closeTerminal,
-    closePanelTerminal,
+    requestCloseTerminal,
+    requestClosePanelTerminal,
     createNewTerminal,
     setTerminalOpen,
     runProjectScript,
@@ -6229,7 +6325,6 @@ function ChatViewContent(props: ChatViewProps) {
             ? "thread"
             : "page"
         }
-        chromeVariant="collapse"
         composerDraftTarget={composerDraftTarget}
         onStateChange={handlePullRequestTabStatusChange}
       />
@@ -6246,6 +6341,8 @@ function ChatViewContent(props: ChatViewProps) {
     setDragActive: setIsWorkspaceFileDragActive,
     addFiles: (files) => composerRef.current?.addDroppedFiles(files),
   });
+  const externalComposerDrawerAttached =
+    composerBannerItems.length > 0 || Boolean(threadSyncPhase && !activeEnvironmentUnavailable);
 
   return (
     <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden bg-background">
@@ -6258,23 +6355,14 @@ function ChatViewContent(props: ChatViewProps) {
         data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
       >
         {/* Top bar */}
-        <header
+        <WorkspacePageHeader
           data-chat-header
-          className={cn(
-            "bg-background transition-[padding-left] duration-200 ease-linear motion-reduce:transition-none",
-            isElectron
-              ? cn(
-                  "drag-region relative flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center px-3 sm:px-5",
-                  reserveTitleBarControlInset &&
-                    !inlineRightPanelOwnsTitleBar &&
-                    "wco:pr-[var(--workspace-native-controls-inset)]",
-                )
-              : "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center pl-[calc(env(safe-area-inset-left)+0.75rem)] pr-[calc(env(safe-area-inset-right)+0.75rem)] sm:pl-[calc(env(safe-area-inset-left)+1.25rem)] sm:pr-[calc(env(safe-area-inset-right)+1.25rem)]",
-            COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
-          )}
+          electron={isElectron}
+          reserveNativeControls={reserveTitleBarControlInset && !inlineRightPanelOwnsTitleBar}
+          className="relative bg-background"
         >
           <ChatHeader activeThreadTitle={activeThread.title} />
-        </header>
+        </WorkspacePageHeader>
 
         {/* thread actions live in the pill nav's workspace slot */}
         {pillThreadActionsSlot
@@ -6354,7 +6442,6 @@ function ChatViewContent(props: ChatViewProps) {
                 key={activeThread.id}
                 isWorking={isWorking}
                 workingStepLabel={workingStepLabel}
-                activeTurnInProgress={isWorking || !latestTurnSettled}
                 activeTurnStartedAt={activeWorkStartedAt}
                 listRef={legendListRef}
                 timelineEntries={timelineEntries}
@@ -6463,6 +6550,7 @@ function ChatViewContent(props: ChatViewProps) {
                     <div
                       className={cn(
                         "chat-composer-glass-shell chat-composer-glass-shell-transparent relative mx-auto w-full max-w-3xl",
+                        externalComposerDrawerAttached && "chat-composer-glass-shell-attached",
                         showComposerContextStrip && "chat-composer-glass-shell-with-context",
                       )}
                     >
@@ -6487,6 +6575,7 @@ function ChatViewContent(props: ChatViewProps) {
                             isSendBusy={isSendBusy}
                             sendDisabledReason={threadDetailLoading ? "Messages loading" : null}
                             isPreparingWorktree={isPreparingWorktree}
+                            externalDrawerAttached={externalComposerDrawerAttached}
                             environmentUnavailable={activeEnvironmentUnavailableState}
                             activePendingApproval={activePendingApproval}
                             pendingApprovals={pendingApprovals}
@@ -6499,6 +6588,8 @@ function ChatViewContent(props: ChatViewProps) {
                             respondingRequestIds={respondingRequestIds}
                             showPlanFollowUpPrompt={showPlanFollowUpPrompt}
                             activeProposedPlan={activeProposedPlan}
+                            activeTasksProgress={activeComposerTasksProgress}
+                            activeTaskSteps={activeComposerTaskSteps}
                             runtimeMode={runtimeMode}
                             interactionMode={interactionMode}
                             lockedProvider={lockedProvider}
@@ -6678,6 +6769,7 @@ function ChatViewContent(props: ChatViewProps) {
           activeSurfaceId={activeRightPanelSurface?.id ?? null}
           previewSessions={activePreviewState.sessions}
           desktopByTabId={activePreviewState.desktopByTabId}
+          previewRuntimeTabId={resolvePreviewRuntimeTabId}
           terminalLabelsById={activeTerminalLabelsById}
           onActivate={activateRightPanelSurface}
           onCloseSurface={closeRightPanelSurface}
@@ -6713,6 +6805,7 @@ function ChatViewContent(props: ChatViewProps) {
             activeSurfaceId={activeRightPanelSurface?.id ?? null}
             previewSessions={activePreviewState.sessions}
             desktopByTabId={activePreviewState.desktopByTabId}
+            previewRuntimeTabId={resolvePreviewRuntimeTabId}
             terminalLabelsById={activeTerminalLabelsById}
             onActivate={activateRightPanelSurface}
             onCloseSurface={closeRightPanelSurface}

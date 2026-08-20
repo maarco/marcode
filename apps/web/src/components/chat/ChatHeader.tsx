@@ -24,6 +24,7 @@ interface ThreadActionsClusterProps {
   activeThreadEnvironmentId: EnvironmentId;
   activeThreadId: ThreadId;
   draftId?: DraftId;
+
   activeProjectName: string | undefined;
   activeProjectCwd: string | null;
   openInCwd: string | null;
@@ -84,6 +85,7 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   activeThreadEnvironmentId,
   activeThreadId,
   draftId,
+
   activeProjectName,
   activeProjectCwd,
   openInCwd,
