@@ -31,8 +31,11 @@ import {
   WorkspaceBreadcrumbSeparator,
 } from "../WorkspaceBreadcrumb";
 import { WorkspacePageContainer } from "../WorkspacePageContainer";
-import { WorkspacePageHeader } from "../WorkspacePageHeader";
 import { UsageProviderChart, type UsageChartMetric } from "./UsageProviderChart";
+import {
+  COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+  SIDEBARLESS_TITLEBAR_INSET_CLASS,
+} from "../../workspaceTitlebar";
 import { PROVIDER_ORDER, PROVIDER_PRESENTATION } from "./usageProviders";
 
 const WINDOW_OPTIONS = [
@@ -221,7 +224,27 @@ export function UsagePage() {
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground isolate">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-background text-foreground">
-        <WorkspacePageHeader electron={isElectron}>{topbarContent}</WorkspacePageHeader>
+        {!isElectron && (
+          <header
+            className={cn(
+              "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center px-3 transition-[padding-left] duration-200 ease-linear motion-reduce:transition-none sm:px-5",
+              COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
+            )}
+          >
+            {topbarContent}
+          </header>
+        )}
+
+        {isElectron && (
+          <div
+            className={cn(
+              "drag-region flex h-[52px] shrink-0 items-center px-5 transition-[padding-left] duration-200 ease-linear motion-reduce:transition-none wco:h-[env(titlebar-area-height)] wco:pr-[calc(100vw-env(titlebar-area-width)-env(titlebar-area-x)+1em)]",
+              SIDEBARLESS_TITLEBAR_INSET_CLASS,
+            )}
+          >
+            {topbarContent}
+          </div>
+        )}
 
         <ScrollArea className="min-h-0 flex-1">
           <WorkspacePageContainer width="wide">
