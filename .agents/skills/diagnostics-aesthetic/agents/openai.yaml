@@ -1,0 +1,4 @@
+interface:
+  display_name: "Diagnostics Aesthetic"
+  short_description: "Recreate the dark diagnostics visual system"
+  default_prompt: "Use $diagnostics-aesthetic to recreate or extend this dark diagnostics visual system."
