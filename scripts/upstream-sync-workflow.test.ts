@@ -215,12 +215,35 @@ describe("upstream-sync workflow", () => {
     }
   });
 
-  it("installs the workspace search dependency before running tests", () => {
-    const testSteps = ci.jobs.test!.steps;
-    const installStep = testSteps.find(
-      (step) => step.name === "Install workspace search dependency",
+  // `WorkspaceFileSystem.searchContent` shells out to ripgrep, which the
+  // GitHub-hosted runner image does not carry. The original pin named the
+  // `test` job, so upstream splitting apps/server into its own job moved the
+  // search tests away from the step and the pin stayed green while CI went
+  // red. Derive the job list from the workflow instead: any job that runs
+  // package tests without excluding `t3` runs the server's search tests, so
+  // the next split fails here rather than in those tests.
+  it("installs the workspace search dependency wherever the server tests run", () => {
+    const runsPackageTests = (job: { steps: Array<Record<string, unknown>> }) =>
+      job.steps.some(
+        (step) =>
+          typeof step.run === "string" && step.run.includes("vp run") && /\btest\b/.test(step.run),
+      );
+    const excludesServer = (job: { steps: Array<Record<string, unknown>> }) =>
+      job.steps.some((step) => typeof step.run === "string" && step.run.includes("--filter '!t3'"));
+
+    const serverTestJobs = Object.entries(ci.jobs).filter(
+      ([, job]) => runsPackageTests(job) && !excludesServer(job),
     );
-    expect(installStep?.run).toContain("apt-get install --yes ripgrep");
+
+    expect(serverTestJobs.length).toBeGreaterThan(0);
+    for (const [jobId, job] of serverTestJobs) {
+      const installStep = job.steps.find(
+        (step) => step.name === "Install workspace search dependency",
+      );
+      expect(installStep?.run, `job "${jobId}" runs the server tests without ripgrep`).toContain(
+        "apt-get install --yes ripgrep",
+      );
+    }
   });
 
   it("keeps production relay deployment disabled until the fork opts in", () => {

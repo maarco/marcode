@@ -85,9 +85,6 @@ jobs:
       - name: Ensure Electron runtime is installed
         run: vp run --filter @t3tools/desktop ensure:electron
 
-      - name: Install workspace search dependency
-        run: sudo apt-get update && sudo apt-get install --yes ripgrep
-
       - name: Test
         run: vp run --parallel --concurrency-limit 4 --filter '!t3' --filter '!@t3tools/monorepo' test
 
@@ -122,6 +119,15 @@ jobs:
       # No Electron setup here: `t3` (apps/server) has no Electron dependency
       # and none of its tests touch the runtime. Only the non-server `test`
       # job, which covers @t3tools/desktop, needs the download.
+
+      # ── Marcode fork seam ──
+      # `WorkspaceFileSystem.searchContent` shells out to ripgrep, which the
+      # GitHub-hosted runner image does not carry. This step used to sit on
+      # `test`; splitting apps/server out moved those tests here, so the step
+      # follows them. Pinned by scripts/upstream-sync-workflow.test.ts.
+      - name: Install workspace search dependency
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+
       - name: Test
         env:
           T3CODE_TRANSFER_BUDGET_REPORT_PATH: ${{ runner.temp }}/t3code-transfer-budget.md
