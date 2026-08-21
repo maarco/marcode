@@ -178,6 +178,9 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     },
     [activeResultIndex, clearSearch, handleSearchResultClick, isSearching, results],
   );
+  // Marcode fork seam: upstream's `SidebarUtilityMenu` also carries settings,
+  // usage and pull-request navigation, which FloatingPillNav owns here. Only
+  // the page-level Back action belongs in this footer.
   const handleBackClick = useCallback(() => {
     if (isMobile) {
       setOpenMobile(false);

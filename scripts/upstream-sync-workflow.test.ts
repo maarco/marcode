@@ -203,13 +203,16 @@ describe("upstream-sync workflow", () => {
     }
   });
 
+  // Upstream runs default CI on Blacksmith. The fork has no Blacksmith
+  // installation, so a Blacksmith label leaves the job queued forever. Upstream
+  // adding a job is a clean merge, so assert on the labels rather than a job
+  // list: a new upstream job arrives here loudly instead of silently hanging.
   it("uses runners available to the public fork for default CI", () => {
-    expect(Object.values(ci.jobs).map((job) => job["runs-on"])).toEqual([
-      "ubuntu-24.04",
-      "ubuntu-24.04",
-      "macos-26",
-      "ubuntu-24.04",
-    ]);
+    const runners = Object.values(ci.jobs).map((job) => job["runs-on"]);
+    expect(runners.length).toBeGreaterThan(0);
+    for (const runner of runners) {
+      expect(["ubuntu-24.04", "macos-26"]).toContain(runner);
+    }
   });
 
   it("installs the workspace search dependency before running tests", () => {

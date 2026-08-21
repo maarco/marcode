@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import headerSource from "./components/WorkspacePageHeader.tsx?raw";
 import usageSource from "./components/usage/UsagePage.tsx?raw";
 import settingsSource from "./routes/settings.tsx?raw";
 import {
@@ -27,19 +28,28 @@ describe("sidebarless titlebar inset", () => {
     expect(SIDEBARLESS_TITLEBAR_INSET_CLASS).toContain("--workspace-titlebar-content-left");
   });
 
+  // Upstream moved both routes onto the shared `WorkspacePageHeader`, which
+  // hardcodes the collapsed-sidebar inset. Marcode carries the fix forward as a
+  // `sidebarless` prop on that shared header, so the pin now has two halves:
+  // the header has to honour the flag, and each sidebarless route has to pass
+  // it. Either one silently regresses on its own.
+  it("swaps the shared header to the sidebarless inset when asked", () => {
+    expect(headerSource).toContain("readonly sidebarless?: boolean");
+    expect(headerSource).toContain(
+      "sidebarless ? SIDEBARLESS_TITLEBAR_INSET_CLASS : COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS",
+    );
+  });
+
   for (const [name, source] of [
     ["settings", settingsSource],
     ["usage", usageSource],
   ] as const) {
     it(`insets the ${name} desktop titlebar past the native window controls`, () => {
-      // The drag region is the Electron titlebar; the traffic lights sit on it.
       const lines = source.split("\n");
-      const dragRegion = lines.findIndex((line) => line.includes("drag-region"));
-      expect(dragRegion).toBeGreaterThan(-1);
+      const header = lines.findIndex((line) => line.includes("<WorkspacePageHeader"));
+      expect(header).toBeGreaterThan(-1);
 
-      expect(lines.slice(dragRegion, dragRegion + 4).join("\n")).toContain(
-        "SIDEBARLESS_TITLEBAR_INSET_CLASS",
-      );
+      expect(lines.slice(header, header + 4).join("\n")).toContain("sidebarless");
     });
   }
 });
