@@ -40,6 +40,7 @@ import {
   ProjectListEntriesError,
   ProjectReadFileError,
   ProjectRenameFileError,
+  ProjectSearchContentError,
   ProjectSearchContentsError,
   ProjectSearchEntriesError,
   ProjectWriteFileError,
@@ -256,6 +257,8 @@ function projectFileFailureContext(
       return { failure: "path_not_file", resolvedPath: error.resolvedPath };
     case "WorkspaceBinaryFileError":
       return { failure: "binary_file", resolvedPath: error.resolvedPath };
+    case "WorkspaceInvalidUtf8FileError":
+      return { failure: "invalid_utf8", resolvedPath: error.resolvedPath };
     case "WorkspaceFileTooLargeToWriteError":
       return { failure: "file_too_large_to_write", resolvedPath: error.resolvedPath };
     case "WorkspacePathAlreadyExistsError":
@@ -1928,10 +1931,10 @@ const makeWsRpcLayer = (
             workspaceFileSystem.searchContent(input).pipe(
               Effect.mapError(
                 (cause) =>
-                  new ProjectCreateFileError({
+                  new ProjectSearchContentError({
                     cwd: input.cwd,
-                    relativePath: "",
-                    kind: "file",
+                    queryLength: input.query.length,
+                    limit: input.limit ?? 200,
                     ...projectFileFailureContext(cause),
                     cause,
                   }),

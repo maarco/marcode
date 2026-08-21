@@ -166,6 +166,30 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
       }),
     );
 
+    it.effect("rejects malformed UTF-8 instead of replacing bytes with text", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const absolutePath = path.join(cwd, "malformed.txt");
+        yield* fileSystem.writeFile(absolutePath, Uint8Array.from([0xc3, 0x28]));
+
+        const error = yield* workspaceFileSystem
+          .readFile({ cwd, relativePath: "malformed.txt" })
+          .pipe(Effect.flip);
+        const resolvedPath = yield* fileSystem.realPath(absolutePath);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceInvalidUtf8FileError);
+        expect(error).toMatchObject({
+          workspaceRoot: cwd,
+          relativePath: "malformed.txt",
+          resolvedPath,
+        });
+        expect("cause" in error).toBe(false);
+      }),
+    );
+
     it.effect("preserves the real cause and path for I/O failures", () =>
       Effect.gen(function* () {
         const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
@@ -262,6 +286,28 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           .stat(escapedPath)
           .pipe(Effect.orElseSucceed(() => null));
         expect(escapedStat).toBeNull();
+      }),
+    );
+
+    it.effect("rejects writes through a symlinked parent outside the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        yield* fileSystem.symlink(outsideDir, path.join(cwd, "linked"));
+
+        const error = yield* workspaceFileSystem
+          .writeFile({ cwd, relativePath: "linked/escape.txt", contents: "nope" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+        expect(
+          yield* fileSystem
+            .stat(path.join(outsideDir, "escape.txt"))
+            .pipe(Effect.orElseSucceed(() => null)),
+        ).toBeNull();
       }),
     );
 
@@ -413,6 +459,28 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         );
       }),
     );
+
+    it.effect("rejects creates through a symlinked parent outside the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        yield* fileSystem.symlink(outsideDir, path.join(cwd, "linked"));
+
+        const error = yield* workspaceFileSystem
+          .createFile({ cwd, relativePath: "linked/created.ts", kind: "file" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+        expect(
+          yield* fileSystem
+            .stat(path.join(outsideDir, "created.ts"))
+            .pipe(Effect.orElseSucceed(() => null)),
+        ).toBeNull();
+      }),
+    );
   });
 
   describe("renameFile", () => {
@@ -467,6 +535,27 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspacePathAlreadyExistsError);
       }),
     );
+
+    it.effect("rejects renames whose source resolves outside the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        yield* writeTextFile(outsideDir, "source.ts", "outside");
+        yield* fileSystem.symlink(outsideDir, path.join(cwd, "linked"));
+
+        const error = yield* workspaceFileSystem
+          .renameFile({ cwd, fromRelativePath: "linked/source.ts", toRelativePath: "moved.ts" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+        expect(yield* fileSystem.readFileString(path.join(outsideDir, "source.ts"))).toBe(
+          "outside",
+        );
+      }),
+    );
   });
 
   describe("deleteFile", () => {
@@ -518,6 +607,25 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
           .pipe(Effect.flip);
 
         expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspacePathNotFoundError);
+      }),
+    );
+
+    it.effect("rejects deletes whose target resolves outside the workspace root", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const fileSystem = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const cwd = yield* makeTempDir;
+        const outsideDir = yield* makeTempDir;
+        yield* writeTextFile(outsideDir, "keep.ts", "keep");
+        yield* fileSystem.symlink(outsideDir, path.join(cwd, "linked"));
+
+        const error = yield* workspaceFileSystem
+          .deleteFile({ cwd, relativePath: "linked" })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
+        expect(yield* fileSystem.readFileString(path.join(outsideDir, "keep.ts"))).toBe("keep");
       }),
     );
   });
@@ -574,6 +682,24 @@ it.layer(TestLayer, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
 
         expect(literal.matches.map((match) => match.line)).toEqual([3]);
         expect(regex.matches.map((match) => match.line)).toEqual([1, 2, 3]);
+      }),
+    );
+
+    it.effect("surfaces ripgrep failures instead of returning empty results", () =>
+      Effect.gen(function* () {
+        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
+        const cwd = yield* makeTempDir;
+
+        const error = yield* workspaceFileSystem
+          .searchContent({ cwd, query: "[", regex: true })
+          .pipe(Effect.flip);
+
+        expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFileSystemOperationError);
+        expect(error).toMatchObject({
+          workspaceRoot: cwd,
+          operation: "search",
+          operationPath: cwd,
+        });
       }),
     );
   });

@@ -26,4 +26,14 @@ describe("ExecutionEnvironmentDescriptor", () => {
       }).capabilities.pullRequests,
     ).toBe(true);
   });
+
+  it("treats a missing workspace-layout capability as unsupported under version skew", () => {
+    expect(decodeDescriptor(descriptor).capabilities.workspaceLayoutMutations).toBeUndefined();
+    expect(
+      decodeDescriptor({
+        ...descriptor,
+        capabilities: { ...descriptor.capabilities, workspaceLayoutMutations: true },
+      }).capabilities.workspaceLayoutMutations,
+    ).toBe(true);
+  });
 });

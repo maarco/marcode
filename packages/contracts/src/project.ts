@@ -213,6 +213,7 @@ export const ProjectFileFailure = Schema.Literals([
   "path_already_exists",
   "path_not_found",
   "binary_file",
+  "invalid_utf8",
   "file_too_large_to_write",
   "operation_failed",
 ]);
@@ -231,6 +232,7 @@ export const ProjectFileOperation = Schema.Literals([
   "create-directory",
   "rename",
   "delete",
+  "search",
 ]);
 export type ProjectFileOperation = typeof ProjectFileOperation.Type;
 
@@ -244,6 +246,47 @@ type ProjectFileFailureContext = {
   readonly operationPath?: string;
   readonly cause?: unknown;
 };
+
+type ProjectSearchContentFailureContext = {
+  readonly cwd: string;
+  readonly failure: ProjectFileFailure;
+  readonly resolvedPath?: string;
+  readonly resolvedWorkspaceRoot?: string;
+  readonly operation?: ProjectFileOperation;
+  readonly operationPath?: string;
+  readonly cause?: unknown;
+};
+
+export class ProjectSearchContentError extends Schema.TaggedErrorClass<ProjectSearchContentError>()(
+  "ProjectSearchContentError",
+  {
+    cwd: Schema.optional(TrimmedNonEmptyString),
+    queryLength: Schema.optional(NonNegativeInt),
+    limit: Schema.optional(PositiveInt),
+    failure: Schema.optional(ProjectFileFailure),
+    resolvedPath: Schema.optional(TrimmedNonEmptyString),
+    resolvedWorkspaceRoot: Schema.optional(TrimmedNonEmptyString),
+    operation: Schema.optional(ProjectFileOperation),
+    operationPath: Schema.optional(TrimmedNonEmptyString),
+    message: TrimmedNonEmptyString,
+    cause: Schema.optional(Schema.Defect()),
+  },
+) {
+  // @effect-diagnostics-next-line overriddenSchemaConstructor:off
+  constructor(
+    props: ProjectSearchContentFailureContext & {
+      readonly queryLength: number;
+      readonly limit: number;
+    },
+  ) {
+    super({
+      ...props,
+      message:
+        decodedProjectErrorMessage(props) ??
+        `Failed to search workspace contents in '${props.cwd}'.`,
+    } as any);
+  }
+}
 
 export class ProjectReadFileError extends Schema.TaggedErrorClass<ProjectReadFileError>()(
   "ProjectReadFileError",
@@ -354,7 +397,9 @@ export type ProjectDeleteFileResult = typeof ProjectDeleteFileResult.Type;
 // content search (grep) within the workspace
 export const ProjectSearchContentInput = Schema.Struct({
   cwd: TrimmedNonEmptyString,
-  query: TrimmedNonEmptyString.check(Schema.isMaxLength(256)),
+  // Search syntax is significant: preserve leading/trailing spaces for both
+  // literal and regular-expression queries, matching the newer search API.
+  query: Schema.String.check(Schema.isNonEmpty(), Schema.isMaxLength(256)),
   regex: Schema.optional(Schema.Boolean),
   limit: Schema.optional(
     PositiveInt.check(Schema.isLessThanOrEqualTo(PROJECT_SEARCH_ENTRIES_MAX_LIMIT)),

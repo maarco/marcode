@@ -3,6 +3,8 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   ProjectReadFileError,
+  ProjectSearchContentError,
+  ProjectSearchContentInput,
   ProjectSearchContentsError,
   ProjectSearchContentsInput,
   ProjectSearchEntriesError,
@@ -12,6 +14,7 @@ import {
 
 const decodeSearchEntriesInput = Schema.decodeUnknownSync(ProjectSearchEntriesInput);
 const decodeSearchContentsInput = Schema.decodeUnknownSync(ProjectSearchContentsInput);
+const decodeLegacySearchContentInput = Schema.decodeUnknownSync(ProjectSearchContentInput);
 
 describe("project search inputs", () => {
   it("allows an empty entries query for bounded frecency browsing", () => {
@@ -34,6 +37,14 @@ describe("project search inputs", () => {
       useRegex: false,
     });
     expect(decoded.query).toBe(" foo ");
+
+    const legacyDecoded = decodeLegacySearchContentInput({
+      cwd: "/workspace",
+      query: " foo ",
+      limit: 10,
+      regex: false,
+    });
+    expect(legacyDecoded.query).toBe(" foo ");
   });
 });
 
@@ -81,6 +92,21 @@ describe("project RPC errors", () => {
     expect(contentSearchError.message).not.toContain(cause.message);
     expect(contentSearchError).not.toHaveProperty("query");
     expect(contentSearchError.cause).toBe(cause);
+
+    const legacyContentSearchError = new ProjectSearchContentError({
+      cwd: "/workspace",
+      queryLength: 5,
+      limit: 100,
+      failure: "operation_failed",
+      operation: "search",
+      operationPath: "/workspace",
+      cause,
+    });
+    expect(legacyContentSearchError.message).toBe(
+      "Failed to search workspace contents in '/workspace'.",
+    );
+    expect(legacyContentSearchError.failure).toBe("operation_failed");
+    expect(legacyContentSearchError.cause).toBe(cause);
   });
 
   it("decodes legacy message-only errors during rolling upgrades", () => {

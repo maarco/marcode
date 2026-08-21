@@ -122,6 +122,7 @@ import {
   ProjectDeleteFileInput,
   ProjectDeleteFileResult,
   ProjectSearchContentInput,
+  ProjectSearchContentError,
   ProjectSearchContentResult,
   ProjectListEntriesError,
   ProjectListEntriesInput,
@@ -708,7 +709,12 @@ export const WsProjectsDeleteFileRpc = Rpc.make(WS_METHODS.projectsDeleteFile, {
 export const WsProjectsSearchContentRpc = Rpc.make(WS_METHODS.projectsSearchContent, {
   payload: ProjectSearchContentInput,
   success: ProjectSearchContentResult,
-  error: Schema.Union([ProjectCreateFileError, EnvironmentAuthorizationError]),
+  error: Schema.Union([
+    ProjectSearchContentError,
+    // Keep decoding legacy peers while new servers emit the search-specific tag.
+    ProjectCreateFileError,
+    EnvironmentAuthorizationError,
+  ]),
 });
 
 export const WsShellOpenInEditorRpc = Rpc.make(WS_METHODS.shellOpenInEditor, {

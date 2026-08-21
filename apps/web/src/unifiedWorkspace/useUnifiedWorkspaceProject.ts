@@ -19,12 +19,6 @@ import {
   scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
-import type { ApplyProjectWorkspaceLayoutResult } from "@t3tools/client-runtime/operations/project-workspace";
-import {
-  isAtomCommandInterrupted,
-  squashAtomCommandFailure,
-  type AtomCommandResult,
-} from "@t3tools/client-runtime/state/runtime";
 import { rankBetween } from "@t3tools/shared/fractional-rank";
 import {
   ProjectWorkspaceItemId,
@@ -61,7 +55,7 @@ import {
   useActivePreviewSessions,
 } from "~/previewStateStore";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { useProject, useThreadShellsForProjectRefs } from "~/state/entities";
+import { useProject, useServerConfigs, useThreadShellsForProjectRefs } from "~/state/entities";
 import { previewEnvironment } from "~/state/preview";
 import { projectEnvironment } from "~/state/projects";
 import { terminalEnvironment } from "~/state/terminal";
@@ -76,6 +70,7 @@ import {
 import { useUiStateStore } from "~/uiStateStore";
 
 import { activateUnifiedWorkspaceNode, requestUnifiedWorkspaceCommandRun } from "./activateNode";
+import { resolveLayoutCommandResult, resolveUnifiedWorkspaceCapabilities } from "./mutationResults";
 import {
   buildUnifiedWorkspaceTree,
   EMPTY_AMBIENT_ENTRIES,
@@ -95,48 +90,6 @@ import type {
   UnifiedWorkspaceMoveTarget,
   UnifiedWorkspaceMutationResult,
 } from "./types";
-
-function toMutationResult(
-  result: ApplyProjectWorkspaceLayoutResult,
-): UnifiedWorkspaceMutationResult {
-  if (result.ok) return { ok: true };
-  return { ok: false, tag: result.rejection.tag, message: result.rejection.message };
-}
-
-/**
- * Resolves the settled `AtomCommandResult` from the `applyWorkspaceLayout` atom command
- * (`useAtomCommand` — see `~/state/use-atom-command`) into the controller's
- * `UnifiedWorkspaceMutationResult` shape.
- *
- * This is the fix for a real bug: `applyProjectWorkspaceLayout` (operations/projectWorkspace.ts)
- * is an `Effect.Effect<...>`, not a `Promise`. Calling it directly and `await`-ing or
- * `.then`/`.catch`-ing the result never runs the Effect — it resolves to the Effect object
- * itself, so `result.ok` is `undefined` and downstream code reading `result.rejection.tag`
- * throws `Cannot read properties of undefined (reading 'tag')`. Every mutation (attach, add
- * URL, move, rename, remove, place-resource) routed through the broken direct call. The fix
- * runs it through `createEnvironmentCommand`/`useAtomCommand` (the pattern every other command
- * in this codebase uses — see `CommandPalette.tsx`'s `createProject` usage), which actually
- * executes the Effect and settles it into an `AtomCommandResult`.
- *
- * A `Failure` tag here is always a connection-level problem (offline, RPC unavailable, auth) —
- * `applyProjectWorkspaceLayout` never fails its Effect for an expected rejection (stale
- * version, cycle, duplicate path, ...); those travel through the `Success` value's
- * `{ok:false, rejection}` branch instead, so both branches funnel through `toMutationResult`.
- */
-function resolveLayoutCommandResult(
-  result: AtomCommandResult<ApplyProjectWorkspaceLayoutResult, unknown>,
-): UnifiedWorkspaceMutationResult {
-  if (result._tag === "Success") return toMutationResult(result.value);
-  if (isAtomCommandInterrupted(result)) {
-    return { ok: false, tag: "offline", message: "The request was interrupted." };
-  }
-  const error = squashAtomCommandFailure(result);
-  return {
-    ok: false,
-    tag: "offline",
-    message: error instanceof Error ? error.message : "Request failed.",
-  };
-}
 
 /** Last (highest) rank among a parent's current siblings, for append-at-end placement. */
 function lastRankAmong(
@@ -185,6 +138,7 @@ export function useUnifiedWorkspaceProject(input: {
     [environmentId, projectId],
   );
   const project = useProject(projectRef);
+  const serverConfigs = useServerConfigs();
   // The layout already rides on the physical project shell, so there is nothing
   // to fetch and no second store to keep in sync — read it straight off `project`.
   const layoutEntries = project?.workspaceLayout ?? EMPTY_PROJECT_WORKSPACE_LAYOUT;
@@ -349,11 +303,16 @@ export function useUnifiedWorkspaceProject(input: {
 
   const nodesById = useMemo(() => indexUnifiedWorkspaceNodesById(roots), [roots]);
 
-  // Capabilities: no concrete "server lacks layout command capability" signal exists yet
-  // (old vs. new server both decode `workspaceLayoutVersion: 0, workspaceLayout: []`
-  // identically — see spec §6.2/§17). Defaulting to mutable; a real capability/version
-  // check can be layered in once Agent 1 or the primary agent exposes one.
-  const capabilities = useMemo(() => ({ canMutate: true, reason: null }), []);
+  const serverConfig = serverConfigs.get(environmentId);
+  const capabilities = useMemo(
+    () =>
+      resolveUnifiedWorkspaceCapabilities({
+        serverConfigLoaded: serverConfig !== undefined,
+        supportsLayoutMutations:
+          serverConfig?.environment.capabilities.workspaceLayoutMutations === true,
+      }),
+    [serverConfig],
+  );
 
   // --- Layout mutation plumbing ---
   const applyWorkspaceLayoutCommand = useAtomCommand(projectEnvironment.applyWorkspaceLayout, {
@@ -374,7 +333,7 @@ export function useUnifiedWorkspaceProject(input: {
       if (!capabilities.canMutate) {
         return {
           ok: false,
-          tag: "offline",
+          tag: "unsupported",
           message: capabilities.reason ?? "Editing is unavailable right now.",
         };
       }

@@ -57,6 +57,7 @@ export class WorkspaceFileSystemOperationError extends Schema.TaggedErrorClass<W
       "create-directory",
       "rename",
       "delete",
+      "search",
     ]),
     cause: Schema.Defect(),
   },
@@ -65,6 +66,14 @@ export class WorkspaceFileSystemOperationError extends Schema.TaggedErrorClass<W
     return `Workspace file operation '${this.operation}' failed at '${this.operationPath}' for resolved path '${this.resolvedPath}' (requested as '${this.relativePath}' in '${this.workspaceRoot}').`;
   }
 }
+
+class WorkspaceMutationPathResolutionError extends Schema.TaggedErrorClass<WorkspaceMutationPathResolutionError>()(
+  "WorkspaceMutationPathResolutionError",
+  {
+    code: Schema.optional(Schema.String),
+    cause: Schema.Defect(),
+  },
+) {}
 
 export class WorkspaceFilePathEscapeError extends Schema.TaggedErrorClass<WorkspaceFilePathEscapeError>()(
   "WorkspaceFilePathEscapeError",
@@ -103,6 +112,19 @@ export class WorkspaceBinaryFileError extends Schema.TaggedErrorClass<WorkspaceB
 ) {
   override get message(): string {
     return `Workspace file '${this.relativePath}' in '${this.workspaceRoot}' is binary and cannot be previewed as text.`;
+  }
+}
+
+export class WorkspaceInvalidUtf8FileError extends Schema.TaggedErrorClass<WorkspaceInvalidUtf8FileError>()(
+  "WorkspaceInvalidUtf8FileError",
+  {
+    workspaceRoot: Schema.String,
+    relativePath: Schema.String,
+    resolvedPath: Schema.String,
+  },
+) {
+  override get message(): string {
+    return `Workspace file '${this.relativePath}' in '${this.workspaceRoot}' is not valid UTF-8 and cannot be previewed as text.`;
   }
 }
 
@@ -152,6 +174,7 @@ export const WorkspaceFileSystemError = Schema.Union([
   WorkspaceFilePathEscapeError,
   WorkspacePathNotFileError,
   WorkspaceBinaryFileError,
+  WorkspaceInvalidUtf8FileError,
   WorkspaceFileTooLargeToWriteError,
   WorkspacePathAlreadyExistsError,
   WorkspacePathNotFoundError,
@@ -217,6 +240,160 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
+
+  const isWithinRoot = (workspaceRoot: string, candidate: string): boolean => {
+    const relativePath = path.relative(workspaceRoot, candidate);
+    return (
+      relativePath !== ".." &&
+      !relativePath.startsWith(`..${path.sep}`) &&
+      !path.isAbsolute(relativePath)
+    );
+  };
+
+  const isNodeErrorWithCode = (cause: unknown, code: string): boolean =>
+    typeof cause === "object" &&
+    cause !== null &&
+    "code" in cause &&
+    (cause as { readonly code?: unknown }).code === code;
+
+  /**
+   * Resolve a mutation target through the real workspace root. For a new path,
+   * canonicalize its nearest existing ancestor and append the missing suffix;
+   * this prevents recursive mkdir/write/rename from following an outside-root
+   * symlink in an existing parent directory.
+   */
+  const resolveMutationTarget = Effect.fn("WorkspaceFileSystem.resolveMutationTarget")(function* (
+    input: { readonly cwd: string; readonly relativePath: string },
+    target: { readonly absolutePath: string; readonly relativePath: string },
+  ) {
+    const realWorkspaceRoot = yield* Effect.tryPromise({
+      try: () => NodeFSP.realpath(input.cwd),
+      catch: (cause) =>
+        new WorkspaceFileSystemOperationError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+          resolvedPath: target.absolutePath,
+          operationPath: input.cwd,
+          operation: "realpath-workspace-root",
+          cause,
+        }),
+    });
+
+    let candidate = target.absolutePath;
+    const missingParts: string[] = [];
+    let realCandidate: string;
+
+    while (true) {
+      const resolvedCandidate = yield* Effect.tryPromise({
+        try: () => NodeFSP.realpath(candidate),
+        catch: (cause) =>
+          new WorkspaceMutationPathResolutionError({
+            code:
+              typeof (cause as { readonly code?: unknown }).code === "string"
+                ? (cause as { readonly code: string }).code
+                : undefined,
+            cause,
+          }),
+      }).pipe(
+        Effect.matchEffect({
+          onFailure: (cause) =>
+            isNodeErrorWithCode(cause, "ENOENT")
+              ? Effect.succeed(null)
+              : Effect.fail(
+                  new WorkspaceFileSystemOperationError({
+                    workspaceRoot: input.cwd,
+                    relativePath: input.relativePath,
+                    resolvedPath: candidate,
+                    operationPath: candidate,
+                    operation: "realpath-target",
+                    cause: cause.cause,
+                  }),
+                ),
+          onSuccess: Effect.succeed,
+        }),
+      );
+
+      if (resolvedCandidate !== null) {
+        realCandidate = resolvedCandidate;
+        break;
+      }
+
+      const parent = path.dirname(candidate);
+      if (parent === candidate) {
+        return yield* new WorkspaceFileSystemOperationError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+          resolvedPath: candidate,
+          operationPath: candidate,
+          operation: "realpath-target",
+          cause: new Error("No existing ancestor was found for the workspace mutation target."),
+        });
+      }
+
+      // A broken symlink reports ENOENT from realpath but must not be treated
+      // as an ordinary missing path that recursive mkdir can traverse.
+      const candidateStat = yield* Effect.tryPromise({
+        try: () => NodeFSP.lstat(candidate),
+        catch: (cause) =>
+          new WorkspaceMutationPathResolutionError({
+            code:
+              typeof (cause as { readonly code?: unknown }).code === "string"
+                ? (cause as { readonly code: string }).code
+                : undefined,
+            cause,
+          }),
+      }).pipe(
+        Effect.matchEffect({
+          onFailure: (cause) =>
+            isNodeErrorWithCode(cause, "ENOENT")
+              ? Effect.succeed(null)
+              : Effect.fail(
+                  new WorkspaceFileSystemOperationError({
+                    workspaceRoot: input.cwd,
+                    relativePath: input.relativePath,
+                    resolvedPath: candidate,
+                    operationPath: candidate,
+                    operation: "stat",
+                    cause: cause.cause,
+                  }),
+                ),
+          onSuccess: Effect.succeed,
+        }),
+      );
+      if (candidateStat?.isSymbolicLink()) {
+        return yield* new WorkspaceFileSystemOperationError({
+          workspaceRoot: input.cwd,
+          relativePath: input.relativePath,
+          resolvedPath: candidate,
+          operationPath: candidate,
+          operation: "realpath-target",
+          cause: new Error("Workspace mutations cannot traverse a broken symbolic link."),
+        });
+      }
+
+      missingParts.unshift(path.basename(candidate));
+      candidate = parent;
+    }
+
+    const resolvedPath = missingParts.reduce(
+      (current, part) => path.join(current, part),
+      realCandidate,
+    );
+    if (!isWithinRoot(realWorkspaceRoot, resolvedPath)) {
+      return yield* new WorkspaceFilePathEscapeError({
+        workspaceRoot: input.cwd,
+        relativePath: input.relativePath,
+        resolvedWorkspaceRoot: realWorkspaceRoot,
+        resolvedPath,
+      });
+    }
+
+    // Keep the caller's lexical path for the actual mutation. The canonical
+    // path above is only the boundary check: preserving the lexical target
+    // keeps symlink, rename, and delete semantics unchanged for paths that
+    // remain inside the workspace.
+    return { absolutePath: target.absolutePath, relativePath: target.relativePath };
+  });
 
   const readFile: WorkspaceFileSystem["Service"]["readFile"] = Effect.fn(
     "WorkspaceFileSystem.readFile",
@@ -322,9 +499,20 @@ export const make = Effect.gen(function* () {
             });
           }
 
+          let contents: string;
+          try {
+            contents = new TextDecoder("utf-8", { fatal: true }).decode(fileBytes);
+          } catch {
+            return yield* new WorkspaceInvalidUtf8FileError({
+              workspaceRoot: input.cwd,
+              relativePath: input.relativePath,
+              resolvedPath: realTargetPath,
+            });
+          }
+
           return {
             relativePath: target.relativePath,
-            contents: new TextDecoder("utf-8").decode(fileBytes),
+            contents,
             byteLength: stat.size,
             truncated: stat.size > PROJECT_READ_FILE_MAX_BYTES,
           };
@@ -348,10 +536,11 @@ export const make = Effect.gen(function* () {
   const writeFile: WorkspaceFileSystem["Service"]["writeFile"] = Effect.fn(
     "WorkspaceFileSystem.writeFile",
   )(function* (input) {
-    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+    const resolvedTarget = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.relativePath,
     });
+    const target = yield* resolveMutationTarget(input, resolvedTarget);
 
     // No client of this transport can ever hold the full contents of a file
     // larger than PROJECT_READ_FILE_MAX_BYTES (readFile caps reads at that
@@ -445,10 +634,11 @@ export const make = Effect.gen(function* () {
   const createFile: WorkspaceFileSystem["Service"]["createFile"] = Effect.fn(
     "WorkspaceFileSystem.createFile",
   )(function* (input) {
-    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+    const resolvedTarget = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.relativePath,
     });
+    const target = yield* resolveMutationTarget(input, resolvedTarget);
 
     if (yield* statExists(input.cwd, input.relativePath, target.absolutePath)) {
       return yield* new WorkspacePathAlreadyExistsError({
@@ -508,14 +698,22 @@ export const make = Effect.gen(function* () {
   const renameFile: WorkspaceFileSystem["Service"]["renameFile"] = Effect.fn(
     "WorkspaceFileSystem.renameFile",
   )(function* (input) {
-    const from = yield* workspacePaths.resolveRelativePathWithinRoot({
+    const resolvedFrom = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.fromRelativePath,
     });
-    const to = yield* workspacePaths.resolveRelativePathWithinRoot({
+    const resolvedTo = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.toRelativePath,
     });
+    const from = yield* resolveMutationTarget(
+      { cwd: input.cwd, relativePath: input.fromRelativePath },
+      resolvedFrom,
+    );
+    const to = yield* resolveMutationTarget(
+      { cwd: input.cwd, relativePath: input.toRelativePath },
+      resolvedTo,
+    );
 
     if (!(yield* statExists(input.cwd, input.fromRelativePath, from.absolutePath))) {
       return yield* new WorkspacePathNotFoundError({
@@ -566,10 +764,11 @@ export const make = Effect.gen(function* () {
   const deleteFile: WorkspaceFileSystem["Service"]["deleteFile"] = Effect.fn(
     "WorkspaceFileSystem.deleteFile",
   )(function* (input) {
-    const target = yield* workspacePaths.resolveRelativePathWithinRoot({
+    const resolvedTarget = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,
       relativePath: input.relativePath,
     });
+    const target = yield* resolveMutationTarget(input, resolvedTarget);
 
     if (!(yield* statExists(input.cwd, input.relativePath, target.absolutePath))) {
       return yield* new WorkspacePathNotFoundError({
@@ -616,17 +815,34 @@ export const make = Effect.gen(function* () {
     ];
     // rg runs with cwd = workspace root and searches ".", so it is inherently
     // sandboxed to the workspace. The WS layer authenticates the environment.
-    const output = yield* Effect.promise(
-      () =>
-        new Promise<string>((resolve) => {
+    const output = yield* Effect.tryPromise({
+      try: () =>
+        new Promise<string>((resolve, reject) => {
           NodeChildProcess.execFile(
             "rg",
             args,
             { cwd: input.cwd, encoding: "utf-8", maxBuffer: 4 * 1024 * 1024, timeout: 15_000 },
-            (err, stdout) => resolve(err ? "" : stdout),
+            (err, stdout) => {
+              // ripgrep uses exit code 1 for a valid search with no matches.
+              // Every other process error must remain observable to callers.
+              if (err && err.code !== 1) {
+                reject(err);
+                return;
+              }
+              resolve(stdout);
+            },
           );
         }),
-    );
+      catch: (cause) =>
+        new WorkspaceFileSystemOperationError({
+          workspaceRoot: input.cwd,
+          relativePath: "",
+          resolvedPath: input.cwd,
+          operationPath: input.cwd,
+          operation: "search",
+          cause,
+        }),
+    });
     const matches: ProjectSearchContentMatch[] = [];
     let truncated = false;
     for (const line of output.split("\n")) {

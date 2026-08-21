@@ -98,7 +98,11 @@ export type UnifiedWorkspaceMoveTarget = {
 
 export type UnifiedWorkspaceMutationResult =
   | { ok: true }
-  | { ok: false; tag: ProjectWorkspaceLayoutErrorTag | "offline" | "unsupported"; message: string };
+  | {
+      ok: false;
+      tag: ProjectWorkspaceLayoutErrorTag | "offline" | "authorization" | "error" | "unsupported";
+      message: string;
+    };
 
 export type UnifiedWorkspaceAttachCandidate = {
   relativePath: string;
