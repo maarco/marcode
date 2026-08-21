@@ -97,6 +97,10 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --glass-saturation: 1.14;
   --desktop-window-right-resize-inset: 0px;
   --workspace-topbar-height: 52px;
+  --surface-shelf-height: var(--workspace-topbar-height);
+  --surface-shelf-gap: 8px;
+  --surface-shelf-inset: 0.5rem;
+  --surface-shelf-collision-padding: 8px;
   --workspace-controls-top: 0px;
   --workspace-controls-left: calc(env(safe-area-inset-left) + 0.75rem);
   --workspace-controls-right: calc(env(safe-area-inset-right) + 0.75rem);

@@ -108,4 +108,20 @@ describe("RightPanelTabs preview favicon", () => {
     const html = renderTabs(favicon("data:image/png;base64,AAAA", "https://example.com/"));
     expect(html).not.toContain("data:image/png;base64,AAAA");
   });
+
+  it("keeps the surface shelf visible and exposes tabs to assistive technology", () => {
+    const html = renderTabs(
+      null,
+      favicon("data:image/png;base64,BBBB", "http://24x.xf.local/admin"),
+    );
+
+    expect(html).toContain('data-surface-shelf="true"');
+    expect(html).toContain('data-surface-shelf-label="Surface Shelf"');
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain('aria-label="Open Surfaces"');
+    expect(html).toContain('role="tab"');
+    expect(html).toContain('aria-selected="true"');
+    expect(html).toContain('aria-controls="right-panel-surface-panel-browser_3Atab-1"');
+    expect(html).toContain('role="tabpanel"');
+  });
 });

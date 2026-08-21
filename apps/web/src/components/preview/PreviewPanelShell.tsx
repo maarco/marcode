@@ -1,6 +1,8 @@
 import {
+  type Ref,
   type ReactNode,
   type RefObject,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -61,11 +63,26 @@ export function PreviewPanelShell(props: {
   widthStorageKey?: string;
   /** Overrides the initial width (px) before the user has resized the panel. */
   defaultWidth?: number;
+  /** Optional ref for layout consumers that need the shell's settled bounds. */
+  panelRef?: Ref<HTMLDivElement>;
   children: ReactNode;
 }) {
   const useDragRegion = isElectron && props.mode !== "sheet" && props.mode !== "embedded";
   const isInline = props.mode === "inline";
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const setHostRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      hostRef.current = node;
+      const panelRef = props.panelRef;
+      if (!panelRef) return;
+      if (typeof panelRef === "function") {
+        panelRef(node);
+      } else {
+        (panelRef as { current: HTMLDivElement | null }).current = node;
+      }
+    },
+    [props.panelRef],
+  );
   // Only inline non-maximized mode applies `width`/`maxWidth`; skip the
   // container measurement (and its re-renders) everywhere else.
   const maxWidth = useClampedMaxWidth(hostRef, isInline && !props.maximized);
@@ -79,7 +96,7 @@ export function PreviewPanelShell(props: {
 
   return (
     <div
-      ref={hostRef}
+      ref={setHostRef}
       className={cn(
         "relative flex h-full min-h-0 min-w-0 max-w-full flex-col self-stretch bg-background",
         isInline

@@ -1,13 +1,26 @@
 import type { ContextMenuItem, PreviewSessionSnapshot, PullRequestState } from "@t3tools/contracts";
 import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
-import { Bot, FileDiff, GitPullRequest, Globe2, Plus, TerminalSquare, X } from "lucide-react";
 import {
+  Bot,
+  Check,
+  FileDiff,
+  GitPullRequest,
+  Globe2,
+  MoreHorizontal,
+  Plus,
+  TerminalSquare,
+  X,
+} from "lucide-react";
+import {
+  Fragment,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type ReactElement,
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -20,13 +33,20 @@ import { readLocalApi } from "~/localApi";
 import { Button } from "~/components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Kbd } from "~/components/ui/kbd";
-import { Menu, MenuItem, MenuPopup, MenuTrigger } from "~/components/ui/menu";
+import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "~/components/ui/menu";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { faviconUrlForOrigin } from "~/lib/favicon";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
+import {
+  getFloatingShellGeometry,
+  useFloatingShellGeometry,
+  type FloatingShellRect,
+} from "../floatingShellGeometry";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 
 import { PreviewPanelShell, type PreviewPanelMode } from "./preview/PreviewPanelShell";
 import { FaviconImage } from "./preview/PreviewFaviconIcon";
+import { resolveSurfaceShelfLayout, type SurfaceShelfLayout } from "./surfaceShelfLayout";
 
 interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -190,7 +210,7 @@ function RightPanelEmptyState(props: {
       badgeCount: 0,
     },
     {
-      label: "Pull request",
+      label: "Pull Request",
       description: "Open this branch's pull request.",
       icon: GitPullRequest,
       shortcut: "P",
@@ -311,6 +331,7 @@ function RightPanelEmptyState(props: {
   return (
     <div
       ref={focusOnMount}
+      role="toolbar"
       tabIndex={0}
       onKeyDown={handleKeyDown}
       // "panel", not upstream's "surface": Marcode calls these right-panel
@@ -414,6 +435,36 @@ function surfaceTitle(
   }
 }
 
+function surfaceTypeLabel(surface: RightPanelSurface): string {
+  switch (surface.kind) {
+    case "preview":
+      return "Browser";
+    case "terminal":
+      return "Terminal";
+    case "diff":
+      return "Diff";
+    case "pull-request":
+      return "Pull Request";
+    case "agents":
+      return "Agents";
+  }
+}
+
+function surfaceDomId(prefix: "tab" | "panel", surfaceId: string): string {
+  return `right-panel-surface-${prefix}-${encodeURIComponent(surfaceId).replaceAll("%", "_")}`;
+}
+
+function toFloatingShellRect(rect: DOMRect): FloatingShellRect {
+  return {
+    top: rect.top,
+    left: rect.left,
+    right: rect.right,
+    bottom: rect.bottom,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
 function PreviewFavicon({ capturedUrl, url }: { capturedUrl: string | null; url: string | null }) {
   const publicProviderUrl = faviconUrlForOrigin(url, 32);
   return (
@@ -479,7 +530,19 @@ function SurfaceIcon({
 
 export function RightPanelTabs(props: RightPanelTabsProps) {
   const ownsDesktopTitleBar = isElectron && props.mode === "inline";
+  const panelRef = useRef<HTMLDivElement>(null);
+  const shelfRef = useRef<HTMLDivElement>(null);
   const tabListRef = useRef<HTMLDivElement>(null);
+  const floatingShell = useFloatingShellGeometry();
+  const compactViewport = useMediaQuery("(max-width: 960px)");
+  const [shelfLayout, setShelfLayout] = useState<SurfaceShelfLayout>({
+    topOffset: 0,
+    inlineStartInset: 0,
+    inlineEndInset: 0,
+    compact: false,
+    collides: false,
+  });
+  const [tabOverflow, setTabOverflow] = useState(false);
 
   const handleTabContextMenu = useCallback(
     async (event: ReactMouseEvent, surface: RightPanelSurface) => {
@@ -551,16 +614,124 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     activeTab?.scrollIntoView({ block: "nearest", inline: "nearest" });
   }, [props.activeSurfaceId]);
 
+  useLayoutEffect(() => {
+    const measure = () => {
+      const panel = panelRef.current?.getBoundingClientRect();
+      const shelf = shelfRef.current?.getBoundingClientRect();
+      if (panel && shelf) {
+        const next = resolveSurfaceShelfLayout({
+          panelRect: toFloatingShellRect(panel),
+          shelfRect: toFloatingShellRect(shelf),
+          // Read the store at measurement time as well as subscribing to it.
+          // A panel can change presentation in the same commit that the pill
+          // settles, and the resize observer must not use a pre-settle closure.
+          floatingShell: getFloatingShellGeometry(),
+        });
+        setShelfLayout((previous) =>
+          previous.topOffset === next.topOffset &&
+          previous.inlineStartInset === next.inlineStartInset &&
+          previous.inlineEndInset === next.inlineEndInset &&
+          previous.compact === next.compact &&
+          previous.collides === next.collides
+            ? previous
+            : next,
+        );
+      }
+
+      const tabList = tabListRef.current;
+      if (tabList) {
+        const nextOverflow = tabList.scrollWidth > tabList.clientWidth + 1;
+        setTabOverflow((previous) => (previous === nextOverflow ? previous : nextOverflow));
+      }
+    };
+
+    measure();
+    if (typeof window === "undefined") return;
+
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    if (panelRef.current) observer?.observe(panelRef.current);
+    if (shelfRef.current) observer?.observe(shelfRef.current);
+    if (tabListRef.current) observer?.observe(tabListRef.current);
+
+    const mutation =
+      typeof MutationObserver === "undefined" || !tabListRef.current
+        ? null
+        : new MutationObserver(measure);
+    mutation?.observe(tabListRef.current!, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    window.addEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      observer?.disconnect();
+      mutation?.disconnect();
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, [floatingShell, props.activeSurfaceId, props.maximized, props.mode, props.surfaces.length]);
+
+  const handleTabKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLButtonElement>, surface: RightPanelSurface) => {
+      if (event.defaultPrevented) return;
+      const index = props.surfaces.findIndex((entry) => entry.id === surface.id);
+      if (index < 0) return;
+
+      let nextIndex: number | null = null;
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        nextIndex = (index + 1) % props.surfaces.length;
+      } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        nextIndex = (index - 1 + props.surfaces.length) % props.surfaces.length;
+      } else if (event.key === "Home") {
+        nextIndex = 0;
+      } else if (event.key === "End") {
+        nextIndex = props.surfaces.length - 1;
+      } else if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        props.onActivate(surface);
+        return;
+      }
+
+      if (nextIndex === null) return;
+      const nextSurface = props.surfaces[nextIndex];
+      if (!nextSurface) return;
+      event.preventDefault();
+      props.onActivate(nextSurface);
+      requestAnimationFrame(() => {
+        document.getElementById(surfaceDomId("tab", nextSurface.id))?.focus();
+      });
+    },
+    [props],
+  );
+
+  const activeSurface = props.surfaces.find((surface) => surface.id === props.activeSurfaceId);
+  const activePanelId = activeSurface ? surfaceDomId("panel", activeSurface.id) : undefined;
+  const activeTabId = activeSurface ? surfaceDomId("tab", activeSurface.id) : undefined;
+  const compactShelf = shelfLayout.compact || compactViewport;
+  const showSurfaceOverflow =
+    props.surfaces.length > 1 && (compactShelf || tabOverflow || props.surfaces.length > 3);
+
   return (
     <PreviewPanelShell
       mode={props.mode}
+      panelRef={panelRef}
       {...(props.maximized !== undefined ? { maximized: props.maximized } : {})}
       {...(props.widthStorageKey !== undefined ? { widthStorageKey: props.widthStorageKey } : {})}
       {...(props.defaultWidth !== undefined ? { defaultWidth: props.defaultWidth } : {})}
     >
+      {shelfLayout.topOffset > 0 ? (
+        <div
+          aria-hidden="true"
+          className="h-(--surface-shelf-top-offset) shrink-0 transition-[height] duration-[140ms] ease-out motion-reduce:transition-none"
+          data-surface-shelf-spacer
+          style={{ "--surface-shelf-top-offset": `${shelfLayout.topOffset}px` } as CSSProperties}
+        />
+      ) : null}
       <div
+        ref={shelfRef}
         className={cn(
-          "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 pl-2",
+          "flex h-[var(--surface-shelf-height)] min-h-[var(--surface-shelf-height)] shrink-0 items-center gap-1 pl-2",
           // The sheet overlays from the viewport top, so its tab bar keeps
           // the titlebar's height: a compact row re-centers the layout
           // controls a few pixels higher and the cluster jumps on open.
@@ -569,29 +740,48 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           props.mode === "inline" && props.maximized && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
         )}
         data-right-panel-tabbar
+        data-surface-shelf="true"
+        data-surface-shelf-label="Surface Shelf"
+        data-surface-shelf-compact={compactShelf ? "true" : "false"}
+        data-surface-shelf-collision={shelfLayout.collides ? "true" : "false"}
       >
         <ScrollArea
           ref={tabListRef}
           hideScrollbars
           scrollFade
           className={cn("min-w-0 flex-1 rounded-none", ownsDesktopTitleBar && "drag-region")}
+          style={{
+            marginInlineStart:
+              shelfLayout.inlineStartInset > 0 ? `${shelfLayout.inlineStartInset}px` : undefined,
+            marginInlineEnd:
+              shelfLayout.inlineEndInset > 0 ? `${shelfLayout.inlineEndInset}px` : undefined,
+          }}
           data-right-panel-tab-list
         >
-          <div className="flex h-full w-max min-w-full items-center gap-1">
+          <div
+            className="flex h-full w-max min-w-full items-center gap-1"
+            role="tablist"
+            aria-label="Open Surfaces"
+            data-surface-shelf-tablist
+          >
             {props.surfaces.map((surface) => {
               const active = surface.id === props.activeSurfaceId;
               const title = surfaceTitle(surface, props.previewSessions, props.terminalLabelsById);
+              const tabId = surfaceDomId("tab", surface.id);
+              const panelId = surfaceDomId("panel", surface.id);
               return (
                 <div
                   key={surface.id}
+                  role="presentation"
                   data-active-tab={active}
+                  data-surface-type={surfaceTypeLabel(surface)}
                   onMouseDown={handleTabMouseDown}
                   onAuxClick={(event) => handleTabAuxClick(event, surface)}
                   onContextMenu={(event) => void handleTabContextMenu(event, surface)}
                   className={cn(
-                    "cursor-pointer group/tab flex h-6 max-w-36 shrink-0 items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs",
+                    "group/tab flex h-6 max-w-36 shrink-0 cursor-pointer items-center gap-0.5 rounded-md pr-2 pl-1.5 text-xs",
                     active
-                      ? "bg-accent text-foreground"
+                      ? "bg-accent text-foreground shadow-[inset_0_-1px_0_var(--primary)]"
                       : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
                   )}
                 >
@@ -620,10 +810,24 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                       render={
                         <button
                           type="button"
-                          className="cursor-pointer flex min-w-0 items-center"
+                          id={tabId}
+                          role="tab"
+                          aria-selected={active}
+                          aria-controls={panelId}
+                          aria-label={`${surfaceTypeLabel(surface)}: ${title}`}
+                          tabIndex={active ? 0 : -1}
+                          className="flex min-w-0 cursor-pointer items-center outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                           onClick={() => props.onActivate(surface)}
+                          onKeyDown={(event) => handleTabKeyDown(event, surface)}
                         >
-                          <span className="truncate">{title}</span>
+                          <span
+                            className={cn(
+                              "truncate transition-[max-width,opacity] duration-[140ms] ease-out motion-reduce:transition-none",
+                              compactShelf && !active ? "max-w-0 opacity-0" : "max-w-36",
+                            )}
+                          >
+                            {title}
+                          </span>
                         </button>
                       }
                     />
@@ -632,69 +836,147 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                 </div>
               );
             })}
-            {props.surfaces.length > 0 ? (
-              <Menu>
-                <MenuTrigger
-                  render={
-                    <Button
-                      aria-label="Add panel surface"
-                      className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
-                      size="icon-xs"
-                      variant="ghost"
-                    />
-                  }
-                >
-                  <Plus className="size-3.5" />
-                </MenuTrigger>
-                <MenuPopup align="start" side="bottom" sideOffset={6} className="min-w-44">
-                  <SurfaceMenuItem
-                    available={props.browserAvailable}
-                    disabledReason={SURFACE_DISABLED_REASONS.browser}
-                    onClick={props.onAddBrowser}
-                  >
-                    <Globe2 />
-                    Browser
-                  </SurfaceMenuItem>
-                  <SurfaceMenuItem
-                    available={props.terminalAvailable}
-                    disabledReason={SURFACE_DISABLED_REASONS.terminal}
-                    onClick={props.onAddTerminal}
-                  >
-                    <TerminalSquare />
-                    Terminal
-                  </SurfaceMenuItem>
-                  <SurfaceMenuItem
-                    available={props.diffAvailable}
-                    disabledReason={SURFACE_DISABLED_REASONS.diff}
-                    onClick={props.onAddDiff}
-                  >
-                    <FileDiff />
-                    Diff
-                  </SurfaceMenuItem>
-                  <SurfaceMenuItem
-                    available={props.pullRequestAvailable}
-                    disabledReason={SURFACE_DISABLED_REASONS.pullRequest}
-                    onClick={props.onAddPullRequest}
-                  >
-                    <GitPullRequest />
-                    Pull request
-                  </SurfaceMenuItem>
-                  <SurfaceMenuItem
-                    available={props.agentsAvailable}
-                    disabledReason={SURFACE_DISABLED_REASONS.agents}
-                    onClick={props.onAddAgents}
-                  >
-                    <Bot />
-                    Agents
-                  </SurfaceMenuItem>
-                </MenuPopup>
-              </Menu>
-            ) : null}
           </div>
         </ScrollArea>
+        {showSurfaceOverflow ? (
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  aria-label={`More surfaces (${props.surfaces.length} open)`}
+                  className="relative size-6 shrink-0 text-muted-foreground hover:text-foreground"
+                  size="icon-xs"
+                  variant="ghost"
+                  data-surface-shelf-overflow
+                />
+              }
+            >
+              <MoreHorizontal className="size-3.5" />
+              <span
+                aria-hidden="true"
+                className="absolute -end-0.5 -top-0.5 flex size-3.5 items-center justify-center rounded-full bg-primary px-0.5 text-[8px] font-semibold leading-none text-primary-foreground"
+              >
+                {props.surfaces.length}
+              </span>
+            </MenuTrigger>
+            <MenuPopup align="end" side="bottom" sideOffset={6} className="min-w-56">
+              <div className="px-2 py-1 text-muted-foreground text-[11px]" role="presentation">
+                Open Surfaces
+              </div>
+              {props.surfaces.map((surface) => {
+                const active = surface.id === props.activeSurfaceId;
+                const title = surfaceTitle(
+                  surface,
+                  props.previewSessions,
+                  props.terminalLabelsById,
+                );
+                return (
+                  <Fragment key={surface.id}>
+                    <MenuItem onClick={() => props.onActivate(surface)}>
+                      <SurfaceIcon
+                        surface={surface}
+                        sessions={props.previewSessions}
+                        desktopByTabId={props.desktopByTabId}
+                        pullRequestStatuses={props.pullRequestStatuses}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="text-muted-foreground">
+                          {surfaceTypeLabel(surface)} ·{" "}
+                        </span>
+                        {title}
+                      </span>
+                      {active ? <Check className="size-4 text-primary" aria-hidden="true" /> : null}
+                    </MenuItem>
+                    <MenuItem
+                      className="ps-8 text-muted-foreground"
+                      onClick={() => props.onCloseSurface(surface)}
+                    >
+                      <X />
+                      Close {title}
+                    </MenuItem>
+                  </Fragment>
+                );
+              })}
+              <MenuSeparator />
+              <MenuItem onClick={props.onCloseAllSurfaces}>
+                <X />
+                Close all surfaces
+              </MenuItem>
+            </MenuPopup>
+          </Menu>
+        ) : null}
+        {props.surfaces.length > 0 ? (
+          <Menu>
+            <MenuTrigger
+              render={
+                <Button
+                  aria-label="Add panel surface"
+                  className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
+                  size="icon-xs"
+                  variant="ghost"
+                />
+              }
+            >
+              <Plus className="size-3.5" />
+            </MenuTrigger>
+            <MenuPopup align="start" side="bottom" sideOffset={6} className="min-w-44">
+              <SurfaceMenuItem
+                available={props.browserAvailable}
+                disabledReason={SURFACE_DISABLED_REASONS.browser}
+                onClick={props.onAddBrowser}
+              >
+                <Globe2 />
+                Browser
+              </SurfaceMenuItem>
+              <SurfaceMenuItem
+                available={props.terminalAvailable}
+                disabledReason={SURFACE_DISABLED_REASONS.terminal}
+                onClick={props.onAddTerminal}
+              >
+                <TerminalSquare />
+                Terminal
+              </SurfaceMenuItem>
+              <SurfaceMenuItem
+                available={props.diffAvailable}
+                disabledReason={SURFACE_DISABLED_REASONS.diff}
+                onClick={props.onAddDiff}
+              >
+                <FileDiff />
+                Diff
+              </SurfaceMenuItem>
+              <SurfaceMenuItem
+                available={props.pullRequestAvailable}
+                disabledReason={SURFACE_DISABLED_REASONS.pullRequest}
+                onClick={props.onAddPullRequest}
+              >
+                <GitPullRequest />
+                Pull Request
+              </SurfaceMenuItem>
+              <SurfaceMenuItem
+                available={props.agentsAvailable}
+                disabledReason={SURFACE_DISABLED_REASONS.agents}
+                onClick={props.onAddAgents}
+              >
+                <Bot />
+                Agents
+              </SurfaceMenuItem>
+            </MenuPopup>
+          </Menu>
+        ) : null}
         {props.layoutControls}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col" data-right-panel-surface-content>
+      <div
+        className="flex min-h-0 flex-1 flex-col"
+        data-right-panel-surface-content
+        {...(activePanelId
+          ? {
+              id: activePanelId,
+              role: "tabpanel" as const,
+              "aria-labelledby": activeTabId,
+              tabIndex: 0,
+            }
+          : {})}
+      >
         {props.activeSurfaceId === null ? (
           <RightPanelEmptyState
             onAddBrowser={props.onAddBrowser}

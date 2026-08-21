@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useMemo, useEffect } from "react";
+import { useState, useRef, useCallback, useMemo, useEffect, useLayoutEffect } from "react";
 import { Link, useLocation, useParams } from "@tanstack/react-router";
 import { AnimatePresence, motion } from "motion/react";
 import {
@@ -40,6 +40,10 @@ import { MarcodeMark } from "./MarcodeMark";
 import { hasPillNavMeta, PillNavHoverCard, type PillNavMetaKey } from "./PillNavHoverCard";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import {
+  clearFloatingShellGeometry,
+  scheduleFloatingShellGeometry,
+} from "../floatingShellGeometry";
 
 export const TOGGLE_COMMAND_PALETTE_EVENT = "marcode:toggle-command-palette";
 // workspace children dispatch these; ChatView (surfaces) and SidebarControl (sidebar) listen
@@ -695,12 +699,62 @@ export function FloatingPillNav() {
   const [recents, setRecents] = useState<string[]>([]);
   const [isLocked, setIsLocked] = useState(true);
   const [pillScale, setPillScale] = useState(1);
+  const geometryMeta = useRef({
+    edge: "top" as SnapEdge,
+    scale: 1,
+    isMobile: false,
+  });
+  geometryMeta.current = {
+    edge: isDragging ? edgeProximity.edge : position.edge,
+    scale: pillScale,
+    isMobile,
+  };
+  const publishGeometry = useCallback(() => {
+    const element = pillRef.current;
+    if (!element) return;
+    const rect = element.getBoundingClientRect();
+    scheduleFloatingShellGeometry({
+      rect: {
+        top: rect.top,
+        left: rect.left,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      },
+      ...geometryMeta.current,
+    });
+  }, []);
   const { prefs: pillPrefs } = usePillNavPreferences();
   const shineColors = getPillNavShineGradient(pillPrefs);
   const dragStart = useRef<{ x: number; y: number; pillX: number; pillY: number } | null>(null);
   const hasMoved = useRef(false);
   const isTouchDrag = useRef(false);
   const isTouchDevice = useRef(false);
+
+  // Publish after layout so the right-panel shelf consumes the transformed
+  // rectangle, including snap, drag, scale, and the mobile top rail.
+  useLayoutEffect(() => {
+    publishGeometry();
+  });
+
+  useEffect(() => {
+    const element = pillRef.current;
+    if (!element) return;
+
+    const onResize = () => publishGeometry();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(onResize);
+    observer?.observe(element);
+    window.addEventListener("resize", onResize);
+    window.visualViewport?.addEventListener("resize", onResize);
+
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", onResize);
+      window.visualViewport?.removeEventListener("resize", onResize);
+      clearFloatingShellGeometry();
+    };
+  }, [publishGeometry]);
 
   // detect touch on first interaction
   useEffect(() => {
