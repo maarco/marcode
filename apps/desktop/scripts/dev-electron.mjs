@@ -33,7 +33,8 @@ const watchedDirectories = [
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;
 const childTreeGracePeriodMs = 1_200;
-const remoteDebuggingPort = process.env.T3CODE_DESKTOP_REMOTE_DEBUGGING_PORT?.trim();
+const remoteDebuggingPort = process.env.MARCODE_DESKTOP_REMOTE_DEBUGGING_PORT?.trim();
+const devAppPidFilePath = NodePath.join(desktopDir, ".marcode", "dev-electron.pid");
 // oxlint-disable-next-line marcode/no-global-process-runtime -- Standalone dev script has no Effect runtime.
 const hostPlatform = NodeOS.platform();
 
@@ -48,8 +49,7 @@ const childEnv = { ...process.env };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 const devProtocolClient = resolveDevProtocolClient();
 if (devProtocolClient) {
-  childEnv.T3CODE_DESKTOP_APP_USER_MODEL_ID = devProtocolClient.appBundleId;
-  childEnv.T3CODE_DESKTOP_PROTOCOL_REGISTRATION_MANAGED = "1";
+  childEnv.MARCODE_DESKTOP_APP_USER_MODEL_ID = devProtocolClient.appBundleId;
 }
 
 let shuttingDown = false;
@@ -67,14 +67,65 @@ function killChildTreeByPid(pid, signal) {
   NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
 }
 
-function cleanupStaleDevApps() {
+function readRecordedDevAppPid() {
+  try {
+    const raw = NodeFS.readFileSync(devAppPidFilePath, "utf8").trim();
+    const pid = Number.parseInt(raw, 10);
+    return Number.isInteger(pid) && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeRecordedDevAppPid(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return;
+  NodeFS.mkdirSync(NodePath.dirname(devAppPidFilePath), { recursive: true });
+  NodeFS.writeFileSync(devAppPidFilePath, `${pid}\n`, "utf8");
+}
+
+function clearRecordedDevAppPid(pid) {
+  if (readRecordedDevAppPid() !== pid) return;
+  try {
+    NodeFS.unlinkSync(devAppPidFilePath);
+  } catch {
+    // The pid file is only cleanup metadata; a concurrent cleanup may already
+    // have removed it.
+  }
+}
+
+function isRecordedDevApp(pid) {
+  if (pid === process.pid) return false;
+  const result = NodeChildProcess.spawnSync("ps", ["-p", String(pid), "-o", "command="], {
+    encoding: "utf8",
+  });
+  if (result.status !== 0) return false;
+
+  const command = result.stdout.trim();
+  return (
+    command.includes(`--t3code-dev-root=${desktopDir}`) ||
+    command.includes(NodePath.join(desktopDir, "dist-electron", "main.cjs"))
+  );
+}
+
+function cleanupRecordedDevApp() {
   if (hostPlatform === "win32") {
     return;
   }
 
-  NodeChildProcess.spawnSync("pkill", ["-f", "--", `--t3code-dev-root=${desktopDir}`], {
-    stdio: "ignore",
-  });
+  const pid = readRecordedDevAppPid();
+  if (pid === null) return;
+  if (!isRecordedDevApp(pid)) {
+    clearRecordedDevAppPid(pid);
+    return;
+  }
+
+  try {
+    process.kill(pid, "SIGTERM");
+  } catch {
+    // The recorded process may have exited between verification and signal.
+  }
+  killChildTreeByPid(pid, "TERM");
+  clearRecordedDevAppPid(pid);
 }
 
 function startApp() {
@@ -96,6 +147,7 @@ function startApp() {
   });
 
   currentApp = app;
+  writeRecordedDevAppPid(app.pid);
 
   app.once("error", () => {
     if (currentApp === app) {
@@ -108,6 +160,7 @@ function startApp() {
   });
 
   app.once("exit", (code, signal) => {
+    clearRecordedDevAppPid(app.pid);
     if (currentApp === app) {
       currentApp = null;
     }
@@ -143,7 +196,7 @@ async function stopApp() {
     app.once("exit", finish);
     app.kill("SIGTERM");
     killChildTreeByPid(app.pid, "TERM");
-    cleanupStaleDevApps();
+    clearRecordedDevAppPid(app.pid);
 
     setTimeout(() => {
       if (settled) {
@@ -152,7 +205,7 @@ async function stopApp() {
 
       app.kill("SIGKILL");
       killChildTreeByPid(app.pid, "KILL");
-      cleanupStaleDevApps();
+      clearRecordedDevAppPid(app.pid);
       finish();
     }, forcedShutdownTimeoutMs).unref();
   });
@@ -233,7 +286,7 @@ async function shutdown(exitCode) {
 }
 
 startWatchers();
-cleanupStaleDevApps();
+cleanupRecordedDevApp();
 startApp();
 
 process.once("SIGINT", () => {

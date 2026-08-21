@@ -1,3 +1,5 @@
+import * as NodeFS from "node:fs";
+
 import { assert, describe, it } from "vite-plus/test";
 
 import {
@@ -8,6 +10,18 @@ import {
 } from "./electron-launcher.mjs";
 
 describe("electron development launcher", () => {
+  it("uses Marcode environment names and PID-scoped dev cleanup", () => {
+    const devElectron = NodeFS.readFileSync(new URL("./dev-electron.mjs", import.meta.url), "utf8");
+
+    assert.include(devElectron, "MARCODE_DESKTOP_REMOTE_DEBUGGING_PORT");
+    assert.include(devElectron, "MARCODE_DESKTOP_APP_USER_MODEL_ID");
+    assert.notInclude(devElectron, "T3CODE_DESKTOP_REMOTE_DEBUGGING_PORT");
+    assert.notInclude(devElectron, "T3CODE_DESKTOP_APP_USER_MODEL_ID");
+    assert.notInclude(devElectron, "T3CODE_DESKTOP_PROTOCOL_REGISTRATION_MANAGED");
+    assert.notInclude(devElectron, 'spawnSync("pkill", ["-f"');
+    assert.include(devElectron, "dev-electron.pid");
+  });
+
   it("uses captured values only as fallbacks for a live runner environment", () => {
     const script = makeDevelopmentLauncherScript({
       electronBinaryPath: "/repo/node_modules/electron/Electron",
@@ -15,8 +29,8 @@ describe("electron development launcher", () => {
       desktopRoot: "/repo/apps/desktop",
       environment: {
         VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",
-        T3CODE_PORT: "16566",
-        T3CODE_HOME: "/tmp/t3",
+        MARCODE_PORT: "16566",
+        MARCODE_HOME: "/tmp/marcode",
       },
     });
 
@@ -25,6 +39,13 @@ describe("electron development launcher", () => {
       "if [ -z \"${VITE_DEV_SERVER_URL:-}\" ]; then export VITE_DEV_SERVER_URL='http://127.0.0.1:8526'; fi",
     );
     assert.notInclude(script, "\nexport VITE_DEV_SERVER_URL=");
+    assert.include(script, "if [ -z \"${MARCODE_PORT:-}\" ]; then export MARCODE_PORT='16566'; fi");
+    assert.include(
+      script,
+      "if [ -z \"${MARCODE_HOME:-}\" ]; then export MARCODE_HOME='/tmp/marcode'; fi",
+    );
+    assert.notInclude(script, "T3CODE_PORT");
+    assert.notInclude(script, "T3CODE_HOME");
     assert.include(
       script,
       "exec '/repo/node_modules/electron/Electron' --t3code-dev-root='/repo/apps/desktop' '/repo/apps/desktop/dist-electron/main.cjs' \"$@\"",
