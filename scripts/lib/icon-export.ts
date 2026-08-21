@@ -28,9 +28,9 @@ export function readPngDimensions(contents: Buffer): {
 }
 
 /**
- * MacOS Finder treats a transparent monochrome app icon as a template mask.
+ * macOS Finder treats a transparent monochrome app icon as a template mask.
  * Composite the icon onto an opaque white matte before building the ICNS so
- * Finder preserves the white background and black mark.
+ * Finder preserves the approved white-backed Marcode mark.
  */
 export function makeOpaqueWhitePng(contents: Buffer): Buffer {
   const png = PNG.sync.read(contents);

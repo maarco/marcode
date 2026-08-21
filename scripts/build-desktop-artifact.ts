@@ -1769,9 +1769,10 @@ function generateMacIconSet(
 }
 
 // ── Marcode fork seam ──
-// Exported so a focused test can pin the opaque-white matte below. macOS Finder
-// renders a transparent monochrome icon as a template mask, so the mark must be
-// composited onto white before the ICNS is built. Upstream stages the raw asset.
+// macOS Finder renders a transparent monochrome icon as a template mask, so the
+// packaged mac icon must be composited onto an opaque white matte before the ICNS
+// is built. Upstream stages the raw asset; this keeps Marcode's white-backed mark
+// visible in the installer and Dock.
 export function stageMacIcons(stageResourcesDir: string, sourcePng: string, verbose: boolean) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;

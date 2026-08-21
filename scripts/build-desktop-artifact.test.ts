@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off - Static assertions read checked-in DMG source files.
+import * as NodeFS from "node:fs";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as ConfigProvider from "effect/ConfigProvider";
@@ -869,8 +871,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   // ── Marcode fork seam ──
   // macOS Finder renders a transparent monochrome icon as a template mask, so the
   // packaged mac icon must be composited onto an opaque white matte before the ICNS
-  // is built. Upstream stages the raw asset; this pins Marcode's matte so an upstream
-  // rewrite of stageMacIcons conflicts loudly instead of silently reverting it.
+  // is built. This pins Marcode's matte so an upstream rewrite of stageMacIcons
+  // conflicts loudly instead of silently reverting the installer icon.
   it.effect("composites the packaged macOS icon onto an opaque white matte", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -1307,6 +1309,19 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       assert.equal(resolved.mockUpdates, false);
     }),
   );
+});
+
+it("keeps both shipped DMG backgrounds on Marcode branding", () => {
+  for (const channel of ["latest", "nightly"] as const) {
+    const source = NodeFS.readFileSync(
+      new URL(`../apps/desktop/resources/dmg/dmg-background-${channel}.svg`, import.meta.url),
+      "utf8",
+    );
+
+    assert.include(source, "MARCODE");
+    assert.include(source, "Drag Marcode to Applications");
+    assert.notInclude(source, "T3 CODE");
+  }
 });
 
 // The self-containment check runs the packaged tree in a scratch directory. Its
