@@ -220,12 +220,27 @@ describe("upstream-sync workflow", () => {
     ]);
   });
 
-  it("installs the workspace search dependency before running tests", () => {
-    const testSteps = ci.jobs.test!.steps;
-    const installStep = testSteps.find(
-      (step) => step.name === "Install workspace search dependency",
-    );
-    expect(installStep?.run).toContain("apt-get install --yes ripgrep");
+  // Upstream's Blacksmith images ship ripgrep; GitHub-hosted runners do not, so
+  // installing it is a Marcode-only step. WorkspaceFileSystem shells out to
+  // `rg`, so EVERY job that runs a workspace test suite needs it -- checking
+  // only `test` missed `pingdotgg/t3code@d7b9a689` moving the server suite into
+  // a new sharded `test_server` job, and those tests failed with `spawn rg
+  // ENOENT`. Derive the job list from what actually runs `test` so the next
+  // split or rename fails here rather than in CI.
+  it("installs the workspace search dependency in every job that runs tests", () => {
+    const runsTestSuite = (job: { steps?: { name?: string; run?: string }[] }) =>
+      (job.steps ?? []).some((step) => step.name === "Test" && step.run?.includes("test") === true);
+    const testJobs = Object.entries(ci.jobs).filter(([, job]) => runsTestSuite(job));
+
+    expect(testJobs.map(([id]) => id).sort()).toEqual(["test", "test_server"]);
+    for (const [id, job] of testJobs) {
+      const installStep = (job.steps ?? []).find(
+        (step) => step.name === "Install workspace search dependency",
+      );
+      expect(installStep?.run, `job "${id}" must install ripgrep`).toContain(
+        "apt-get install --yes ripgrep",
+      );
+    }
   });
 
   it("keeps production relay deployment disabled until the fork opts in", () => {

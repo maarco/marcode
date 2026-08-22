@@ -122,6 +122,15 @@ jobs:
       # No Electron setup here: `t3` (apps/server) has no Electron dependency
       # and none of its tests touch the runtime. Only the non-server `test`
       # job, which covers @t3tools/desktop, needs the download.
+
+      # Marcode-only: upstream's Blacksmith images ship ripgrep, GitHub-hosted
+      # ubuntu-24.04 does not. WorkspaceFileSystem shells out to `rg`, and its
+      # search tests live in `t3`, so every job running the server suite needs
+      # this. `scripts/upstream-sync-workflow.test.ts` asserts it for each such
+      # job, so a future sync that adds or moves one fails there first.
+      - name: Install workspace search dependency
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+
       - name: Test
         env:
           T3CODE_TRANSFER_BUDGET_REPORT_PATH: ${{ runner.temp }}/t3code-transfer-budget.md
