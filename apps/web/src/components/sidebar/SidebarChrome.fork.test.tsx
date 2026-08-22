@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off - Source-text assertion pins a removal upstream keeps re-adding.
+import * as NodeFS from "node:fs";
 import { isValidElement, type ReactElement, type ReactNode } from "react";
 import { describe, expect, it } from "vite-plus/test";
 
@@ -34,5 +36,25 @@ describe("SidebarChromeFooter", () => {
     expect(text).not.toContain("Pull Requests");
     // `pingdotgg/t3code@b73232bd` added a page-level "Back" row to the same footer.
     expect(text).not.toContain("Back");
+  });
+});
+
+/**
+ * The same footer nav keeps arriving on the settings sidebar: upstream's
+ * `pingdotgg/t3code#7153` replaced its Back row with `SidebarUtilityMenu`
+ * (Back + Settings + Usage + Pull Requests). Marcode keeps the single Back row
+ * there because FloatingPillNav already owns the other three, and that swap
+ * merges cleanly — nothing else fails when it comes back.
+ */
+describe("SettingsSidebarNav footer", () => {
+  it("keeps a single Back row instead of upstream's utility menu", () => {
+    const source = NodeFS.readFileSync(
+      new URL("../settings/SettingsSidebarNav.tsx", import.meta.url),
+      "utf8",
+    );
+
+    expect(source).not.toMatch(/import\s*\{[^}]*SidebarUtilityMenu/);
+    expect(source).not.toContain("<SidebarUtilityMenu");
+    expect(source).toContain("handleBackClick");
   });
 });

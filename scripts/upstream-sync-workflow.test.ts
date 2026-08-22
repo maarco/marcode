@@ -204,11 +204,19 @@ describe("upstream-sync workflow", () => {
   });
 
   it("uses runners available to the public fork for default CI", () => {
-    expect(Object.values(ci.jobs).map((job) => job["runs-on"])).toEqual([
-      "ubuntu-24.04",
-      "ubuntu-24.04",
-      "macos-26",
-      "ubuntu-24.04",
+    // Upstream runs this workflow on Blacksmith. A `blacksmith-*` label matches
+    // no runner on the fork, so such a job queues forever instead of failing
+    // loudly; every sync has to bring the new jobs back to GitHub-hosted labels.
+    const runners = Object.values(ci.jobs).map((job) => job["runs-on"]);
+    expect(runners.filter((runner) => runner?.startsWith("blacksmith"))).toEqual([]);
+    expect(runners).toEqual([
+      "ubuntu-24.04", // Check
+      "ubuntu-24.04", // Test
+      "ubuntu-24.04", // Test Server (sharded)
+      "ubuntu-24.04", // Rust
+      "ubuntu-24.04", // Mobile Native Changes
+      "macos-26", // Mobile Native Static Analysis
+      "ubuntu-24.04", // Release Smoke
     ]);
   });
 

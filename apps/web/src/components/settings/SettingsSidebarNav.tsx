@@ -178,6 +178,10 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
     },
     [activeResultIndex, clearSearch, handleSearchResultClick, isSearching, results],
   );
+  // Marcode keeps a single Back row here. Upstream's `SidebarUtilityMenu`
+  // (pingdotgg/t3code#7153) also carries Settings, Usage, and Pull Requests,
+  // which FloatingPillNav already owns; adopting it would give every one of
+  // those destinations a second entry point.
   const handleBackClick = useCallback(() => {
     if (isMobile) {
       setOpenMobile(false);
