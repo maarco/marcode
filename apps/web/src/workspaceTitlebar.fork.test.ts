@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import headerSource from "./components/WorkspacePageHeader.tsx?raw";
 import usageSource from "./components/usage/UsagePage.tsx?raw";
 import settingsSource from "./routes/settings.tsx?raw";
 import {
@@ -27,19 +28,33 @@ describe("sidebarless titlebar inset", () => {
     expect(SIDEBARLESS_TITLEBAR_INSET_CLASS).toContain("--workspace-titlebar-content-left");
   });
 
+  /**
+   * `pingdotgg/t3code@07f8027d` replaced both hand-rolled headers with the
+   * shared `WorkspacePageHeader`, so the inset no longer lives at the call
+   * sites. Marcode carries it as a `sidebarless` prop on that primitive
+   * instead. The guarantee is unchanged and still has two halves, now checked
+   * where each one lives: the primitive must map the prop to the
+   * unconditional class, and both routes must opt in.
+   */
+  it("maps the sidebarless prop to the unconditional inset", () => {
+    // The drag region is the Electron titlebar; the traffic lights sit on it.
+    expect(headerSource).toContain("drag-region");
+    expect(headerSource).toContain(
+      "sidebarless ? SIDEBARLESS_TITLEBAR_INSET_CLASS : COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS",
+    );
+  });
+
   for (const [name, source] of [
     ["settings", settingsSource],
     ["usage", usageSource],
   ] as const) {
-    it(`insets the ${name} desktop titlebar past the native window controls`, () => {
-      // The drag region is the Electron titlebar; the traffic lights sit on it.
+    it(`opts the ${name} route into the sidebarless inset`, () => {
       const lines = source.split("\n");
-      const dragRegion = lines.findIndex((line) => line.includes("drag-region"));
-      expect(dragRegion).toBeGreaterThan(-1);
+      const header = lines.findIndex((line) => line.includes("<WorkspacePageHeader"));
+      expect(header, `${name} must render WorkspacePageHeader`).toBeGreaterThan(-1);
 
-      expect(lines.slice(dragRegion, dragRegion + 4).join("\n")).toContain(
-        "SIDEBARLESS_TITLEBAR_INSET_CLASS",
-      );
+      // The prop sits on the opening tag, which the formatter may wrap.
+      expect(lines.slice(header, header + 4).join("\n")).toContain("sidebarless");
     });
   }
 });
