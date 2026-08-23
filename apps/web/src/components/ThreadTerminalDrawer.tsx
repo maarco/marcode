@@ -78,6 +78,7 @@ import {
   type ThreadTerminalGroup,
 } from "../types";
 import { readLocalApi } from "~/localApi";
+import { confirmTerminalClose } from "~/lib/terminalCloseConfirm";
 import { useClientSettings } from "../hooks/useSettings";
 import * as Schema from "effect/Schema";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -1080,7 +1081,7 @@ export function TerminalViewport({
       ref={containerRef}
       // p-2 keeps the xterm rows off the panel edge; FitAddon measures this element,
       // so the padding correctly shrinks the usable grid instead of clipping it.
-      className="relative h-full w-full overflow-hidden rounded-[4px] bg-background p-2"
+      className="relative h-full w-full overflow-hidden bg-[var(--terminal-background)] p-2"
     />
   );
 }
@@ -1876,6 +1877,15 @@ export default function ThreadTerminalDrawer({
   const onNewTerminalAction = useCallback(() => {
     onNewTerminal();
   }, [onNewTerminal]);
+  const confirmCloseTerminal = useCallback(
+    (terminalId: string) => {
+      const label = terminalLabelById.get(terminalId) ?? getTerminalLabel(terminalId);
+      void confirmTerminalClose([label]).then((confirmed) => {
+        if (confirmed) onCloseTerminal(terminalId);
+      });
+    },
+    [onCloseTerminal, terminalLabelById],
+  );
 
   useEffect(() => {
     onHeightChangeRef.current = onHeightChange;
@@ -2062,7 +2072,7 @@ export default function ThreadTerminalDrawer({
               onSplit={onSplitTerminalAction}
               onSplitVertical={onSplitTerminalVerticalAction}
               onNew={onNewTerminalAction}
-              onClose={() => onCloseTerminal(resolvedActiveTerminalId)}
+              onClose={() => confirmCloseTerminal(resolvedActiveTerminalId)}
               onToggleFind={toggleFind}
             />
           </div>
@@ -2078,7 +2088,12 @@ export default function ThreadTerminalDrawer({
       />
 
       <div className="min-h-0 w-full flex-1">
-        <div className={`flex h-full min-h-0 ${hasTerminalSidebar ? "gap-1.5" : ""}`}>
+        <div
+          className={cn(
+            "flex h-full min-h-0 bg-[var(--terminal-background)]",
+            hasTerminalSidebar && "gap-1.5",
+          )}
+        >
           <div className="min-w-0 flex-1">
             {isSplitView ? (
               <div
@@ -2113,7 +2128,7 @@ export default function ThreadTerminalDrawer({
                         }
                       }}
                     >
-                      <div className="h-full p-1">
+                      <div className="h-full">
                         <TerminalViewport
                           advancedTypography={advancedTypography}
                           threadRef={threadRef}
@@ -2143,7 +2158,7 @@ export default function ThreadTerminalDrawer({
                 })}
               </div>
             ) : (
-              <div className="h-full p-1">
+              <div className="h-full">
                 <TerminalViewport
                   advancedTypography={advancedTypography}
                   key={resolvedActiveTerminalId}
@@ -2200,7 +2215,7 @@ export default function ThreadTerminalDrawer({
                     onSplit={onSplitTerminalAction}
                     onSplitVertical={onSplitTerminalVerticalAction}
                     onNew={onNewTerminalAction}
-                    onClose={() => onCloseTerminal(resolvedActiveTerminalId)}
+                    onClose={() => confirmCloseTerminal(resolvedActiveTerminalId)}
                     onToggleFind={toggleFind}
                   />
                 </div>
@@ -2262,7 +2277,7 @@ export default function ThreadTerminalDrawer({
                                           terminalChromeButtonClass("sm"),
                                           "opacity-0 group-hover:opacity-100",
                                         )}
-                                        onClick={() => onCloseTerminal(terminalId)}
+                                        onClick={() => confirmCloseTerminal(terminalId)}
                                         aria-label={closeTerminalLabel}
                                       />
                                     }

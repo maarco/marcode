@@ -203,21 +203,35 @@ describe("upstream-sync workflow", () => {
     }
   });
 
+  // Upstream runs default CI on its paid Blacksmith fleet, which the public fork
+  // cannot schedule on. Asserting the invariant rather than a positional list
+  // keeps this failing loudly when a sync adds a job, without breaking whenever
+  // upstream merely reorders one.
   it("uses runners available to the public fork for default CI", () => {
-    expect(Object.values(ci.jobs).map((job) => job["runs-on"])).toEqual([
-      "ubuntu-24.04",
-      "ubuntu-24.04",
-      "macos-26",
-      "ubuntu-24.04",
-    ]);
+    const runners = Object.values(ci.jobs).map((job) => job["runs-on"]);
+    expect(runners).not.toHaveLength(0);
+    for (const runner of runners) {
+      expect(runner).not.toContain("blacksmith");
+    }
+    expect(new Set(runners)).toEqual(new Set(["ubuntu-24.04", "macos-26"]));
   });
 
-  it("installs the workspace search dependency before running tests", () => {
-    const testSteps = ci.jobs.test!.steps;
-    const installStep = testSteps.find(
-      (step) => step.name === "Install workspace search dependency",
+  // WorkspaceFileSystem shells out to ripgrep, which the GitHub-hosted image does
+  // not ship. The install has to live in whichever job runs the `t3` (apps/server)
+  // suite, so this follows the tests instead of pinning a job name.
+  it("installs the workspace search dependency wherever server tests run", () => {
+    const serverJobs = Object.values(ci.jobs).filter((job) =>
+      job.steps.some(
+        (step) => typeof step.run === "string" && step.run.includes("--filter t3 test"),
+      ),
     );
-    expect(installStep?.run).toContain("apt-get install --yes ripgrep");
+    expect(serverJobs).not.toHaveLength(0);
+    for (const job of serverJobs) {
+      const installStep = job.steps.find(
+        (step) => step.name === "Install workspace search dependency",
+      );
+      expect(installStep?.run).toContain("apt-get install --yes ripgrep");
+    }
   });
 
   it("keeps production relay deployment disabled until the fork opts in", () => {

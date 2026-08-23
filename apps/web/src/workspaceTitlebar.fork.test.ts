@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import headerSource from "./components/WorkspacePageHeader.tsx?raw";
 import usageSource from "./components/usage/UsagePage.tsx?raw";
 import settingsSource from "./routes/settings.tsx?raw";
 import {
@@ -17,7 +18,10 @@ import {
  *
  * Both halves have to hold, and each regresses on its own: an upstream sync can
  * move the variable back onto the wrapper, or swap a call site back to the
- * collapsed-only class.
+ * collapsed-only class. `pingdotgg/t3code@07f8027d` folded both page headers
+ * into `WorkspacePageHeader`, which carries the drag region and the
+ * collapsed-only inset — so the sidebarless class now has to arrive as an
+ * override from each sidebarless call site.
  */
 
 describe("sidebarless titlebar inset", () => {
@@ -27,19 +31,27 @@ describe("sidebarless titlebar inset", () => {
     expect(SIDEBARLESS_TITLEBAR_INSET_CLASS).toContain("--workspace-titlebar-content-left");
   });
 
+  it("puts the Electron drag region — and only the collapsed inset — in the shared header", () => {
+    // The drag region is the Electron titlebar; the traffic lights sit on it.
+    expect(headerSource).toContain('electron && "drag-region"');
+    expect(headerSource).toContain("COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS");
+    expect(headerSource).not.toContain("SIDEBARLESS_TITLEBAR_INSET_CLASS");
+  });
+
   for (const [name, source] of [
     ["settings", settingsSource],
     ["usage", usageSource],
   ] as const) {
     it(`insets the ${name} desktop titlebar past the native window controls`, () => {
-      // The drag region is the Electron titlebar; the traffic lights sit on it.
       const lines = source.split("\n");
-      const dragRegion = lines.findIndex((line) => line.includes("drag-region"));
-      expect(dragRegion).toBeGreaterThan(-1);
+      const header = lines.findIndex((line) => line.includes("<WorkspacePageHeader"));
+      expect(header).toBeGreaterThan(-1);
 
-      expect(lines.slice(dragRegion, dragRegion + 4).join("\n")).toContain(
-        "SIDEBARLESS_TITLEBAR_INSET_CLASS",
-      );
+      const opening = lines.slice(header, header + 5).join("\n");
+      // Electron-aware, so the header actually renders the drag region there...
+      expect(opening).toContain("electron={isElectron}");
+      // ...and inset unconditionally, because no sidebar mounts on this route.
+      expect(opening).toContain("SIDEBARLESS_TITLEBAR_INSET_CLASS");
     });
   }
 });
