@@ -49,14 +49,16 @@ import Migration0033 from "./Migrations/033_ProjectWorkspaceLayout.ts";
 import Migration0034 from "./Migrations/034_ProjectionThreadsSettled.ts";
 import Migration0035 from "./Migrations/035_ProjectionThreadsSnoozed.ts";
 import Migration0036 from "./Migrations/036_ProjectionThreadTitleRegeneration.ts";
-// Upstream shipped these as 036-040. Marcode's ProjectWorkspaceLayout already
+// Upstream shipped these as 036-041. Marcode's ProjectWorkspaceLayout already
 // occupies 033, so every shared migration sits one id higher here; renumbering
-// an applied id would re-run or skip it on existing installs.
+// an applied id would re-run or skip it on existing installs. A new upstream
+// migration is renamed to the next free Marcode id on the way in.
 import Migration0037 from "./Migrations/037_ProjectionThreadsPinned.ts";
 import Migration0038 from "./Migrations/038_ProjectionTurnsKeysetIndex.ts";
 import Migration0039 from "./Migrations/039_ProjectionThreadsPinOrderKey.ts";
 import Migration0040 from "./Migrations/040_ProjectionProjectsDefaultThreadEnvMode.ts";
 import Migration0041 from "./Migrations/041_ProjectionProjectFaviconPath.ts";
+import Migration0042 from "./Migrations/042_AuthSessionClientConnection.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -110,6 +112,7 @@ export const migrationEntries = [
   [39, "ProjectionThreadsPinOrderKey", Migration0039],
   [40, "ProjectionProjectsDefaultThreadEnvMode", Migration0040],
   [41, "ProjectionProjectFaviconPath", Migration0041],
+  [42, "AuthSessionClientConnection", Migration0042],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
