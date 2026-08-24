@@ -204,12 +204,17 @@ describe("upstream-sync workflow", () => {
   });
 
   it("uses runners available to the public fork for default CI", () => {
-    expect(Object.values(ci.jobs).map((job) => job["runs-on"])).toEqual([
-      "ubuntu-24.04",
-      "ubuntu-24.04",
-      "macos-26",
-      "ubuntu-24.04",
-    ]);
+    // Upstream runs this workflow on Blacksmith runners the fork cannot reach;
+    // a job left on one queues forever instead of failing, so every job here
+    // has to name a GitHub-hosted runner. Asserted as a membership rule rather
+    // than a positional list so an upstream sync that adds a job still trips
+    // this on the label, not on the job count.
+    const forkRunners = new Set(["ubuntu-24.04", "macos-26"]);
+    const runners = Object.values(ci.jobs).map((job) => job["runs-on"]);
+    expect(runners.length).toBeGreaterThan(0);
+    for (const runner of runners) {
+      expect(forkRunners).toContain(runner);
+    }
   });
 
   it("installs the workspace search dependency before running tests", () => {
