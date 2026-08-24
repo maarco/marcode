@@ -122,6 +122,15 @@ jobs:
       # No Electron setup here: `t3` (apps/server) has no Electron dependency
       # and none of its tests touch the runtime. Only the non-server `test`
       # job, which covers @t3tools/desktop, needs the download.
+
+      # Marcode fork seam: upstream runs this on Blacksmith images, which ship
+      # ripgrep. GitHub-hosted runners do not, and WorkspaceFileSystem's
+      # searchContent shells out to `rg` — without this the server shards fail
+      # with `spawn rg ENOENT`. Server tests moved here when upstream split
+      # them out of `test`, so this step has to follow them.
+      - name: Install workspace search dependency
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
+
       - name: Test
         env:
           T3CODE_TRANSFER_BUDGET_REPORT_PATH: ${{ runner.temp }}/t3code-transfer-budget.md
