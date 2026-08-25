@@ -53,6 +53,11 @@ import { cn, isMacPlatform } from "~/lib/utils";
 import { pillIconButtonClass } from "./FloatingPillNav";
 import { type TerminalContextSelection } from "~/lib/terminalContext";
 import { useOpenInPreferredEditor } from "../editorPreferences";
+// Marcode fork seam: upstream drives terminal links through the ghostty surface's
+// onLinkActivate callback. Marcode keeps the xterm terminal (for its search), so it
+// registers its own link provider below and needs the wrapped-line helpers. Upstream's
+// isTerminalUrl clickability rule still applies here — it runs inside
+// extractTerminalLinks, which classifies each match as "url" or "path".
 import {
   collectWrappedTerminalLinkLine,
   extractTerminalLinks,
