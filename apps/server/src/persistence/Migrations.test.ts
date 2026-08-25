@@ -20,9 +20,9 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
       [39, "ProjectionThreadsPinOrderKey"],
       [40, "ProjectionProjectsDefaultThreadEnvMode"],
       [41, "ProjectionProjectFaviconPath"],
-      // Upstream's 041; renumbered on the way in so 041 stays Marcode's.
+      // Upstream's 041, shifted like every shared migration since 033.
       [42, "AuthSessionClientConnection"],
-      // Upstream's 042; renumbered on the way in behind Marcode's 042.
+      // Upstream's 042, shifted the same way.
       [43, "ProjectionThreadLinkedPullRequest"],
     ],
   );
