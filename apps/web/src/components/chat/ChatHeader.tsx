@@ -19,6 +19,12 @@ import { usePillNavNarrow } from "../FloatingPillNav";
 import { useRemoteOpenState, type RemoteOpenMode } from "../../remoteOpen";
 import { usePrimaryEnvironmentId } from "../../state/environments";
 import { useT3ProjectFileScripts } from "~/hooks/useT3ProjectFileScripts";
+import {
+  ChatAmbientAppearancePicker,
+  ChatAmbientEffectPicker,
+  type ChatAmbientAppearance,
+  type ChatAmbientEffectSelection,
+} from "./chatAmbientEffects";
 
 interface ThreadActionsClusterProps {
   activeThreadEnvironmentId: EnvironmentId;
@@ -44,6 +50,10 @@ interface ThreadActionsClusterProps {
 
 interface ChatHeaderProps {
   activeThreadTitle: string;
+  ambientEffect?: ChatAmbientEffectSelection;
+  onAmbientEffectChange?: (effect: ChatAmbientEffectSelection) => void;
+  ambientAppearance?: ChatAmbientAppearance;
+  onAmbientAppearanceChange?: (appearance: ChatAmbientAppearance) => void;
 }
 
 /**
@@ -156,10 +166,25 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   );
 });
 
-export const ChatHeader = memo(function ChatHeader({ activeThreadTitle }: ChatHeaderProps) {
+export const ChatHeader = memo(function ChatHeader({
+  activeThreadTitle,
+  ambientEffect,
+  onAmbientEffectChange,
+  ambientAppearance,
+  onAmbientAppearanceChange,
+}: ChatHeaderProps) {
   return (
     <div className="@container/header-actions flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
       <div className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden sm:gap-3">
+        {ambientEffect !== undefined && onAmbientEffectChange ? (
+          <ChatAmbientEffectPicker value={ambientEffect} onValueChange={onAmbientEffectChange} />
+        ) : null}
+        {ambientAppearance !== undefined && onAmbientAppearanceChange ? (
+          <ChatAmbientAppearancePicker
+            value={ambientAppearance}
+            onValueChange={onAmbientAppearanceChange}
+          />
+        ) : null}
         <Tooltip>
           <TooltipTrigger
             render={
