@@ -1077,15 +1077,15 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     background:
       radial-gradient(
         circle at 50% 42%,
-        color-mix(in srgb, var(--primary) 8%, transparent),
+        color-mix(in srgb, var(--chat-ambient-primary) 18%, transparent),
         transparent 44%
       ),
       radial-gradient(
         circle at 86% 12%,
-        color-mix(in srgb, var(--accent) 7%, transparent),
+        color-mix(in srgb, var(--chat-ambient-secondary) 14%, transparent),
         transparent 38%
       ),
-      var(--background);
+      var(--chat-ambient-background, var(--background));
   }
 
   .chat-ambient-background [data-chat-ambient-canvas] {
@@ -1095,6 +1095,52 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
       filter 220ms ease,
       transform 220ms ease;
     will-change: filter, transform;
+  }
+
+  .chat-ambient-gradient-layer {
+    position: absolute;
+    z-index: 1;
+    inset: -8%;
+    opacity: 0.34;
+    pointer-events: none;
+    transition: opacity 220ms ease;
+  }
+
+  .chat-ambient-background[data-chat-ambient-gradient="radial"] .chat-ambient-gradient-layer {
+    background:
+      radial-gradient(
+        circle at 18% 28%,
+        color-mix(in srgb, var(--chat-ambient-primary) 66%, transparent),
+        transparent 38%
+      ),
+      radial-gradient(
+        circle at 82% 72%,
+        color-mix(in srgb, var(--chat-ambient-secondary) 62%, transparent),
+        transparent 42%
+      );
+    mix-blend-mode: screen;
+  }
+
+  .chat-ambient-background[data-chat-ambient-gradient="linear"] .chat-ambient-gradient-layer {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--chat-ambient-primary) 68%, transparent),
+      transparent 42%,
+      color-mix(in srgb, var(--chat-ambient-secondary) 64%, transparent)
+    );
+    mix-blend-mode: screen;
+  }
+
+  .chat-ambient-background[data-chat-ambient-gradient="conic"] .chat-ambient-gradient-layer {
+    background: conic-gradient(
+      from 210deg at 52% 48%,
+      color-mix(in srgb, var(--chat-ambient-primary) 62%, transparent),
+      transparent 28%,
+      color-mix(in srgb, var(--chat-ambient-secondary) 58%, transparent),
+      transparent 72%,
+      color-mix(in srgb, var(--chat-ambient-primary) 62%, transparent)
+    );
+    mix-blend-mode: screen;
   }
 
   .chat-ambient-background[data-chat-ambient-blur="soft"] [data-chat-ambient-canvas] {
@@ -1109,7 +1155,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 
   .chat-ambient-background[data-chat-ambient-frost="true"]::before {
     position: absolute;
-    z-index: 1;
+    z-index: 2;
     inset: 0;
     background:
       repeating-linear-gradient(
@@ -1129,7 +1175,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 
   .chat-ambient-background::after {
     position: absolute;
-    z-index: 2;
+    z-index: 3;
     inset: 0;
     background: linear-gradient(
       to bottom,

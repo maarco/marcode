@@ -1,5 +1,6 @@
 import { ThreeShaderCanvas, type ThreeShaderPalette } from "./ThreeShaderCanvas";
-import { CHAT_AMBIENT_COLOR_PALETTES, type ChatAmbientEffectProps } from "./chatAmbientEffects";
+import { resolveChatAmbientShaderPalette, type ChatAmbientEffectProps } from "./chatAmbientEffects";
+import { useMemo } from "react";
 
 const MYSTIC_MIST_FRAGMENT_SHADER = `
   precision highp float;
@@ -65,8 +66,11 @@ const MYSTIC_MIST_FRAGMENT_SHADER = `
   }
 `;
 
-export function ThreeMysticMist({ palette: paletteId, theme }: ChatAmbientEffectProps) {
-  const palette: ThreeShaderPalette = CHAT_AMBIENT_COLOR_PALETTES[paletteId][theme];
+export function ThreeMysticMist({ appearance, theme }: ChatAmbientEffectProps) {
+  const palette: ThreeShaderPalette = useMemo(
+    () => resolveChatAmbientShaderPalette(appearance, theme),
+    [appearance, theme],
+  );
 
   return (
     <ThreeShaderCanvas

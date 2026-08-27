@@ -1,6 +1,13 @@
 import * as Schema from "effect/Schema";
 import { CheckIcon, SlidersHorizontalIcon, SparklesIcon } from "lucide-react";
-import { lazy, Suspense, type ComponentType, type LazyExoticComponent } from "react";
+import {
+  lazy,
+  Suspense,
+  type ComponentType,
+  type CSSProperties,
+  type LazyExoticComponent,
+  useMemo,
+} from "react";
 
 import { cn } from "~/lib/utils";
 import {
@@ -19,6 +26,12 @@ export interface ChatAmbientShaderPalette {
   readonly background: number;
   readonly primary: number;
   readonly secondary: number;
+}
+
+export interface ChatAmbientCustomColors {
+  readonly background: string;
+  readonly primary: string;
+  readonly secondary: string;
 }
 
 export interface ChatAmbientColorPalette {
@@ -61,14 +74,25 @@ export const CHAT_AMBIENT_COLOR_PALETTES = {
   },
 } as const satisfies Record<string, ChatAmbientColorPalette>;
 
-export type ChatAmbientColorPaletteId = keyof typeof CHAT_AMBIENT_COLOR_PALETTES;
+export const CHAT_AMBIENT_CUSTOM_PALETTE = "custom" as const;
+export type ChatAmbientColorPaletteId =
+  | keyof typeof CHAT_AMBIENT_COLOR_PALETTES
+  | typeof CHAT_AMBIENT_CUSTOM_PALETTE;
 export const DEFAULT_CHAT_AMBIENT_COLOR_PALETTE: ChatAmbientColorPaletteId = "violet-cyan";
+export const DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS: ChatAmbientCustomColors = {
+  background: "#070b1c",
+  primary: "#6e61ff",
+  secondary: "#45e8ff",
+};
 
 export type ChatAmbientBlur = "none" | "soft" | "deep";
 export type ChatAmbientDim = "none" | "soft" | "deep";
+export type ChatAmbientGradient = "radial" | "linear" | "conic";
 
 export interface ChatAmbientAppearance {
   readonly palette: ChatAmbientColorPaletteId;
+  readonly customColors: ChatAmbientCustomColors;
+  readonly gradient: ChatAmbientGradient;
   readonly blur: ChatAmbientBlur;
   readonly dim: ChatAmbientDim;
   readonly frost: boolean;
@@ -76,6 +100,8 @@ export interface ChatAmbientAppearance {
 
 export const DEFAULT_CHAT_AMBIENT_APPEARANCE: ChatAmbientAppearance = {
   palette: DEFAULT_CHAT_AMBIENT_COLOR_PALETTE,
+  customColors: DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS,
+  gradient: "radial",
   blur: "none",
   dim: "soft",
   frost: false,
@@ -89,7 +115,16 @@ const ChatAmbientAppearanceSchema = Schema.Struct({
     "ember-rose",
     "emerald-ice",
     "silver-blue",
+    "custom",
   ]),
+  customColors: Schema.optional(
+    Schema.Struct({
+      background: Schema.String,
+      primary: Schema.String,
+      secondary: Schema.String,
+    }),
+  ),
+  gradient: Schema.optional(Schema.Literals(["radial", "linear", "conic"])),
   blur: Schema.Literals(["none", "soft", "deep"]),
   dim: Schema.Literals(["none", "soft", "deep"]),
   frost: Schema.Boolean,
@@ -101,7 +136,7 @@ export const ChatAmbientAppearanceByThreadKeySchema = Schema.Record(
 
 export interface ChatAmbientEffectProps {
   readonly theme: ChatAmbientTheme;
-  readonly palette: ChatAmbientColorPaletteId;
+  readonly appearance: ChatAmbientAppearance;
 }
 
 export type ChatAmbientEffectComponent = ComponentType<ChatAmbientEffectProps>;
@@ -150,10 +185,15 @@ export const DEFAULT_CHAT_AMBIENT_EFFECT: ChatAmbientEffectId = "orbital-field";
 export function resolveChatAmbientColorPalette(
   value: string | undefined,
 ): ChatAmbientColorPaletteId {
+  if (value === CHAT_AMBIENT_CUSTOM_PALETTE) return CHAT_AMBIENT_CUSTOM_PALETTE;
   if (value !== undefined && Object.hasOwn(CHAT_AMBIENT_COLOR_PALETTES, value)) {
     return value as ChatAmbientColorPaletteId;
   }
   return DEFAULT_CHAT_AMBIENT_COLOR_PALETTE;
+}
+
+function isChatAmbientGradient(value: string | undefined): value is ChatAmbientGradient {
+  return value === "radial" || value === "linear" || value === "conic";
 }
 
 function isChatAmbientBlur(value: string | undefined): value is ChatAmbientBlur {
@@ -164,21 +204,81 @@ function isChatAmbientDim(value: string | undefined): value is ChatAmbientDim {
   return value === "none" || value === "soft" || value === "deep";
 }
 
+function normalizeChatAmbientColor(value: string | undefined, fallback: string): string {
+  return value && /^#[\da-f]{6}$/i.test(value) ? value.toLowerCase() : fallback;
+}
+
+function hexToNumber(value: string): number {
+  return Number.parseInt(value.slice(1), 16);
+}
+
+function numberToHex(value: number): string {
+  return `#${value.toString(16).padStart(6, "0")}`;
+}
+
 export function resolveChatAmbientAppearance(
   value:
-    | Partial<{
-        readonly palette: string;
-        readonly blur: string;
-        readonly dim: string;
-        readonly frost: boolean;
-      }>
+    | {
+        readonly palette?: string | undefined;
+        readonly customColors?: Partial<ChatAmbientCustomColors> | undefined;
+        readonly gradient?: string | undefined;
+        readonly blur?: string | undefined;
+        readonly dim?: string | undefined;
+        readonly frost?: boolean | undefined;
+      }
     | undefined,
 ): ChatAmbientAppearance {
+  const customColors = value?.customColors;
   return {
     palette: resolveChatAmbientColorPalette(value?.palette),
+    customColors: {
+      background: normalizeChatAmbientColor(
+        customColors?.background,
+        DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS.background,
+      ),
+      primary: normalizeChatAmbientColor(
+        customColors?.primary,
+        DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS.primary,
+      ),
+      secondary: normalizeChatAmbientColor(
+        customColors?.secondary,
+        DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS.secondary,
+      ),
+    },
+    gradient: isChatAmbientGradient(value?.gradient)
+      ? value.gradient
+      : DEFAULT_CHAT_AMBIENT_APPEARANCE.gradient,
     blur: isChatAmbientBlur(value?.blur) ? value.blur : DEFAULT_CHAT_AMBIENT_APPEARANCE.blur,
     dim: isChatAmbientDim(value?.dim) ? value.dim : DEFAULT_CHAT_AMBIENT_APPEARANCE.dim,
     frost: value?.frost === true,
+  };
+}
+
+export function resolveChatAmbientShaderPalette(
+  appearance: ChatAmbientAppearance,
+  theme: ChatAmbientTheme,
+): ChatAmbientShaderPalette {
+  if (appearance.palette === CHAT_AMBIENT_CUSTOM_PALETTE) {
+    return {
+      background: hexToNumber(appearance.customColors.background),
+      primary: hexToNumber(appearance.customColors.primary),
+      secondary: hexToNumber(appearance.customColors.secondary),
+    };
+  }
+  return CHAT_AMBIENT_COLOR_PALETTES[appearance.palette][theme];
+}
+
+export function resolveChatAmbientCssColors(
+  appearance: ChatAmbientAppearance,
+  theme: ChatAmbientTheme,
+): ChatAmbientCustomColors {
+  if (appearance.palette === CHAT_AMBIENT_CUSTOM_PALETTE) return appearance.customColors;
+
+  const palette = CHAT_AMBIENT_COLOR_PALETTES[appearance.palette];
+  return {
+    background: numberToHex(palette[theme].background),
+    primary: palette.swatches[0],
+    secondary: palette.swatches[1],
   };
 }
 
@@ -201,10 +301,27 @@ const chatAmbientEffectOptions: ReadonlyArray<{
   })),
 ];
 
-const chatAmbientPaletteOptions = Object.keys(CHAT_AMBIENT_COLOR_PALETTES).map((id) => ({
-  id: id as ChatAmbientColorPaletteId,
-  ...CHAT_AMBIENT_COLOR_PALETTES[id as ChatAmbientColorPaletteId],
-}));
+const chatAmbientPaletteOptions: ReadonlyArray<{
+  readonly id: ChatAmbientColorPaletteId;
+  readonly label: string;
+  readonly swatches: readonly [string, string];
+}> = [
+  ...(
+    Object.keys(CHAT_AMBIENT_COLOR_PALETTES) as Array<keyof typeof CHAT_AMBIENT_COLOR_PALETTES>
+  ).map((id) => ({
+    id,
+    label: CHAT_AMBIENT_COLOR_PALETTES[id].label,
+    swatches: CHAT_AMBIENT_COLOR_PALETTES[id].swatches,
+  })),
+  {
+    id: CHAT_AMBIENT_CUSTOM_PALETTE,
+    label: "Custom gradient",
+    swatches: [
+      DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS.primary,
+      DEFAULT_CHAT_AMBIENT_CUSTOM_COLORS.secondary,
+    ],
+  },
+];
 
 const chatAmbientBlurOptions: ReadonlyArray<{
   readonly id: ChatAmbientBlur;
@@ -222,6 +339,15 @@ const chatAmbientDimOptions: ReadonlyArray<{
   { id: "none", label: "Full glow" },
   { id: "soft", label: "Soft dim" },
   { id: "deep", label: "Deep dim" },
+];
+
+const chatAmbientGradientOptions: ReadonlyArray<{
+  readonly id: ChatAmbientGradient;
+  readonly label: string;
+}> = [
+  { id: "radial", label: "Radial wash" },
+  { id: "linear", label: "Linear beam" },
+  { id: "conic", label: "Conic sweep" },
 ];
 
 interface ChatAmbientEffectPickerProps {
@@ -259,6 +385,27 @@ export function ChatAmbientEffectPicker({ value, onValueChange }: ChatAmbientEff
         ))}
       </SelectPopup>
     </Select>
+  );
+}
+
+export interface ChatAmbientControlsProps {
+  readonly effect: ChatAmbientEffectSelection;
+  readonly onEffectChange: (effect: ChatAmbientEffectSelection) => void;
+  readonly appearance: ChatAmbientAppearance;
+  readonly onAppearanceChange: (appearance: ChatAmbientAppearance) => void;
+}
+
+export function ChatAmbientControls({
+  effect,
+  onEffectChange,
+  appearance,
+  onAppearanceChange,
+}: ChatAmbientControlsProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-1">
+      <ChatAmbientEffectPicker value={effect} onValueChange={onEffectChange} />
+      <ChatAmbientAppearancePicker value={appearance} onValueChange={onAppearanceChange} />
+    </div>
   );
 }
 
@@ -300,6 +447,32 @@ function ChatAmbientAppearanceSelect({
   );
 }
 
+function ChatAmbientColorInput({
+  label,
+  value,
+  onValueChange,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly onValueChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-3 text-[0.6875rem] text-foreground/80">
+      <span>{label}</span>
+      <span className="flex items-center gap-2">
+        <span className="font-mono text-[0.625rem] text-muted-foreground">{value}</span>
+        <input
+          aria-label={`${label} color`}
+          className="size-6 cursor-pointer rounded border border-border/70 bg-transparent p-0.5"
+          type="color"
+          value={value}
+          onChange={(event) => onValueChange(event.currentTarget.value)}
+        />
+      </span>
+    </label>
+  );
+}
+
 export function ChatAmbientAppearancePicker({
   value,
   onValueChange,
@@ -313,11 +486,11 @@ export function ChatAmbientAppearancePicker({
             aria-label="Customize chat ambient appearance"
             className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-secondary-label outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             data-chat-ambient-appearance-picker
-          />
+          >
+            <SlidersHorizontalIcon className="size-3.5" />
+          </button>
         }
-      >
-        <SlidersHorizontalIcon className="size-3.5" />
-      </PopoverTrigger>
+      />
       <PopoverPopup align="end" className="w-72">
         <div className="space-y-4">
           <div>
@@ -357,7 +530,55 @@ export function ChatAmbientAppearancePicker({
             </div>
           </div>
 
+          <div className="space-y-2 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-xs font-medium text-foreground/80">Custom gradient</span>
+              <span className="text-[0.625rem] text-muted-foreground">3 color stops</span>
+            </div>
+            <ChatAmbientColorInput
+              label="Background"
+              value={value.customColors.background}
+              onValueChange={(background) =>
+                onValueChange({
+                  ...value,
+                  palette: CHAT_AMBIENT_CUSTOM_PALETTE,
+                  customColors: { ...value.customColors, background },
+                })
+              }
+            />
+            <ChatAmbientColorInput
+              label="Primary"
+              value={value.customColors.primary}
+              onValueChange={(primary) =>
+                onValueChange({
+                  ...value,
+                  palette: CHAT_AMBIENT_CUSTOM_PALETTE,
+                  customColors: { ...value.customColors, primary },
+                })
+              }
+            />
+            <ChatAmbientColorInput
+              label="Secondary"
+              value={value.customColors.secondary}
+              onValueChange={(secondary) =>
+                onValueChange({
+                  ...value,
+                  palette: CHAT_AMBIENT_CUSTOM_PALETTE,
+                  customColors: { ...value.customColors, secondary },
+                })
+              }
+            />
+          </div>
+
           <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+            <ChatAmbientAppearanceSelect
+              label="Gradient"
+              options={chatAmbientGradientOptions}
+              value={value.gradient}
+              onValueChange={(gradient) => {
+                if (isChatAmbientGradient(gradient)) onValueChange({ ...value, gradient });
+              }}
+            />
             <ChatAmbientAppearanceSelect
               label="Blur"
               options={chatAmbientBlurOptions}
@@ -407,7 +628,23 @@ export function ChatAmbientBackground({
   theme,
   className,
 }: ChatAmbientBackgroundProps) {
-  const resolvedAppearance = resolveChatAmbientAppearance(appearance);
+  const resolvedAppearance = useMemo(
+    () => resolveChatAmbientAppearance(appearance),
+    [
+      appearance?.blur,
+      appearance?.customColors?.background,
+      appearance?.customColors?.primary,
+      appearance?.customColors?.secondary,
+      appearance?.dim,
+      appearance?.frost,
+      appearance?.gradient,
+      appearance?.palette,
+    ],
+  );
+  const cssColors = useMemo(
+    () => resolveChatAmbientCssColors(resolvedAppearance, theme),
+    [resolvedAppearance, theme],
+  );
   const plugin = effect === CHAT_AMBIENT_EFFECT_NONE ? null : CHAT_AMBIENT_EFFECT_PLUGINS[effect];
   const Effect = plugin?.component;
 
@@ -418,18 +655,27 @@ export function ChatAmbientBackground({
         "chat-ambient-background pointer-events-none absolute inset-0 z-0 overflow-hidden",
         className,
       )}
+      style={
+        {
+          "--chat-ambient-background": cssColors.background,
+          "--chat-ambient-primary": cssColors.primary,
+          "--chat-ambient-secondary": cssColors.secondary,
+        } as CSSProperties
+      }
       data-chat-ambient-background
       data-chat-ambient-effect={effect}
       data-chat-ambient-palette={resolvedAppearance.palette}
       data-chat-ambient-blur={resolvedAppearance.blur}
       data-chat-ambient-dim={resolvedAppearance.dim}
       data-chat-ambient-frost={resolvedAppearance.frost ? "true" : "false"}
+      data-chat-ambient-gradient={resolvedAppearance.gradient}
     >
       {Effect ? (
         <Suspense fallback={<div className="absolute inset-0" data-chat-ambient-fallback />}>
-          <Effect palette={resolvedAppearance.palette} theme={theme} />
+          <Effect appearance={resolvedAppearance} theme={theme} />
         </Suspense>
       ) : null}
+      <div className="chat-ambient-gradient-layer" data-chat-ambient-gradient-layer />
     </div>
   );
 }

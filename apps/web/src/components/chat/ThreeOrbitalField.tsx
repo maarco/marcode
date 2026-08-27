@@ -1,11 +1,7 @@
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
 
-import {
-  CHAT_AMBIENT_COLOR_PALETTES,
-  type ChatAmbientEffectProps,
-  type ChatAmbientTheme,
-} from "./chatAmbientEffects";
+import { resolveChatAmbientShaderPalette, type ChatAmbientEffectProps } from "./chatAmbientEffects";
 
 const MAX_PIXEL_RATIO = 1.35;
 const PARTICLE_COUNT = 760;
@@ -13,12 +9,6 @@ const PARTICLE_COUNT = 760;
 function seededRandom(seed: number) {
   const value = Math.sin(seed * 12.9898) * 43758.5453;
   return value - Math.floor(value);
-}
-
-function paletteForTheme(theme: ChatAmbientTheme, paletteId: ChatAmbientEffectProps["palette"]) {
-  return {
-    particle: CHAT_AMBIENT_COLOR_PALETTES[paletteId][theme].secondary,
-  };
 }
 
 function createParticleField(color: number) {
@@ -68,8 +58,9 @@ function disposeScene(scene: THREE.Scene) {
   });
 }
 
-export function ThreeOrbitalField({ palette: paletteId, theme }: ChatAmbientEffectProps) {
+export function ThreeOrbitalField({ appearance, theme }: ChatAmbientEffectProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particleColor = resolveChatAmbientShaderPalette(appearance, theme).secondary;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -95,9 +86,8 @@ export function ThreeOrbitalField({ palette: paletteId, theme }: ChatAmbientEffe
     const camera = new THREE.PerspectiveCamera(34, 1, 0.1, 40);
     camera.position.set(0, 0, 9.2);
 
-    const palette = paletteForTheme(theme, paletteId);
     const sceneGroup = new THREE.Group();
-    const starField = createParticleField(palette.particle);
+    const starField = createParticleField(particleColor);
 
     sceneGroup.add(starField);
     scene.add(sceneGroup);
@@ -152,7 +142,7 @@ export function ThreeOrbitalField({ palette: paletteId, theme }: ChatAmbientEffe
       disposeScene(scene);
       renderer.dispose();
     };
-  }, [paletteId, theme]);
+  }, [particleColor]);
 
   return <canvas ref={canvasRef} className="absolute inset-0 size-full" data-chat-ambient-canvas />;
 }

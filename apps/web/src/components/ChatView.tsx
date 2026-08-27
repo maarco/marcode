@@ -281,6 +281,7 @@ import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { MessagesTimeline } from "./chat/MessagesTimeline";
 import { resolveTimelineIsAtEnd } from "./chat/MessagesTimeline.logic";
+import { ChatAmbientControls } from "./chat/chatAmbientEffects";
 import { ChatHeader, ThreadActionsCluster } from "./chat/ChatHeader";
 import {
   CHAT_AMBIENT_APPEARANCE_STORAGE_KEY,
@@ -6726,6 +6727,7 @@ function ChatViewContent(props: ChatViewProps) {
                   onAmbientEffectChange: handleChatAmbientEffectChange,
                   ambientAppearance: chatAmbientAppearance,
                   onAmbientAppearanceChange: handleChatAmbientAppearanceChange,
+                  showAmbientControls: pillThreadActionsSlot === null,
                 }
               : {})}
           />
@@ -6734,28 +6736,38 @@ function ChatViewContent(props: ChatViewProps) {
         {/* thread actions live in the pill nav's workspace slot */}
         {pillThreadActionsSlot
           ? createPortal(
-              <ThreadActionsCluster
-                activeThreadEnvironmentId={activeThread.environmentId}
-                activeThreadId={activeThread.id}
-                {...(routeKind === "draft" && draftId ? { draftId } : {})}
-                activeProjectName={activeProject?.title}
-                activeProjectCwd={activeProject?.workspaceRoot ?? null}
-                openInCwd={gitCwd}
-                activeProjectScripts={activeProject?.scripts}
-                preferredScriptId={
-                  activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
-                }
-                keybindings={keybindings}
-                availableEditors={availableEditors}
-                gitCwd={gitCwd}
-                {...(!supportsPullRequests || threadRepository === null
-                  ? {}
-                  : { onOpenPullRequest: openThreadPullRequest })}
-                onRunProjectScript={runProjectScript}
-                onAddProjectScript={saveProjectScript}
-                onUpdateProjectScript={updateProjectScript}
-                onDeleteProjectScript={deleteProjectScript}
-              />,
+              <>
+                {!isDraftHeroState ? (
+                  <ChatAmbientControls
+                    effect={chatAmbientEffect}
+                    onEffectChange={handleChatAmbientEffectChange}
+                    appearance={chatAmbientAppearance}
+                    onAppearanceChange={handleChatAmbientAppearanceChange}
+                  />
+                ) : null}
+                <ThreadActionsCluster
+                  activeThreadEnvironmentId={activeThread.environmentId}
+                  activeThreadId={activeThread.id}
+                  {...(routeKind === "draft" && draftId ? { draftId } : {})}
+                  activeProjectName={activeProject?.title}
+                  activeProjectCwd={activeProject?.workspaceRoot ?? null}
+                  openInCwd={gitCwd}
+                  activeProjectScripts={activeProject?.scripts}
+                  preferredScriptId={
+                    activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
+                  }
+                  keybindings={keybindings}
+                  availableEditors={availableEditors}
+                  gitCwd={gitCwd}
+                  {...(!supportsPullRequests || threadRepository === null
+                    ? {}
+                    : { onOpenPullRequest: openThreadPullRequest })}
+                  onRunProjectScript={runProjectScript}
+                  onAddProjectScript={saveProjectScript}
+                  onUpdateProjectScript={updateProjectScript}
+                  onDeleteProjectScript={deleteProjectScript}
+                />
+              </>,
               pillThreadActionsSlot,
             )
           : null}

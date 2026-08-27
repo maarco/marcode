@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { useEffect, useRef } from "react";
 
-import type { ChatAmbientEffectProps } from "./chatAmbientEffects";
+import type { ChatAmbientTheme } from "./chatAmbientEffects";
 
 const MAX_PIXEL_RATIO = 1.35;
 
@@ -20,7 +20,8 @@ export interface ThreeShaderPalette {
   readonly secondary: number;
 }
 
-interface ThreeShaderCanvasProps extends ChatAmbientEffectProps {
+interface ThreeShaderCanvasProps {
+  readonly theme: ChatAmbientTheme;
   readonly fragmentShader: string;
   readonly palette: ThreeShaderPalette;
 }
@@ -120,7 +121,7 @@ export function ThreeShaderCanvas({ theme, fragmentShader, palette }: ThreeShade
       material.dispose();
       renderer.dispose();
     };
-  }, [fragmentShader, palette, theme]);
+  }, [fragmentShader, palette.background, palette.primary, palette.secondary]);
 
   return <canvas ref={canvasRef} className="absolute inset-0 size-full" data-chat-ambient-canvas />;
 }

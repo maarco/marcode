@@ -34,7 +34,28 @@ describe("chat ambient effect plug-ins", () => {
         dim: "none",
         frost: true,
       }),
-    ).toEqual({ palette: "ember-rose", blur: "deep", dim: "none", frost: true });
+    ).toEqual({
+      ...DEFAULT_CHAT_AMBIENT_APPEARANCE,
+      palette: "ember-rose",
+      blur: "deep",
+      dim: "none",
+      frost: true,
+    });
+    expect(
+      resolveChatAmbientAppearance({
+        palette: "custom",
+        customColors: {
+          background: "#02030f",
+          primary: "#ff00aa",
+          secondary: "#00ffee",
+        },
+        gradient: "conic",
+      }),
+    ).toMatchObject({
+      palette: "custom",
+      customColors: { background: "#02030f", primary: "#ff00aa", secondary: "#00ffee" },
+      gradient: "conic",
+    });
     expect(
       resolveChatAmbientAppearance({
         palette: "removed-palette",
