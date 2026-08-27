@@ -807,6 +807,14 @@ export function TerminalViewport({
       return false;
     });
 
+    // ── Marcode fork seam ──
+    // Upstream drives terminal links from ghostty's own `handleLinkActivate`,
+    // which classifies a URL with `isTerminalUrl`. Marcode keeps the xterm
+    // link provider (for its search) and classifies through
+    // `extractTerminalLinks`, whose `URL_PATTERN` is the same `https?://`
+    // test — so upstream's #7488 refactor lands here as `match.kind === "url"`
+    // rather than as a call to `isTerminalUrl`. Re-port upstream's terminal
+    // link work into this provider by hand on every sync.
     const terminalLinksDisposable = terminal.registerLinkProvider({
       provideLinks: (bufferLineNumber, callback) => {
         const activeTerminal = terminalRef.current;

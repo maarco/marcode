@@ -6,13 +6,18 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   resolveInitialThreadSidebarWidth,
   THREAD_MAIN_CONTENT_MIN_WIDTH,
-  THREAD_SIDEBAR_DEFAULT_WIDTH,
   THREAD_SIDEBAR_MIN_WIDTH,
 } from "./threadSidebarWidth";
 
+// Marcode fork seam: upstream pruned this file as trivial (#8400). Marcode keeps
+// it for the brand-removal pin below, which has no other home — a sync that
+// re-introduces the sidebar wordmark must fail loudly instead of merging clean.
 describe("thread sidebar width", () => {
-  it("uses the default width when no preference is stored", () => {
-    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBe(THREAD_SIDEBAR_DEFAULT_WIDTH);
+  // Upstream un-exported THREAD_SIDEBAR_DEFAULT_WIDTH when it pruned this file
+  // (#8400). Marcode follows that refactor rather than re-exporting it, so the
+  // no-preference case is pinned by its floor instead of its exact value.
+  it("uses a width above the minimum when no preference is stored", () => {
+    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBeGreaterThan(THREAD_SIDEBAR_MIN_WIDTH);
   });
 
   it("uses a stored width in the initial render", () => {
