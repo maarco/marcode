@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { CheckIcon, SlidersHorizontalIcon, SparklesIcon } from "lucide-react";
+import { CheckIcon, OrbitIcon, SlidersHorizontalIcon } from "lucide-react";
 import {
   lazy,
   Suspense,
@@ -9,6 +9,7 @@ import {
   useMemo,
 } from "react";
 
+import { FLOATING_SURFACE_Z } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 import {
   Popover,
@@ -368,16 +369,22 @@ export function ChatAmbientEffectPicker({ value, onValueChange }: ChatAmbientEff
       }}
     >
       <SelectTrigger
-        aria-label="Chat ambient effect"
-        className="max-w-40 min-w-0 px-1.5 text-xs"
+        aria-label={`Chat ambient effect: ${selectedLabel}`}
+        className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md px-0 text-secondary-label outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         data-chat-ambient-effect-picker
+        icon={false}
         size="xs"
+        title={selectedLabel}
         variant="ghost"
       >
-        <SparklesIcon className="size-3.5 shrink-0" />
-        <SelectValue>{selectedLabel}</SelectValue>
+        <OrbitIcon aria-hidden="true" className="size-3.5 shrink-0" />
       </SelectTrigger>
-      <SelectPopup align="end" alignItemWithTrigger={false} matchTriggerWidth={false}>
+      <SelectPopup
+        align="end"
+        alignItemWithTrigger={false}
+        matchTriggerWidth={false}
+        positionerStyle={{ zIndex: FLOATING_SURFACE_Z.pillNavMenu }}
+      >
         {chatAmbientEffectOptions.map((option) => (
           <SelectItem key={option.id} value={option.id} hideIndicator className="min-w-36">
             {option.label}
