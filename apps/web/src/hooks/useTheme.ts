@@ -35,6 +35,11 @@ type ThemeSnapshot = {
 
 type DesktopThemeBridge = Pick<DesktopBridge, "setTheme">;
 
+// ── Marcode fork seam ──
+// Upstream's key is "t3code:theme". Any test seeding a stored theme must use
+// this value; `useEnvironmentThemeSync.test.ts` hardcodes it, because that test
+// loads this module dynamically after stubbing globals and cannot import from
+// here statically.
 const STORAGE_KEY = "marcode:theme";
 const MEDIA_QUERY = "(prefers-color-scheme: dark)";
 const DEFAULT_THEME_SNAPSHOT: ThemeSnapshot = {

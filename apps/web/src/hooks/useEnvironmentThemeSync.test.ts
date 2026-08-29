@@ -16,7 +16,13 @@ const LIGHT_THEME = {
 } as const satisfies EnvironmentTheme;
 
 async function setupThemeSync(mode: "dark" | "system" = "dark") {
-  const storage = new Map<string, string>([["t3code:theme", NIGHTFALL_THEME.id]]);
+  // ── Marcode fork seam ──
+  // Upstream seeds "t3code:theme". Marcode's STORAGE_KEY in ./useTheme is
+  // "marcode:theme", and the upstream value read as "no stored theme", so every
+  // appearance assertion below silently fell back to the default. Hardcoded
+  // rather than imported: this file loads ./useTheme dynamically, after the
+  // stubGlobal calls below, and a static import would pull React in too early.
+  const storage = new Map<string, string>([["marcode:theme", NIGHTFALL_THEME.id]]);
   const styles = new Map<string, string>();
   const classes = new Set<string>();
   const root = {
