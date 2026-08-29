@@ -15,6 +15,14 @@ const personalTeamBundleIdentifier = repoEnv.MARCODE_IOS_PERSONAL_TEAM_BUNDLE_ID
 const IOS_BUNDLE_IDENTIFIER_PATTERN = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/;
 
 const fromRepoRoot = (relativePath: string) => `../../${relativePath}`;
+// Universal exports already contain their own rounded-square silhouette. Using one as an adaptive
+// foreground makes Android draw an icon shape inside the launcher's mask.
+// ── Marcode fork seam ──
+// Upstream points every channel's Android adaptive foreground at one shared
+// `./assets/android-icon-foreground.png`. Marcode ships channel-specific brand
+// artwork, so each *_ASSETS block below names its own BRAND_ASSET_PATHS entry
+// and this shared constant is intentionally absent. If a sync reinstates it,
+// re-check that dev/nightly/production still resolve to Marcode marks.
 
 if (
   isIosPersonalTeamBuild &&

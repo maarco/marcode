@@ -53,6 +53,12 @@ import { cn, isMacPlatform } from "~/lib/utils";
 import { pillIconButtonClass } from "./FloatingPillNav";
 import { type TerminalContextSelection } from "~/lib/terminalContext";
 import { useOpenInPreferredEditor } from "../editorPreferences";
+// ── Marcode fork seam ──
+// Marcode keeps the xterm terminal (for its search), so this file drives an
+// xterm link provider rather than upstream's ghostty surface. Upstream's
+// `isTerminalUrl` is not imported here on purpose: `extractTerminalLinks`
+// already classifies each match as "url" or "path", and it is the shared
+// `terminal-links.ts` that carries upstream's clickable-link fix (t3code@883e1a3c).
 import {
   collectWrappedTerminalLinkLine,
   extractTerminalLinks,

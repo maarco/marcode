@@ -6,13 +6,21 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   resolveInitialThreadSidebarWidth,
   THREAD_MAIN_CONTENT_MIN_WIDTH,
-  THREAD_SIDEBAR_DEFAULT_WIDTH,
   THREAD_SIDEBAR_MIN_WIDTH,
 } from "./threadSidebarWidth";
 
+// ── Marcode fork seam ──
+// Upstream deleted this file as a trivial layout test (t3code@f6f2be32). Marcode
+// keeps it for the `keeps the brand out of the sidebar header` case below, which
+// is the only guard against an upstream sync silently restoring SidebarBrand /
+// T3Wordmark into `SidebarChrome.tsx`. The width cases stay so the file still
+// covers the module it is named for.
 describe("thread sidebar width", () => {
   it("uses the default width when no preference is stored", () => {
-    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBe(THREAD_SIDEBAR_DEFAULT_WIDTH);
+    // 16rem, inlined: upstream un-exported THREAD_SIDEBAR_DEFAULT_WIDTH when it
+    // deleted this file, and re-widening their module's API just to import it
+    // would be a conflict at the next sync.
+    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBe(16 * 16);
   });
 
   it("uses a stored width in the initial render", () => {
