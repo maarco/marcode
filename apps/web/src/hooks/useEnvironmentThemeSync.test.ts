@@ -16,7 +16,12 @@ const LIGHT_THEME = {
 } as const satisfies EnvironmentTheme;
 
 async function setupThemeSync(mode: "dark" | "system" = "dark") {
-  const storage = new Map<string, string>([["t3code:theme", NIGHTFALL_THEME.id]]);
+  // ── Marcode fork seam ──
+  // Upstream seeds "t3code:theme" here. Marcode renamed the selected-theme key
+  // to "marcode:theme" (see useTheme.ts STORAGE_KEY, and useTheme.test.ts which
+  // uses the same literal). Seeding the upstream key resolves no theme, so every
+  // light-appearance assertion below falls back to dark.
+  const storage = new Map<string, string>([["marcode:theme", NIGHTFALL_THEME.id]]);
   const styles = new Map<string, string>();
   const classes = new Set<string>();
   const root = {
