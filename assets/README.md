@@ -53,3 +53,19 @@ Verify every result is 1024×1024 and has the classic macOS safe area: an 824×8
 ```
 
 Do not edit the generated PNG or ICO files directly.
+
+## Android adaptive foreground
+
+`apps/mobile/assets/android-icon-foreground.svg` is the source of truth for the foreground used by
+the normal Android adaptive launcher icon. Export its paired PNG after changing it:
+
+```sh
+rsvg-convert -w 432 -h 432 \
+  -o apps/mobile/assets/android-icon-foreground.png \
+  apps/mobile/assets/android-icon-foreground.svg
+```
+
+The foreground must remain transparent and keep the Marcode mark inside Android's adaptive-icon
+safe zone. Marcode ships the black mark on a white adaptive background for every channel, so the
+foreground glyph is black (`#0A0A0A`); upstream ships a white glyph over per-channel tints.
+`android-icon-mark.png` remains a flat silhouette for Android's monochrome themed icon.

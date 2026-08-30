@@ -53,6 +53,11 @@ import { cn, isMacPlatform } from "~/lib/utils";
 import { pillIconButtonClass } from "./FloatingPillNav";
 import { type TerminalContextSelection } from "~/lib/terminalContext";
 import { useOpenInPreferredEditor } from "../editorPreferences";
+// ── Marcode fork seam ──
+// Upstream tests the raw link text with `isTerminalUrl` at activation time.
+// Marcode routes on `match.kind` from `extractTerminalLinks` instead, so the
+// same #7488 fix arrives through the shared producer in ../terminal-links and
+// this file needs no `isTerminalUrl` import.
 import {
   collectWrappedTerminalLinkLine,
   extractTerminalLinks,

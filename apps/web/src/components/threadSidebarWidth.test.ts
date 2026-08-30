@@ -1,4 +1,10 @@
 // @effect-diagnostics nodeBuiltinImport:off - Regression coverage compares the sidebar component with its width contract.
+//
+// ── Marcode fork seam ──
+// Upstream deleted this file in #8400 as a trivial layout test. Marcode keeps
+// it because "keeps the brand out of the sidebar header" below is the only
+// assertion pinning a Marcode removal that upstream still ships; without it a
+// future sync re-introduces the sidebar wordmark with no conflict at all.
 import * as NodeFS from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
@@ -6,13 +12,14 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   resolveInitialThreadSidebarWidth,
   THREAD_MAIN_CONTENT_MIN_WIDTH,
-  THREAD_SIDEBAR_DEFAULT_WIDTH,
   THREAD_SIDEBAR_MIN_WIDTH,
 } from "./threadSidebarWidth";
 
 describe("thread sidebar width", () => {
   it("uses the default width when no preference is stored", () => {
-    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBe(THREAD_SIDEBAR_DEFAULT_WIDTH);
+    // Upstream un-exported THREAD_SIDEBAR_DEFAULT_WIDTH when it deleted this
+    // file; the literal keeps the assertion without re-widening their module.
+    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBe(16 * 16);
   });
 
   it("uses a stored width in the initial render", () => {

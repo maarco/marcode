@@ -8,7 +8,6 @@ vi.mock("./branding", () => branding);
 
 import { APP_VERSION } from "./branding";
 import {
-  appendVersionMismatchHint,
   buildVersionMismatchDismissalKey,
   dismissVersionMismatch,
   isVersionMismatchDismissed,
@@ -48,6 +47,25 @@ describe("versionSkew", () => {
 
     branding.APP_VERSION = "0.0.34-nightly.20260818.1124";
     expect(resolveVersionMismatch("0.0.34")).toBeNull();
+  });
+
+  it.each(["0.0.34-nightly.20260823.1124", "0.0.34-nightly.20260824.1124"])(
+    "warns when nightly server %s is behind a nightly client on the same release",
+    (serverVersion) => {
+      branding.APP_VERSION = "0.0.34-nightly.20260824.1125";
+
+      expect(resolveVersionMismatch(serverVersion)).toEqual({
+        clientVersion: "0.0.34-nightly.20260824.1125",
+        serverVersion,
+        hint: MISMATCH_HINT,
+      });
+    },
+  );
+
+  it("does not warn when a nightly server is ahead on the same release", () => {
+    branding.APP_VERSION = "0.0.34-nightly.20260824.1125";
+
+    expect(resolveVersionMismatch("0.0.34-nightly.20260824.1126")).toBeNull();
   });
 
   it("treats a nightly server built past the client as ahead, not skew", () => {
@@ -118,14 +136,6 @@ describe("versionSkew", () => {
         }),
       ),
     ).toBe(false);
-  });
-
-  it("appends a hint to connection errors when the server is behind", () => {
-    const mismatch = resolveVersionMismatch("0.0.33");
-
-    expect(appendVersionMismatchHint("Socket closed.", mismatch)).toBe(
-      `Socket closed. Hint: ${MISMATCH_HINT}`,
-    );
   });
 
   it("reads desktop-managed update capabilities from config descriptors", () => {

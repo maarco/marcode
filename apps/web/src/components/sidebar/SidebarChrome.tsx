@@ -23,7 +23,10 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 
 /**
  * Settings, Pull Requests, Usage, and the page-level Back action live in
- * FloatingPillNav, so the sidebar footer only owns update state. The
+ * FloatingPillNav, so the sidebar footer only owns update state. Upstream still
+ * ships `SidebarUtilityMenu` here; fixes to it (such as #8168's project-settings
+ * Back button) belong in FloatingPillNav, whose "Back to Workspace" entry
+ * already covers every off-thread route. The
  * `SidebarMenu` wrapper is not decoration: upstream's `SidebarUpdatePill`
  * renders a `SidebarMenuItem` (an `<li>`) and needs a list to sit in.
  */
