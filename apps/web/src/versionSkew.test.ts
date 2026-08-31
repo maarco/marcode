@@ -1,4 +1,5 @@
 import { EnvironmentId } from "@t3tools/contracts";
+import type { ServerUpdateState } from "@t3tools/client-runtime/state/server";
 import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 // Pinned so the direction cases below read as fixed versions instead of
@@ -8,9 +9,10 @@ vi.mock("./branding", () => branding);
 
 import { APP_VERSION } from "./branding";
 import {
-  appendVersionMismatchHint,
   buildVersionMismatchDismissalKey,
+  dismissServerUpdateFailure,
   dismissVersionMismatch,
+  isServerUpdateFailureDismissed,
   isVersionMismatchDismissed,
   resolveServerConfigVersionMismatch,
   resolveServerSelfUpdateCapability,
@@ -24,6 +26,39 @@ const MISMATCH_HINT =
 describe("versionSkew", () => {
   beforeEach(() => {
     branding.APP_VERSION = "0.0.34";
+  });
+
+  it("dismisses only the current failed attempt without clearing its retry state", () => {
+    const failure = {
+      status: "failed",
+      stage: "downloading",
+      fromVersion: "0.0.33",
+      targetVersion: "0.0.34",
+      message: "Download failed.",
+    } as const satisfies ServerUpdateState;
+    const retryFailure = { ...failure };
+    const otherEnvironmentFailure = { ...failure };
+
+    dismissServerUpdateFailure(failure);
+
+    expect(isServerUpdateFailureDismissed(failure)).toBe(true);
+    expect(failure.status).toBe("failed");
+    expect(failure.message).toBe("Download failed.");
+    expect(isServerUpdateFailureDismissed(retryFailure)).toBe(false);
+    expect(isServerUpdateFailureDismissed(otherEnvironmentFailure)).toBe(false);
+  });
+
+  it("does not dismiss an update that is still running", () => {
+    const running = {
+      status: "running",
+      stage: "resuming",
+      fromVersion: "0.0.33",
+      targetVersion: "0.0.34",
+    } as const satisfies ServerUpdateState;
+
+    dismissServerUpdateFailure(running);
+
+    expect(isServerUpdateFailureDismissed(running)).toBe(false);
   });
 
   it("does not warn when versions match", () => {
@@ -48,6 +83,25 @@ describe("versionSkew", () => {
 
     branding.APP_VERSION = "0.0.34-nightly.20260818.1124";
     expect(resolveVersionMismatch("0.0.34")).toBeNull();
+  });
+
+  it.each(["0.0.34-nightly.20260823.1124", "0.0.34-nightly.20260824.1124"])(
+    "warns when nightly server %s is behind a nightly client on the same release",
+    (serverVersion) => {
+      branding.APP_VERSION = "0.0.34-nightly.20260824.1125";
+
+      expect(resolveVersionMismatch(serverVersion)).toEqual({
+        clientVersion: "0.0.34-nightly.20260824.1125",
+        serverVersion,
+        hint: MISMATCH_HINT,
+      });
+    },
+  );
+
+  it("does not warn when a nightly server is ahead on the same release", () => {
+    branding.APP_VERSION = "0.0.34-nightly.20260824.1125";
+
+    expect(resolveVersionMismatch("0.0.34-nightly.20260824.1126")).toBeNull();
   });
 
   it("treats a nightly server built past the client as ahead, not skew", () => {
@@ -118,14 +172,6 @@ describe("versionSkew", () => {
         }),
       ),
     ).toBe(false);
-  });
-
-  it("appends a hint to connection errors when the server is behind", () => {
-    const mismatch = resolveVersionMismatch("0.0.33");
-
-    expect(appendVersionMismatchHint("Socket closed.", mismatch)).toBe(
-      `Socket closed. Hint: ${MISMATCH_HINT}`,
-    );
   });
 
   it("reads desktop-managed update capabilities from config descriptors", () => {

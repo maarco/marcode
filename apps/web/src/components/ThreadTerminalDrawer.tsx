@@ -807,6 +807,12 @@ export function TerminalViewport({
       return false;
     });
 
+    // ── Marcode fork seam ──
+    // Upstream activates links from a raw `/^https?:\/\//` test inside its own
+    // handler; Marcode registers an xterm link provider that classifies each
+    // match as url or path in `terminal-links.ts`. Upstream's "only clickable
+    // when actually a link" fix lands there, as the shared `isTerminalUrl`
+    // predicate `collectMatches` already applies, so nothing is needed here.
     const terminalLinksDisposable = terminal.registerLinkProvider({
       provideLinks: (bufferLineNumber, callback) => {
         const activeTerminal = terminalRef.current;

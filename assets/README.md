@@ -53,3 +53,20 @@ Verify every result is 1024×1024 and has the classic macOS safe area: an 824×8
 ```
 
 Do not edit the generated PNG or ICO files directly.
+
+## Android adaptive foreground
+
+`apps/mobile/assets/android-icon-foreground.png` is the foreground of the normal Android adaptive
+launcher icon. Upstream keeps a paired wordmark SVG here; Marcode does not, because this foreground
+is derived from Marcode's own mark rather than drawn separately:
+
+- `apps/mobile/assets/android-icon-mark.png` is the full-bleed white Marcode silhouette Android uses
+  for the monochrome themed icon. It is the geometry source.
+- The adaptive foreground is that silhouette scaled to sit entirely inside Android's adaptive-icon
+  safe zone — the 264px-diameter circle centred on the 432×432 canvas — on a transparent background.
+
+Regenerate it with `scripts/android-adaptive-foreground.ts` after changing the mark.
+
+Never point the adaptive foreground at a universal icon export. Those already carry their own
+rounded-square silhouette, so the launcher mask draws an icon shape inside an icon shape. Per-variant
+`androidAdaptiveBackgroundColor` values in `apps/mobile/app.config.ts` stay Marcode brand colors.

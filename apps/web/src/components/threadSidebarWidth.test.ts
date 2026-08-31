@@ -1,40 +1,14 @@
-// @effect-diagnostics nodeBuiltinImport:off - Regression coverage compares the sidebar component with its width contract.
+// @effect-diagnostics nodeBuiltinImport:off - Regression coverage reads the sidebar component source.
 import * as NodeFS from "node:fs";
 
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  resolveInitialThreadSidebarWidth,
-  THREAD_MAIN_CONTENT_MIN_WIDTH,
-  THREAD_SIDEBAR_DEFAULT_WIDTH,
-  THREAD_SIDEBAR_MIN_WIDTH,
-} from "./threadSidebarWidth";
+import { THREAD_SIDEBAR_MIN_WIDTH } from "./threadSidebarWidth";
 
+// Upstream pruned its own width tests as trivial layout coverage (#8400) and
+// un-exported the default width with them. Only the two rules Marcode actually
+// depends on survive here.
 describe("thread sidebar width", () => {
-  it("uses the default width when no preference is stored", () => {
-    expect(resolveInitialThreadSidebarWidth(null, 1200)).toBe(THREAD_SIDEBAR_DEFAULT_WIDTH);
-  });
-
-  it("uses a stored width in the initial render", () => {
-    expect(resolveInitialThreadSidebarWidth(360, 1200)).toBe(360);
-  });
-
-  it("clamps a stored width to the sidebar minimum", () => {
-    expect(resolveInitialThreadSidebarWidth(120, 1200)).toBe(THREAD_SIDEBAR_MIN_WIDTH);
-  });
-
-  it("leaves enough room for the main content on a smaller window", () => {
-    const viewportWidth = 1000;
-
-    expect(resolveInitialThreadSidebarWidth(900, viewportWidth)).toBe(
-      viewportWidth - THREAD_MAIN_CONTENT_MIN_WIDTH,
-    );
-  });
-
-  it("keeps the sidebar minimum when the whole layout is narrower than its minimums", () => {
-    expect(resolveInitialThreadSidebarWidth(900, 700)).toBe(THREAD_SIDEBAR_MIN_WIDTH);
-  });
-
   it("keeps the sidebar minimum at the 13rem the header layout is built around", () => {
     expect(THREAD_SIDEBAR_MIN_WIDTH).toBe(13 * 16);
   });
