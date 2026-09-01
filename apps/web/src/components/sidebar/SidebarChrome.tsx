@@ -8,6 +8,13 @@ import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUp
  * Brand, navigation, settings, and the sidebar toggle live in FloatingPillNav.
  * Electron still needs a bare drag strip so traffic lights do not overlap
  * project content.
+ *
+ * ── Marcode fork seam ── upstream's brand link, sidebar trigger, environment
+ * badge, and utility menu are all deliberately absent (the removal is pinned by
+ * `threadSidebarWidth.test.ts`, which greps this file). Their #8168
+ * back-button-on-project-settings fix therefore has nothing to land on here:
+ * the pill nav navigates by category rather than offering a per-page Back
+ * affordance. Revisit if the pill nav ever grows one.
  */
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
   isElectron,

@@ -1,4 +1,7 @@
 export const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
+// ── Marcode fork seam ── upstream un-exported this when #8400 deleted the
+// width tests. Marcode kept `threadSidebarWidth.test.ts` (it also pins the
+// sidebar-brand removal), so the constant stays exported for it.
 export const THREAD_SIDEBAR_DEFAULT_WIDTH = 16 * 16;
 export const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
 export const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;

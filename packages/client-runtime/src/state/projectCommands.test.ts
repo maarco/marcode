@@ -11,6 +11,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { Atom, AtomRegistry } from "effect/unstable/reactivity";
 
@@ -63,6 +64,10 @@ function testLayer(dispatched: ClientOrchestrationCommand[]) {
       const session: RpcSession.RpcSession = {
         client,
         initialConfig: Effect.never,
+        // Upstream #8367 added this to RpcSession. These tests only assert the
+        // commands the workspace-layout atoms dispatch, so the config stream
+        // stays open and silent.
+        subscribeServerConfig: () => Stream.never,
         ready: Effect.void,
         probe: Effect.void,
         closed: Effect.never,

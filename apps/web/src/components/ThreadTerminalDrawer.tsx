@@ -61,6 +61,11 @@ import {
   resolveWrappedTerminalLinkRange,
   wrappedTerminalLinkRangeIntersectsBufferLine,
 } from "../terminal-links";
+// ── Marcode fork seam ── upstream renders this drawer through ghostty and
+// gates URL activation with `isTerminalUrl`. Marcode kept the xterm surface
+// (it carries the terminal search), and its `extractTerminalLinks` already
+// classifies each match as "url" or "path" — `isTerminalUrl` is applied inside
+// that extractor — so upstream's #7488 fix is covered by `match.kind` below.
 import {
   isDiffToggleShortcut,
   isTerminalClearShortcut,

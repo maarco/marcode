@@ -22,7 +22,7 @@ export default defineConfig({
   },
   staged: {
     // Formatter only for now — no lint or typecheck on commit.
-    "*": "vp fmt",
+    "*": "vp fmt --no-error-on-unmatched-pattern",
   },
   fmt: {
     ignorePatterns: [
@@ -120,6 +120,7 @@ export default defineConfig({
       "marcode/no-global-process-runtime": "error",
       "marcode/no-inline-schema-compile": "warn",
       "marcode/no-manual-effect-runtime-in-tests": "error",
+      "marcode/no-mobile-uniwind-theme-escape-hatches": "error",
       // ── Marcode fork seam ──
       // Upstream ships this rule at "error" after migrating their own surfaces.
       // Marcode-only surfaces (floating editor, floating terminal shell, git
