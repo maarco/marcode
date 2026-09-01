@@ -281,7 +281,19 @@ import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { MessagesTimeline } from "./chat/MessagesTimeline";
 import { resolveTimelineIsAtEnd } from "./chat/MessagesTimeline.logic";
+import { ChatAmbientControls } from "./chat/chatAmbientEffects";
 import { ChatHeader, ThreadActionsCluster } from "./chat/ChatHeader";
+import {
+  CHAT_AMBIENT_APPEARANCE_STORAGE_KEY,
+  CHAT_AMBIENT_EFFECTS_STORAGE_KEY,
+  ChatAmbientBackground,
+  ChatAmbientAppearanceByThreadKeySchema,
+  ChatAmbientEffectsByThreadKeySchema,
+  resolveChatAmbientAppearance,
+  resolveChatAmbientEffect,
+  type ChatAmbientAppearance,
+  type ChatAmbientEffectSelection,
+} from "./chat/chatAmbientEffects";
 import { FloatingTerminalShell } from "./FloatingTerminalShell";
 import { useEditorStore } from "~/editor/editor-store";
 import { usePillNavPreferences } from "~/editor/pill-prefs";
@@ -1557,6 +1569,38 @@ function ChatViewContent(props: ChatViewProps) {
     LAST_INVOKED_SCRIPT_BY_PROJECT_KEY,
     {},
     LastInvokedScriptByProjectSchema,
+  );
+  const [ambientEffectsByThreadKey, setAmbientEffectsByThreadKey] = useLocalStorage(
+    CHAT_AMBIENT_EFFECTS_STORAGE_KEY,
+    {},
+    ChatAmbientEffectsByThreadKeySchema,
+  );
+  const chatAmbientEffect = resolveChatAmbientEffect(ambientEffectsByThreadKey[routeThreadKey]);
+  const handleChatAmbientEffectChange = useCallback(
+    (effect: ChatAmbientEffectSelection) => {
+      setAmbientEffectsByThreadKey((current) => ({
+        ...current,
+        [routeThreadKey]: effect,
+      }));
+    },
+    [routeThreadKey, setAmbientEffectsByThreadKey],
+  );
+  const [ambientAppearanceByThreadKey, setAmbientAppearanceByThreadKey] = useLocalStorage(
+    CHAT_AMBIENT_APPEARANCE_STORAGE_KEY,
+    {},
+    ChatAmbientAppearanceByThreadKeySchema,
+  );
+  const chatAmbientAppearance = resolveChatAmbientAppearance(
+    ambientAppearanceByThreadKey[routeThreadKey],
+  );
+  const handleChatAmbientAppearanceChange = useCallback(
+    (appearance: ChatAmbientAppearance) => {
+      setAmbientAppearanceByThreadKey((current) => ({
+        ...current,
+        [routeThreadKey]: appearance,
+      }));
+    },
+    [routeThreadKey, setAmbientAppearanceByThreadKey],
   );
   const legendListRef = useRef<LegendListRef | null>(null);
   const [composerOverlayElement, setComposerOverlayElement] = useState<HTMLDivElement | null>(null);
@@ -6655,46 +6699,75 @@ function ChatViewContent(props: ChatViewProps) {
       {panelLayoutControls}
       <div
         className={cn(
-          "flex min-h-0 min-w-0 flex-col overflow-x-hidden",
+          "relative isolate flex min-h-0 min-w-0 flex-col overflow-x-hidden",
           rightPanelMaximized ? "w-0 flex-none" : "flex-1",
         )}
+        data-chat-ambient-shell={!isDraftHeroState ? "true" : undefined}
         data-chat-column-maximized-away={rightPanelMaximized ? "true" : "false"}
       >
+        {!isDraftHeroState ? (
+          <ChatAmbientBackground
+            appearance={chatAmbientAppearance}
+            effect={chatAmbientEffect}
+            theme={resolvedTheme}
+          />
+        ) : null}
         {/* Top bar */}
         <WorkspacePageHeader
           data-chat-header
           electron={isElectron}
           reserveNativeControls={reserveTitleBarControlInset && !inlineRightPanelOwnsTitleBar}
-          className="relative bg-background"
+          className="relative z-10 bg-transparent"
         >
-          <ChatHeader activeThreadTitle={activeThread.title} />
+          <ChatHeader
+            activeThreadTitle={activeThread.title}
+            {...(!isDraftHeroState
+              ? {
+                  ambientEffect: chatAmbientEffect,
+                  onAmbientEffectChange: handleChatAmbientEffectChange,
+                  ambientAppearance: chatAmbientAppearance,
+                  onAmbientAppearanceChange: handleChatAmbientAppearanceChange,
+                  showAmbientControls: pillThreadActionsSlot === null,
+                }
+              : {})}
+          />
         </WorkspacePageHeader>
 
         {/* thread actions live in the pill nav's workspace slot */}
         {pillThreadActionsSlot
           ? createPortal(
-              <ThreadActionsCluster
-                activeThreadEnvironmentId={activeThread.environmentId}
-                activeThreadId={activeThread.id}
-                {...(routeKind === "draft" && draftId ? { draftId } : {})}
-                activeProjectName={activeProject?.title}
-                activeProjectCwd={activeProject?.workspaceRoot ?? null}
-                openInCwd={gitCwd}
-                activeProjectScripts={activeProject?.scripts}
-                preferredScriptId={
-                  activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
-                }
-                keybindings={keybindings}
-                availableEditors={availableEditors}
-                gitCwd={gitCwd}
-                {...(!supportsPullRequests || threadRepository === null
-                  ? {}
-                  : { onOpenPullRequest: openThreadPullRequest })}
-                onRunProjectScript={runProjectScript}
-                onAddProjectScript={saveProjectScript}
-                onUpdateProjectScript={updateProjectScript}
-                onDeleteProjectScript={deleteProjectScript}
-              />,
+              <>
+                {!isDraftHeroState ? (
+                  <ChatAmbientControls
+                    effect={chatAmbientEffect}
+                    onEffectChange={handleChatAmbientEffectChange}
+                    appearance={chatAmbientAppearance}
+                    onAppearanceChange={handleChatAmbientAppearanceChange}
+                  />
+                ) : null}
+                <ThreadActionsCluster
+                  activeThreadEnvironmentId={activeThread.environmentId}
+                  activeThreadId={activeThread.id}
+                  {...(routeKind === "draft" && draftId ? { draftId } : {})}
+                  activeProjectName={activeProject?.title}
+                  activeProjectCwd={activeProject?.workspaceRoot ?? null}
+                  openInCwd={gitCwd}
+                  activeProjectScripts={activeProject?.scripts}
+                  preferredScriptId={
+                    activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
+                  }
+                  keybindings={keybindings}
+                  availableEditors={availableEditors}
+                  gitCwd={gitCwd}
+                  {...(!supportsPullRequests || threadRepository === null
+                    ? {}
+                    : { onOpenPullRequest: openThreadPullRequest })}
+                  onRunProjectScript={runProjectScript}
+                  onAddProjectScript={saveProjectScript}
+                  onUpdateProjectScript={updateProjectScript}
+                  onDeleteProjectScript={deleteProjectScript}
+                />
+              </>,
               pillThreadActionsSlot,
             )
           : null}
@@ -6707,7 +6780,7 @@ function ChatViewContent(props: ChatViewProps) {
           }}
         />
         {/* Main content area with optional plan sidebar */}
-        <div className="flex min-h-0 min-w-0 flex-1">
+        <div className="relative z-10 flex min-h-0 min-w-0 flex-1">
           {/* Chat column */}
           <div
             className="relative flex min-h-0 min-w-0 flex-1 flex-col"
@@ -6740,7 +6813,7 @@ function ChatViewContent(props: ChatViewProps) {
               />
             </div>
             {/* Messages Wrapper */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
+            <div className="relative z-10 flex min-h-0 flex-1 flex-col">
               {/* Messages — LegendList handles virtualization and scrolling internally */}
               <MessagesTimeline
                 agentPanelModel={agentPanelModel}

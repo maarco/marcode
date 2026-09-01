@@ -109,6 +109,7 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 function SelectPopup({
   className,
   popupClassName,
+  positionerStyle,
   children,
   side = "bottom",
   sideOffset = 4,
@@ -120,6 +121,7 @@ function SelectPopup({
   ...props
 }: SelectPrimitive.Popup.Props & {
   popupClassName?: string;
+  positionerStyle?: React.CSSProperties;
   side?: SelectPrimitive.Positioner.Props["side"];
   sideOffset?: SelectPrimitive.Positioner.Props["sideOffset"];
   align?: SelectPrimitive.Positioner.Props["align"];
@@ -136,7 +138,7 @@ function SelectPopup({
         alignOffset={alignOffset}
         anchor={anchor}
         className="select-none"
-        style={portalOverlayStyle()}
+        style={portalOverlayStyle(positionerStyle)}
         data-slot="select-positioner"
         side={side}
         sideOffset={sideOffset}

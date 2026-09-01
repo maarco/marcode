@@ -57,7 +57,7 @@ const UTILITY_COLOR = "#a1a1aa";
  * rule on purpose, both because matching the pill wins over matching the
  * pack: the home entry carries the brand mark (`MarcodeMark`) rather than a
  * pack icon, and Pull Requests / Usage carry their `lucide-react` glyph
- * because that is what `CATEGORIES` in FloatingPillNav renders for them —
+ * because that is what the navigation categories and Git action cluster render for them —
  * upstream entries kept on their original icon set rather than re-matched to
  * an `@aliimam/icons` lookalike.
  */
@@ -82,6 +82,13 @@ export const PILL_NAV_META = {
       "Pull requests across every connected project, grouped into authored and reviewing. Filter by state or host, search across all of them, and open one into its own tab.",
     icon: GitPullRequestIcon,
     color: HOME_COLOR,
+  },
+  "git:pull-requests": {
+    title: "Pull Requests",
+    description:
+      "Browse pull requests across every connected project from the thread's Git action cluster.",
+    icon: GitPullRequestIcon,
+    color: WORKSPACE_COLOR,
   },
   "/settings": {
     title: "Settings",
