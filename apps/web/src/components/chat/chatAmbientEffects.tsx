@@ -442,7 +442,12 @@ function ChatAmbientAppearanceSelect({
         <SelectTrigger aria-label={label} className="w-32" size="xs">
           <SelectValue>{options.find((option) => option.id === value)?.label}</SelectValue>
         </SelectTrigger>
-        <SelectPopup align="end" matchTriggerWidth={false}>
+        <SelectPopup
+          align="end"
+          alignItemWithTrigger={false}
+          matchTriggerWidth={false}
+          positionerStyle={{ zIndex: FLOATING_SURFACE_Z.pillNavMenu }}
+        >
           {options.map((option) => (
             <SelectItem key={option.id} value={option.id} hideIndicator>
               {option.label}
