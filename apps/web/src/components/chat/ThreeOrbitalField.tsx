@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { useEffect, useRef } from "react";
 
 import { resolveChatAmbientShaderPalette, type ChatAmbientEffectProps } from "./chatAmbientEffects";
+import { startChatAmbientAnimation } from "./chatAmbientAnimation";
 
 const MAX_PIXEL_RATIO = 1.35;
 const PARTICLE_COUNT = 760;
@@ -111,33 +112,25 @@ export function ThreeOrbitalField({ appearance, theme }: ChatAmbientEffectProps)
     resize();
 
     const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
-    let animationFrame = 0;
-    const animate = (now: number) => {
-      render(now * 0.001);
-      animationFrame = window.requestAnimationFrame(animate);
-    };
-    const restartAnimation = () => {
-      window.cancelAnimationFrame(animationFrame);
-      if (motionQuery?.matches) {
-        render(0);
-        animationFrame = 0;
-        return;
-      }
-      animationFrame = window.requestAnimationFrame(animate);
-    };
-    const handleMotionChange = () => restartAnimation();
     const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => resize());
+      typeof ResizeObserver === "undefined"
+        ? null
+        : new ResizeObserver(() => {
+            resize();
+            if (motionQuery?.matches) render(0);
+          });
 
     resizeObserver?.observe(canvas);
     window.addEventListener("resize", resize);
-    motionQuery?.addEventListener("change", handleMotionChange);
-    restartAnimation();
+    const disposeAnimation = startChatAmbientAnimation({
+      element: canvas,
+      motionQuery,
+      render,
+    });
 
     return () => {
-      window.cancelAnimationFrame(animationFrame);
+      disposeAnimation();
       window.removeEventListener("resize", resize);
-      motionQuery?.removeEventListener("change", handleMotionChange);
       resizeObserver?.disconnect();
       disposeScene(scene);
       renderer.dispose();

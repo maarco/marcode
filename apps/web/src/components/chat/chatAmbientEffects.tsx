@@ -498,7 +498,11 @@ export function ChatAmbientAppearancePicker({
           </button>
         }
       />
-      <PopoverPopup align="end" className="w-72">
+      <PopoverPopup
+        align="end"
+        className="w-72"
+        positionerStyle={{ zIndex: FLOATING_SURFACE_Z.pillNavMenu }}
+      >
         <div className="space-y-4">
           <div>
             <PopoverTitle className="text-sm">Ambient styling</PopoverTitle>
@@ -652,7 +656,8 @@ export function ChatAmbientBackground({
     () => resolveChatAmbientCssColors(resolvedAppearance, theme),
     [resolvedAppearance, theme],
   );
-  const plugin = effect === CHAT_AMBIENT_EFFECT_NONE ? null : CHAT_AMBIENT_EFFECT_PLUGINS[effect];
+  if (effect === CHAT_AMBIENT_EFFECT_NONE) return null;
+  const plugin = CHAT_AMBIENT_EFFECT_PLUGINS[effect];
   const Effect = plugin?.component;
 
   return (

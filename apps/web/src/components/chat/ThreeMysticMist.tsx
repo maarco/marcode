@@ -54,7 +54,7 @@ const MYSTIC_MIST_FRAGMENT_SHADER = `
     float glow = exp(-2.4 * length(p + vec2(0.16, 0.08))) * 0.28;
 
     float current = sin((p.x + p.y * 0.8 + fbm(p * 3.0 + drift) * 0.75) * 15.0 - uTime * 0.9);
-    float filament = pow(max(0.0, current), 24.0) * smoothstep(1.15, 0.08, length(p));
+    float filament = pow(max(0.0, current), 24.0) * (1.0 - smoothstep(0.08, 1.15, length(p)));
     float filamentSoft = pow(max(0.0, current), 6.0) * 0.08;
 
     vec3 color = uBackground;

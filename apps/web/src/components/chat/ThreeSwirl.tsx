@@ -27,7 +27,7 @@ const SWIRL_FRAGMENT_SHADER = `
     vec2 swirl = vec2(cos(angle), sin(angle)) * radius;
     float bands = sin(radius * 17.0 - time * 1.8 + sin(angle * 3.0) * 1.8);
     float waves = smoothstep(0.72, 1.0, bands * 0.5 + 0.5);
-    float edge = smoothstep(1.15, 0.18, radius);
+    float edge = 1.0 - smoothstep(0.18, 1.15, radius);
     float core = exp(-4.5 * length(swirl + vec2(0.04, -0.02)));
 
     vec2 cells = floor(vUv * uResolution / 4.0);
