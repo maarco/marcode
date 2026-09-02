@@ -28,7 +28,7 @@ import {
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { AppText as Text } from "../../components/AppText";
-import { T3Wordmark } from "../../components/T3Wordmark";
+import { MarcodeMark } from "../../components/MarcodeMark";
 import { cn } from "../../lib/cn";
 import { THREAD_WORK_ROW_MIN_HEIGHT, type deriveThreadWorkLogSizing } from "../../lib/layout";
 import type { ThreadFeedActivity } from "../../lib/threadActivity";
@@ -75,12 +75,10 @@ function WorkLogIcon(props: {
   readonly highlighted?: boolean;
 }) {
   if (props.icon === "t3-code") {
-    return (
-      <T3Wordmark
-        height={10}
-        {...(props.highlighted ? { colorClassName: "accent-foreground" } : { color: props.color })}
-      />
-    );
+    // ── Marcode fork seam ── upstream renders its tintable T3 wordmark here.
+    // Marcode substitutes MarcodeMark, the fixed black-on-white rounded mark
+    // (same swap CompactBrandTitle makes), which takes no color props.
+    return <MarcodeMark height={10} />;
   }
   return (
     <SymbolView
