@@ -30,6 +30,11 @@ import { Sidebar, SidebarProvider, SidebarRail, useSidebar } from "./ui/sidebar"
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "90px";
 
+// ── Marcode fork seam ── upstream lazy-loads SettingsSidebarNav here for its
+// in-sidebar settings nav (#9058). Marcode renders no sidebar on settings
+// routes at all — FloatingPillNav navigates by category — so there is nothing
+// to lazy-load and the binding would be dead code.
+
 function subscribeToViewportWidth(onChange: () => void): () => void {
   window.addEventListener("resize", onChange);
   return () => window.removeEventListener("resize", onChange);

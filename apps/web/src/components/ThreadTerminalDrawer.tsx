@@ -110,6 +110,9 @@ import "@xterm/xterm/css/xterm.css";
 
 const MIN_DRAWER_HEIGHT = 180;
 const MAX_DRAWER_HEIGHT_RATIO = 0.75;
+// ── Marcode fork seam ── upstream dropped this with its xterm selection flow
+// when it moved to the Ghostty surface. Marcode keeps xterm (for its search),
+// so the multi-click delay stays.
 const MULTI_CLICK_SELECTION_ACTION_DELAY_MS = 260;
 
 /**
@@ -493,6 +496,9 @@ export function TerminalViewport({
     reportFailure: false,
   });
   const hasHandledExitRef = useRef(false);
+  // ── Marcode fork seam ── pointer/gesture tracking for the xterm selection
+  // popup. Upstream's Ghostty surface reports selection natively and dropped
+  // both refs; Marcode's surface still needs them.
   const selectionPointerRef = useRef<{ x: number; y: number } | null>(null);
   const selectionGestureActiveRef = useRef(false);
   const selectionActionRequestIdRef = useRef(0);

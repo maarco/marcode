@@ -225,7 +225,7 @@ describe("ElectronProtocol", () => {
       "http:",
       "https:",
     ]);
-    assert.deepEqual(directives["media-src"], ["'self'", "marcode:", "blob:"]);
+    assert.deepEqual(directives["media-src"], ["'self'", "marcode:", "blob:", "http:", "https:"]);
     assert.deepEqual(directives["font-src"], ["'self'", "marcode:", "data:"]);
   });
 });

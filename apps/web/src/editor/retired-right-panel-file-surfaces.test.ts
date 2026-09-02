@@ -14,7 +14,9 @@ import { describe, expect, it } from "vite-plus/test";
  * something asserts they are gone. The b883fc06 sync is the worked example:
  * upstream's expand/collapse-all control (#8889) arrived as a brand-new
  * `fileTreeExpansion` module under a panel Marcode does not render, and merged
- * without a conflict.
+ * without a conflict. The 70cd258d sync repeated it twice: upstream's file
+ * breadcrumbs (#8910) and its file-tree path reconciliation (#8968) both
+ * arrived as new modules imported only by the two retired panels.
  *
  * When this fails after an upstream sync, decide deliberately: either drop the
  * file again, or port the behavior into the floating editor and remove its
@@ -23,8 +25,11 @@ import { describe, expect, it } from "vite-plus/test";
 const RETIRED = [
   "../components/files/FileBrowserPanel.tsx",
   "../components/files/FilePreviewPanel.tsx",
+  "../components/files/FileBreadcrumbs.tsx",
   "../components/files/fileTreeExpansion.ts",
   "../components/files/fileTreeExpansion.test.ts",
+  "../components/files/fileTreePathReconciliation.ts",
+  "../components/files/fileTreePathReconciliation.test.ts",
 ] as const;
 
 describe("retired right-panel file surfaces", () => {

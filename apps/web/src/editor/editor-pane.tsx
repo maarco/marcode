@@ -479,6 +479,10 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
       const result = await openFileInPreview({
         threadRef,
         filePath: file.path,
+        // Upstream added this so a document outside the workspace is served on
+        // its own instead of as a workspace asset. The floating editor's tab
+        // carries the workspace root it was opened against.
+        workspaceRoot: file.cwd,
         httpBaseUrl,
         createAssetUrl,
         openPreview: openPreviewMutation,

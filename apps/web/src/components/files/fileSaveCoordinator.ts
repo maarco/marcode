@@ -21,6 +21,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private latestContents = "";
   private latestRevision = 0;
+  private confirmedRevision = 0;
   private lastChangeAt = 0;
   private saving = false;
   private disposed = false;
@@ -29,6 +30,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   constructor(private readonly options: FileSaveCoordinatorOptions<A, E>) {}
 
   change(contents: string): void {
+    if (this.disposed) return;
     this.latestContents = contents;
     this.latestRevision += 1;
     this.lastChangeAt = Date.now();
@@ -62,9 +64,10 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
    * If a write is already in flight, this can't abort that network call —
    * there is no cancellation token wired through `persist()` — but it does
    * clear `flushRequested` and zero `latestRevision` so the in-flight write's
-   * completion cannot reschedule a further persist: `persistLatest()`'s
-   * entry guard (`this.saving || this.latestRevision === 0`) makes any such
-   * stray reschedule a no-op when it fires.
+   * completion cannot reschedule a further persist: `persistLatest()`'s entry
+   * guard (`this.latestRevision === this.confirmedRevision`) makes any such
+   * stray reschedule a no-op when it fires, because that write is barred from
+   * adopting its discarded revision as the confirmed baseline.
    */
   cancel(): void {
     this.clearTimer();
@@ -88,14 +91,21 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
-    if (this.saving || this.latestRevision === 0) return;
+    if (this.saving || this.latestRevision === this.confirmedRevision) return;
 
     this.saving = true;
     const contents = this.latestContents;
     const revision = this.latestRevision;
     const result = await this.options.persist(contents);
     const succeeded = result._tag === "Success";
-    if (result._tag === "Success") {
+    if (succeeded) {
+      // Upstream's confirmed-revision baseline (#8630) and Marcode's cancel()
+      // meet here. cancel() is the only thing that lowers `latestRevision`, so
+      // a zero here means this write's contents were discarded while it was in
+      // flight. Adopting its revision as the baseline would both re-arm the
+      // entry guard (0 !== revision) and, once the user typed `revision` more
+      // characters, silently skip a real save.
+      if (this.latestRevision !== 0) this.confirmedRevision = revision;
       this.options.onConfirmed(contents);
     } else {
       this.options.onError?.(Cause.squash(result.cause) as E);
