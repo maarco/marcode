@@ -248,6 +248,43 @@ describe("FileSaveCoordinator", () => {
     expect(persist).toHaveBeenCalledTimes(1);
   });
 
+  it("persists an edit made after a discard whose write confirmed late", async () => {
+    // Regression: `cancel()` used to zero `latestRevision` alone. An in-flight
+    // write confirming afterwards recorded `confirmedRevision = 1`, so the next
+    // edit — whose revision climbs back to 1 — compared equal to that stale
+    // confirmation and was silently never persisted. Discard-then-edit is an
+    // ordinary floating-editor sequence, so the lost write was real data loss.
+    vi.useFakeTimers();
+    const firstWrite = deferred();
+    const persist = vi
+      .fn<(contents: string) => Promise<AtomCommandResult<void, never>>>()
+      .mockReturnValueOnce(firstWrite.promise)
+      .mockResolvedValue(AsyncResult.success(undefined));
+    const onConfirmed = vi.fn();
+    const coordinator = new FileSaveCoordinator({
+      debounceMs: 500,
+      persist,
+      onPendingChange: vi.fn(),
+      onConfirmed,
+    });
+
+    coordinator.change("first");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(persist).toHaveBeenCalledTimes(1);
+
+    coordinator.cancel();
+    firstWrite.resolve(AsyncResult.success(undefined));
+    await vi.runAllTimersAsync();
+    expect(persist).toHaveBeenCalledTimes(1);
+
+    coordinator.change("second");
+    await vi.advanceTimersByTimeAsync(500);
+
+    expect(persist).toHaveBeenCalledTimes(2);
+    expect(persist).toHaveBeenLastCalledWith("second");
+    expect(onConfirmed).toHaveBeenLastCalledWith("second");
+  });
+
   it("flush() persists immediately without waiting for the debounce", async () => {
     vi.useFakeTimers();
     const persist = vi

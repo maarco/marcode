@@ -80,7 +80,9 @@ describe("client telemetry metadata", () => {
         desktopBridge: { getClientPlatform: () => "darwin" },
       }),
     ).toEqual({
-      label: "T3 Code Desktop",
+      // Marcode fork seam: upstream's label is "T3 Code Desktop".
+      // `clientPresentationMetadata` reports Marcode's product identity.
+      label: "Marcode Desktop",
       deviceType: "desktop",
       os: "macOS",
       surface: "desktop",

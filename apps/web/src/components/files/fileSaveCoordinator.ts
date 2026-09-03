@@ -65,12 +65,20 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
    * there is no cancellation token wired through `persist()` — but it does
    * clear `flushRequested` and zero `latestRevision` so the in-flight write's
    * completion cannot reschedule a further persist: `persistLatest()`'s
-   * entry guard (`this.saving || this.latestRevision === 0`) makes any such
-   * stray reschedule a no-op when it fires.
+   * entry guard (`this.saving || this.latestRevision === this.confirmedRevision`)
+   * makes any such stray reschedule a no-op when it fires.
+   *
+   * `confirmedRevision` is zeroed with it. The two counters are only ever
+   * compared to each other, so resetting the revision alone would leave the
+   * guard mismatched: an in-flight write confirming after `cancel()` sets
+   * `confirmedRevision = 1` against a zeroed `latestRevision`, which both
+   * re-persists the discarded buffer and then swallows the *next* edit, whose
+   * revision climbs back to 1 and compares equal to the stale confirmation.
    */
   cancel(): void {
     this.clearTimer();
     this.latestRevision = 0;
+    this.confirmedRevision = 0;
     this.flushRequested = false;
     this.options.onPendingChange(false);
   }
@@ -90,15 +98,24 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
-    if (this.saving || this.latestRevision === this.confirmedRevision) return;
+    // `latestRevision === 0` is `cancel()`'s "nothing pending" sentinel and is
+    // checked separately from upstream's already-confirmed comparison: a write
+    // that confirms after a discard must not make a zeroed revision look like a
+    // confirmed one, and must not resurrect the discarded buffer.
+    if (this.saving || this.latestRevision === 0) return;
+    if (this.latestRevision === this.confirmedRevision) return;
 
     this.saving = true;
     const contents = this.latestContents;
     const revision = this.latestRevision;
     const result = await this.options.persist(contents);
     const succeeded = result._tag === "Success";
+    // `cancel()` during the write zeroes the revision. Recording the completed
+    // write as confirmed would then swallow the next edit, whose revision
+    // climbs back to `revision` and compares equal to this stale confirmation.
+    const discarded = this.latestRevision === 0;
     if (succeeded) {
-      this.confirmedRevision = revision;
+      if (!discarded) this.confirmedRevision = revision;
       this.options.onConfirmed(contents);
     } else {
       this.options.onError?.(Cause.squash(result.cause) as E);
