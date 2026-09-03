@@ -11,17 +11,18 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   assert.deepStrictEqual(
     migrationEntries.slice(-10).map(([id, name]) => [id, name]),
     [
-      [33, "ProjectWorkspaceLayout"],
-      [34, "ProjectionThreadsSettled"],
-      [35, "ProjectionThreadsSnoozed"],
-      [36, "ProjectionThreadTitleRegeneration"],
-      [37, "ProjectionThreadsPinned"],
-      [38, "ProjectionTurnsKeysetIndex"],
       [39, "ProjectionThreadsPinOrderKey"],
       [40, "ProjectionProjectsDefaultThreadEnvMode"],
       [41, "ProjectionProjectFaviconPath"],
-      // Upstream's 041; renumbered on the way in so 041 stays Marcode's.
+      // Marcode owns 42; the following are upstream migrations renumbered +1 on
+      // the way in (upstream 042-047 -> Marcode 043-048) so applied ids never move.
       [42, "AuthSessionClientConnection"],
+      [43, "ProjectionThreadLinkedPullRequest"],
+      [44, "ProjectionThreadsUnsettledAt"],
+      [45, "ClearAutomaticProjectModelDefaults"],
+      [46, "ProjectionProjectsAutoPull"],
+      [47, "RepairAutomaticSettlementTimestamps"],
+      [48, "ProjectionProjectIcon"],
     ],
   );
 

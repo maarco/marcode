@@ -479,6 +479,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
       const result = await openFileInPreview({
         threadRef,
         filePath: file.path,
+        workspaceRoot: file.cwd,
         httpBaseUrl,
         createAssetUrl,
         openPreview: openPreviewMutation,

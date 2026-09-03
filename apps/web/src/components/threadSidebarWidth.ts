@@ -1,4 +1,6 @@
 export const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
+// ── Marcode fork seam ── keep this exported: threadSidebarWidth.test.ts (which
+// upstream deleted as trivial) pins Marcode's width contract and imports it.
 export const THREAD_SIDEBAR_DEFAULT_WIDTH = 16 * 16;
 export const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
 export const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;

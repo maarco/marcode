@@ -6,6 +6,7 @@ import {
   ProjectWorkspaceItemId,
   type ClientOrchestrationCommand,
 } from "@t3tools/contracts";
+import * as Stream from "effect/Stream";
 import { describe, expect, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -63,6 +64,7 @@ function testLayer(dispatched: ClientOrchestrationCommand[]) {
       const session: RpcSession.RpcSession = {
         client,
         initialConfig: Effect.never,
+        subscribeServerConfig: () => Stream.never,
         ready: Effect.void,
         probe: Effect.void,
         closed: Effect.never,

@@ -39,7 +39,7 @@ bringing in upstream correctness, security, protocol, dependency, and operationa
 ## Multi-surface and Safety Rules
 
 - A behavior may have web, desktop, mobile, command-palette, settings, keybinding, local, remote, and relay entry points. Sweep the applicable siblings before claiming completion.
-- Provider-shaped changes require a decision for Codex, Claude, Cursor, Grok, and OpenCode, even when a provider is intentionally unsupported.
+- Provider-shaped changes require a decision for Codex, Claude, Cursor, Grok, OpenCode, and Antigravity, even when a provider is intentionally unsupported.
 - Anything crossing the wire belongs in `packages/contracts`; update the server and every affected client together.
 - Never kill processes by broad name/path matching. Kill only a PID captured at spawn, or a confirmed owner of the exact port and worktree.
 - Never start a server against or write to the installed user's live `~/.marcode/userdata` database. Use the worktree's isolated `.marcode` state.

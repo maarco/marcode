@@ -115,6 +115,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --workspace-native-controls-inset: 0px;
   --workspace-titlebar-control-size: 1.75rem;
   --workspace-titlebar-control-gap: 0.75rem;
+  --workspace-titlebar-scroll-fade-height: 1.5rem;
 
   @variant dark {
     --appearance-contrast-target: white;
@@ -222,7 +223,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --radius-xl: calc(var(--radius) + 4px);
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
-  --radius-4xl: calc(var(--radius) + 16px);
   @keyframes skeleton {
     /* Transform-only so the highlight sweep stays on the compositor, then a
        long hold with the band parked off-screen instead of a constant shimmer. */
@@ -371,7 +371,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 @utility topbar-scroll-fade {
-  --topbar-scroll-fade-height: 2.5rem;
   -webkit-mask-image:
     linear-gradient(
       to bottom,
@@ -387,8 +386,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   -webkit-mask-position: top, bottom, right;
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-size:
-    100% var(--topbar-scroll-fade-height),
-    100% calc(100% - var(--topbar-scroll-fade-height)),
+    100% var(--workspace-titlebar-scroll-fade-height),
+    100% calc(100% - var(--workspace-titlebar-scroll-fade-height)),
     var(--app-scrollbar-width) 100%;
   mask-image:
     linear-gradient(
@@ -405,13 +404,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   mask-position: top, bottom, right;
   mask-repeat: no-repeat;
   mask-size:
-    100% var(--topbar-scroll-fade-height),
-    100% calc(100% - var(--topbar-scroll-fade-height)),
+    100% var(--workspace-titlebar-scroll-fade-height),
+    100% calc(100% - var(--workspace-titlebar-scroll-fade-height)),
     var(--app-scrollbar-width) 100%;
-
-  @variant sm {
-    --topbar-scroll-fade-height: 3rem;
-  }
 }
 
 /* Virtualizers own their native scroll element, so they cannot use ScrollArea's
@@ -535,7 +530,23 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   margin-left: var(--live-activity-focus-width);
 }
 
+@property --assistant-citation-highlight-opacity {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
+
 @layer base {
+  ::highlight(t3-assistant-citation) {
+    background-color: color-mix(
+      in oklab,
+      var(--primary) calc(var(--assistant-citation-highlight-opacity) * 100%),
+      transparent
+    );
+  }
+  ::highlight(t3-assistant-citation-comment) {
+    background-color: color-mix(in oklab, var(--primary) 45%, transparent);
+  }
   :root {
     /* Keep the original T3 Code artwork palettes as the defaults. Built-in
        themes override them with their own pigments in the components layer. */
@@ -1159,9 +1170,9 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
      Split the glass into exact surfaces while a drawer or tab is present; the
      default composer keeps the cheaper continuous layer. */
   .chat-composer-glass-shell:is(
-    .chat-composer-glass-shell-attached,
-    :has(:is(.chat-composer-top-drawer, .chat-composer-shoulder-tab))
-  )::before,
+      .chat-composer-glass-shell-attached,
+      :has(:is(.chat-composer-top-drawer, .chat-composer-shoulder-tab))
+    )::before,
   .chat-composer-glass-shell:is(
       .chat-composer-glass-shell-attached,
       :has(:is(.chat-composer-top-drawer, .chat-composer-shoulder-tab))
@@ -1453,12 +1464,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     .settings-slider::-moz-range-progress,
     .settings-slider::-moz-range-thumb {
       all: revert;
-    }
-  }
-
-  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
-    .chat-composer-glass-shell::before {
-      background: var(--chat-composer-glass-surface);
     }
   }
 }
@@ -1757,58 +1762,6 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --terminal-foreground: var(--app-theme-terminal-foreground);
   --terminal-cursor: var(--app-theme-terminal-cursor);
   --terminal-selection-background: var(--app-theme-terminal-selection-background);
-}
-
-/* T3 Chat's composer is a translucent lift over --chat-background. Route its
-   measured flattened color through the raised-surface role instead of deriving
-   another tint from the canvas, which made the dark composer too red. */
-html[data-theme-id] .chat-composer-glass-shell {
-  --chat-composer-glass-surface: var(--app-theme-surface-raised);
-  --chat-composer-outline: var(--app-theme-toolbar-border);
-
-  @variant dark {
-    --chat-composer-outline: color-mix(in srgb, var(--app-theme-input) 30%, var(--background));
-    --chat-composer-highlight: color-mix(in srgb, var(--app-theme-input) 12%, transparent);
-  }
-}
-
-html[data-theme-id]
-  :is(.chat-composer-banner-stack-cap, .chat-composer-drawer-surface, .chat-composer-top-drawer) {
-  --chat-composer-attached-surface: var(--app-theme-surface-raised);
-}
-
-html[data-theme-id]
-  :is(.chat-composer-banner-stack-cap, .chat-composer-drawer-surface, .chat-composer-top-drawer):is(
-    :not([data-variant]),
-    [data-variant="default"]
-  ) {
-  --chat-composer-attached-outline: var(--chat-composer-outline, var(--app-theme-toolbar-border));
-
-  @variant dark {
-    --chat-composer-attached-outline: var(
-      --chat-composer-outline,
-      color-mix(in srgb, var(--app-theme-input) 30%, var(--background))
-    );
-  }
-}
-
-html[data-theme-id="t3-chat"] .chat-composer-glass-shell {
-  /* T3 Chat's visible composer edge is a dark plum, not the stock translucent
-     white outline. Its highlight is derived from --chat-input-gradient. */
-  @variant dark {
-    --chat-composer-outline: #241e28;
-    --chat-composer-highlight: color-mix(in srgb, #432d48 12%, transparent);
-  }
-}
-
-html[data-theme-id="t3-chat"]
-  :is(.chat-composer-banner-stack-cap, .chat-composer-drawer-surface, .chat-composer-top-drawer):is(
-    :not([data-variant]),
-    [data-variant="default"]
-  ) {
-  @variant dark {
-    --chat-composer-attached-outline: #241e28;
-  }
 }
 
 /* Theme-token dependency probes are restored synchronously, before paint. Keep
@@ -2300,8 +2253,8 @@ code {
 }
 
 .chat-markdown ul {
-  /* Reset for nested uls under a widened ol — --list-gutter is an inherited
-     custom property, so without this a task-list under a 3+ digit ordered
+  /* Reset for nested uls under a widened ol. --list-gutter is an inherited
+     custom property, so without this a task-list under a multi-digit ordered
      list would inherit the outer gutter instead of its own default. */
   --list-gutter: 1.25rem;
   padding-left: 1.25rem;
@@ -2310,7 +2263,7 @@ code {
 
 /* --list-gutter defaults to the same 1.25rem as .chat-markdown ul, but
    ChatMarkdown's `ol` renderer widens it (via inline style) for lists whose
-   widest marker is 3+ characters, so item 100+ isn't clipped by list-style-position:
+   widest marker has multiple characters so it isn't clipped by list-style-position:
    outside painting the marker past the padding box. Reset it here too so a
    nested ol without its own widened marker doesn't inherit the outer one. */
 .chat-markdown ol {
@@ -2415,13 +2368,13 @@ code {
   font-size: 0.75rem;
 }
 
-.chat-markdown a.chat-markdown-file-link,
-.chat-markdown a.chat-markdown-file-link:hover {
+.chat-markdown .chat-markdown-file-link,
+.chat-markdown .chat-markdown-file-link:hover {
   color: var(--contrast-foreground);
   text-decoration: none;
 }
 
-.chat-markdown a.chat-markdown-file-link:focus-visible {
+.chat-markdown .chat-markdown-file-link:focus-visible {
   outline: none;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--ring) 70%, transparent);
 }

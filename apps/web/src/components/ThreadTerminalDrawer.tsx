@@ -864,10 +864,8 @@ export function TerminalViewport({
                 };
                 void openTerminalLinkInPreview({
                   url: match.text,
-                  position: { x: event.clientX, y: event.clientY },
                   threadRef,
                   openPreview,
-                  localApi,
                   fallbackToBrowser,
                 });
                 return;
