@@ -72,12 +72,12 @@ productionRule.valid(
   `,
 );
 
-const legacyRule = createOxlintRuleHarness("t3code/no-manual-effect-runtime-in-tests", {
+const legacyRule = createOxlintRuleHarness("marcode/no-manual-effect-runtime-in-tests", {
   filename: "legacy.test.ts",
   ruleOptions: [{ maxOccurrences: 2 }],
 });
 
-describe("t3code/no-manual-effect-runtime-in-tests with maxOccurrences", () => {
+describe("marcode/no-manual-effect-runtime-in-tests with maxOccurrences", () => {
   legacyRule.valid(
     "allows occurrences up to the ceiling",
     `
