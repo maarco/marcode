@@ -147,12 +147,10 @@ export const applyProjectWorkspaceLayout: (
     expectedVersion: input.expectedVersion,
     operation: input.operation,
   }).pipe(
-    Effect.map(
-      (): ApplyProjectWorkspaceLayoutResult => ({
-        ok: true,
-        layoutVersion: input.expectedVersion + 1,
-      }),
-    ),
+    Effect.map((): ApplyProjectWorkspaceLayoutResult => ({
+      ok: true,
+      layoutVersion: input.expectedVersion + 1,
+    })),
     Effect.catchTag("OrchestrationDispatchCommandError", (error) =>
       Effect.succeed<ApplyProjectWorkspaceLayoutResult>({
         ok: false,

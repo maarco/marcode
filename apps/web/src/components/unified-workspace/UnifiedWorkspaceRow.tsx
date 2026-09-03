@@ -475,7 +475,6 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       ) : null}
 
       {(node.kind === "browser" || node.kind === "url") && node.iconUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- tiny favicon, not a Next.js app
         <img
           src={node.iconUrl}
           alt=""

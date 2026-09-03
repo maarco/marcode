@@ -165,7 +165,6 @@ export function FloatingCodePill() {
   const [isMobile, setIsMobile] = useState(false);
 
   // hydrate from localStorage (standard React hydration pattern)
-  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
   useEffect(() => {
     setMounted(true);
     const mq = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
@@ -197,7 +196,6 @@ export function FloatingCodePill() {
       window.removeEventListener("resize", onResize);
     };
   }, []);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const projectRoot = workspacePath;
 
