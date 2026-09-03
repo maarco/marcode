@@ -1,6 +1,7 @@
 "use client";
 
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
+import type * as React from "react";
 
 import {
   PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
@@ -30,6 +31,7 @@ function PopoverPopup({
   alignOffset = 0,
   tooltipStyle = false,
   anchor,
+  positionerStyle,
   ...props
 }: PopoverPrimitive.Popup.Props & {
   viewportClassName?: string;
@@ -39,6 +41,7 @@ function PopoverPopup({
   alignOffset?: PopoverPrimitive.Positioner.Props["alignOffset"];
   tooltipStyle?: boolean;
   anchor?: PopoverPrimitive.Positioner.Props["anchor"];
+  positionerStyle?: React.CSSProperties;
 }) {
   return (
     <PopoverPrimitive.Portal>
@@ -53,7 +56,7 @@ function PopoverPopup({
         data-slot="popover-positioner"
         side={side}
         sideOffset={sideOffset}
-        style={portalOverlayStyle()}
+        style={portalOverlayStyle(positionerStyle)}
       >
         <PopoverPrimitive.Popup
           className={cn(

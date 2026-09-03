@@ -15,7 +15,7 @@ import type {
   SourceControlRepositoryVisibility,
   VcsStatusResult,
 } from "@t3tools/contracts";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import {
   type MouseEvent,
@@ -32,6 +32,7 @@ import {
   ChevronDownIcon,
   CloudUploadIcon,
   GitBranchPlusIcon,
+  GitPullRequestIcon,
   LockIcon,
   GlobeIcon,
 } from "lucide-react";
@@ -301,6 +302,38 @@ const GIT_ITEM_META_KEYS: Partial<Record<GitActionMenuItem["id"], PillNavMetaKey
   commit: "git:commit",
   push: "git:push",
 };
+
+function PullRequestsPageLink({ collapsed = false }: { collapsed?: boolean }) {
+  if (collapsed) {
+    return (
+      <Link
+        to="/pull-requests"
+        search={{ involvement: "all", state: "open" }}
+        aria-label="Pull Requests"
+        className={pillMenuRowClass()}
+      >
+        <GitPullRequestIcon className="size-4" aria-hidden="true" />
+        <span className="flex-1 truncate">Pull Requests</span>
+      </Link>
+    );
+  }
+
+  return (
+    <PillNavHoverCard
+      metaKey="git:pull-requests"
+      render={
+        <Link
+          to="/pull-requests"
+          search={{ involvement: "all", state: "open" }}
+          aria-label="Pull Requests"
+          className={pillIconButtonClass()}
+        >
+          <GitPullRequestIcon className="size-4" aria-hidden="true" />
+        </Link>
+      }
+    />
+  );
+}
 
 function getMenuActionDisabledReason({
   item,
@@ -1887,6 +1920,7 @@ export default function GitActionsControl({
                   <span className="flex-1 truncate">Publish repository...</span>
                 </button>
               ) : null}
+              <PullRequestsPageLink collapsed />
             </div>
           </PopoverPopup>
         </Popover>
@@ -2006,6 +2040,7 @@ export default function GitActionsControl({
               }
             />
           ) : null}
+          <PullRequestsPageLink />
         </div>
       ) : (
         <Group aria-label="Git actions" className="shrink-0">
