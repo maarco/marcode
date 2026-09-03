@@ -178,13 +178,17 @@ export class ThemeTargetMissingError extends Schema.TaggedErrorClass<ThemeTarget
   }
 }
 
-const envT3Home = Config.string("T3CODE_HOME").pipe(Config.option);
+// Marcode fork seam: upstream reads T3CODE_HOME here. Marcode's base-dir
+// variable is MARCODE_HOME everywhere else in this CLI (`config.ts`, `pair`,
+// `triage`) and in the installed systemd unit, so upstream's own intent below
+// — match the rest of the CLI — is what selects this name.
+const envMarcodeHome = Config.string("MARCODE_HOME").pipe(Config.option);
 
 const resolveThemePaths = Effect.fn(function* (explicitBaseDir: Option.Option<string>) {
-  // Same precedence as the rest of the CLI: --base-dir, then T3CODE_HOME,
-  // then the default home. A provisioning script exporting T3CODE_HOME must
+  // Same precedence as the rest of the CLI: --base-dir, then MARCODE_HOME,
+  // then the default home. A provisioning script exporting MARCODE_HOME must
   // not have this one command silently target the default install.
-  const envHome = Option.filter(yield* envT3Home, (value) => value.trim().length > 0);
+  const envHome = Option.filter(yield* envMarcodeHome, (value) => value.trim().length > 0);
   const configuredBaseDir = Option.orElse(explicitBaseDir, () => envHome);
   const baseDir = yield* resolveBaseDir(Option.getOrUndefined(configuredBaseDir));
   const derivedPaths = yield* ServerConfig.deriveServerPaths(baseDir, undefined, {

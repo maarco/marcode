@@ -73,7 +73,7 @@ import {
 } from "../../lib/diffRendering";
 import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import ChatMarkdown, { ChatMarkdownAssetImage } from "../ChatMarkdown";
-import { T3Wordmark } from "../T3Wordmark";
+import { MarcodeMark } from "../MarcodeMark";
 import {
   BotIcon,
   BrainIcon,
@@ -2772,7 +2772,13 @@ function WorkEntryIcon({ name, className }: { name: WorkEntryIconName; className
     case "computer":
       return <ComputerUseAppIcon className={className} />;
     case "t3-code":
-      return <T3Wordmark className={className} aria-hidden />;
+      // ── Marcode fork seam ──
+      // The `t3-code` tool server keeps its upstream-shaped name, but the icon
+      // beside it is user-visible brand identity, so it is Marcode's mark.
+      // Upstream renders their T3 lettermark here; taking that back would
+      // reintroduce the component this fork renamed to `MarcodeMark`.
+      // `MarcodeMark` sets `aria-hidden` itself.
+      return <MarcodeMark className={className} />;
     case "check":
       return <CheckIcon className={className} aria-hidden />;
     case "circle-alert":

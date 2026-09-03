@@ -16,7 +16,12 @@ const LIGHT_THEME = {
 } as const satisfies EnvironmentTheme;
 
 async function setupThemeSync(mode: "dark" | "system" = "dark") {
-  const storage = new Map<string, string>([["t3code:theme", NIGHTFALL_THEME.id]]);
+  // Marcode fork seam: upstream seeds `t3code:theme`. `useTheme` stores the
+  // selected theme under `marcode:theme` here, so the upstream key seeds
+  // nothing and this setup silently stops covering "a theme is already stored".
+  // Sibling keys (`t3code:themes:v1`, `t3code:theme-appearance-mode`, ...) stay
+  // upstream-shaped — they are persisted-state compatibility identifiers.
+  const storage = new Map<string, string>([["marcode:theme", NIGHTFALL_THEME.id]]);
   const styles = new Map<string, string>();
   const classes = new Set<string>();
   const root = {

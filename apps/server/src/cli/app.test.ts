@@ -31,7 +31,7 @@ afterEach(() => vi.mocked(NodeOS.homedir).mockReset());
 
 // ── Marcode fork seam ──
 // Upstream's fixtures hardcode `~/.t3` as the home the CLI falls back to when
-// neither `--base-dir` nor `T3CODE_HOME` is set. Marcode's `resolveBaseDir`
+// neither `--base-dir` nor `MARCODE_HOME` is set. Marcode's `resolveBaseDir`
 // defaults to `~/.marcode`, so the fake desktop has to bind the socket derived
 // from that directory or the CLI dials an address nobody is listening on.
 // `os-jank.test.ts` pins the default itself; keep the two in step.
@@ -194,7 +194,7 @@ describe("t3 app", () => {
     ),
   );
 
-  it.effect("uses T3CODE_HOME or --base-dir and sends the default or explicit path", () =>
+  it.effect("uses MARCODE_HOME or --base-dir and sends the default or explicit path", () =>
     withTempDirectory("t3-app-command-test-", (root) =>
       Effect.gen(function* () {
         const baseDir = NodePath.join(root, "t3-home");
@@ -203,7 +203,7 @@ describe("t3 app", () => {
         const workingDirectory = yield* HostProcessWorkingDirectory;
         const desktop = yield* fakeDesktop({ baseDir });
 
-        yield* runCli(["app"], { T3CODE_HOME: baseDir });
+        yield* runCli(["app"], { MARCODE_HOME: baseDir });
         yield* runCli(["app", explicitPath, "--base-dir", baseDir]);
 
         expect(desktop.received.map((request) => request.workspaceRoot)).toEqual([
@@ -239,7 +239,7 @@ describe("t3 app", () => {
         const development = yield* fakeDesktop({ baseDir, stateSubdirectory: "dev" });
 
         yield* runCli(["app"]);
-        yield* runCli(["app"], { T3CODE_HOME: "   " });
+        yield* runCli(["app"], { MARCODE_HOME: "   " });
 
         expect(development.received).toHaveLength(2);
         expect(yield* pathExists(baseDir)).toBe(false);
@@ -247,7 +247,7 @@ describe("t3 app", () => {
     ),
   );
 
-  it.effect("never searches a dev state directory for an explicit T3 home", () =>
+  it.effect("never searches a dev state directory for an explicit Marcode home", () =>
     withTempDirectory("t3-app-explicit-test-", (root) =>
       Effect.gen(function* () {
         vi.mocked(NodeOS.homedir).mockReturnValue(root);
@@ -255,7 +255,7 @@ describe("t3 app", () => {
         const development = yield* fakeDesktop({ baseDir, stateSubdirectory: "dev" });
 
         const flagError = yield* runCli(["app", "--base-dir", baseDir]).pipe(Effect.flip);
-        const envError = yield* runCli(["app"], { T3CODE_HOME: baseDir }).pipe(Effect.flip);
+        const envError = yield* runCli(["app"], { MARCODE_HOME: baseDir }).pipe(Effect.flip);
 
         expect(flagError).toMatchObject({ _tag: "DesktopAppUnreachableError" });
         expect(envError).toMatchObject({ _tag: "DesktopAppUnreachableError" });
