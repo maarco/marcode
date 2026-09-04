@@ -5,6 +5,11 @@ import {
   normalizeFileCommentRange,
   remapFileCommentAnnotations,
 } from "./fileCommentAnnotations";
+import {
+  isMarkdownPreviewFile,
+  setMarkdownTaskChecked,
+  shouldShowFileExplorer,
+} from "./filePreviewMode";
 
 describe("file comment annotations", () => {
   it("normalizes and formats selected line ranges", () => {
@@ -50,5 +55,68 @@ describe("file comment annotations", () => {
         },
       },
     ]);
+  });
+});
+
+describe("isMarkdownPreviewFile", () => {
+  it("recognizes markdown and MDX files case-insensitively", () => {
+    expect(isMarkdownPreviewFile("README.md")).toBe(true);
+    expect(isMarkdownPreviewFile("docs/guide.MDX")).toBe(true);
+  });
+
+  it("does not treat other text files as markdown", () => {
+    expect(isMarkdownPreviewFile("docs/guide.txt")).toBe(false);
+    expect(isMarkdownPreviewFile("docs/markdown.ts")).toBe(false);
+  });
+});
+
+describe("shouldShowFileExplorer", () => {
+  it("hides the workspace tree for host files and attachments", () => {
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "/tmp/report.pdf",
+        explorerOpen: true,
+        attachmentOpen: false,
+      }),
+    ).toBe(false);
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "report.pdf",
+        explorerOpen: true,
+        attachmentOpen: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("keeps the saved explorer preference for workspace files", () => {
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "docs/report.pdf",
+        explorerOpen: true,
+        attachmentOpen: false,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowFileExplorer({
+        relativePath: "docs/report.pdf",
+        explorerOpen: false,
+        attachmentOpen: false,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("setMarkdownTaskChecked", () => {
+  const markdown = "- [ ] First\n- [x] Second\n";
+
+  it("checks and unchecks the task marker at the supplied offset", () => {
+    expect(setMarkdownTaskChecked(markdown, 2, true)).toBe("- [x] First\n- [x] Second\n");
+    expect(setMarkdownTaskChecked(markdown, 14, false)).toBe("- [ ] First\n- [ ] Second\n");
+    expect(setMarkdownTaskChecked("1. [X] Ordered\n", 3, false)).toBe("1. [ ] Ordered\n");
+  });
+
+  it("leaves the document unchanged for a stale or invalid marker offset", () => {
+    expect(setMarkdownTaskChecked(markdown, 0, true)).toBe(markdown);
+    expect(setMarkdownTaskChecked(markdown, 200, true)).toBe(markdown);
   });
 });

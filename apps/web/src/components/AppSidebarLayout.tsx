@@ -15,6 +15,7 @@ import { resolveShortcutCommand } from "../keybindings";
 import { isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { useLegacySidebarEnabled } from "../hooks/useSettings";
+import { usePanelAnimationSettings } from "../panelAnimations";
 import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
 import LegacyThreadSidebar from "./LegacySidebar";
 import ThreadSidebar from "./Sidebar";
@@ -102,6 +103,10 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   // upstream promoted that sidebar to the default, and Marcode's unified
   // workspace tree now mounts inside it (see Sidebar.tsx's fork seam).
   const legacySidebarEnabled = useLegacySidebarEnabled();
+  const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
+    usePanelAnimationSettings();
+  // Settings routes show the settings nav in place of whichever thread
+  // sidebar is active.
   const pathname = useLocation({ select: (location) => location.pathname });
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
@@ -127,6 +132,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   });
   const sidebarProviderStyle = {
     "--sidebar-width": `${sidebarWidth}px`,
+    "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...(isMacosDesktop && !isWindowFullscreen
       ? { "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET }
       : {}),
@@ -170,7 +176,12 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   }, [navigate, pathname]);
 
   return (
-    <SidebarProvider className="h-dvh! min-h-0!" defaultOpen style={sidebarProviderStyle}>
+    <SidebarProvider
+      className="h-dvh! min-h-0!"
+      data-panel-animations={panelAnimationsActive ? "true" : "false"}
+      defaultOpen
+      style={sidebarProviderStyle}
+    >
       {/* Upstream keeps the project projection subscribed while settings swaps the
           thread sidebar out of the tree. Marcode unmounts the whole sidebar there,
           so this retention matters more here, not less. */}

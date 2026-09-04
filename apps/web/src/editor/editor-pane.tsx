@@ -479,6 +479,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
       const result = await openFileInPreview({
         threadRef,
         filePath: file.path,
+        workspaceRoot: file.cwd,
         httpBaseUrl,
         createAssetUrl,
         openPreview: openPreviewMutation,
@@ -491,7 +492,14 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         message: error instanceof Error ? error.message : "An error occurred.",
       });
     })();
-  }, [assetThreadRef, environmentHttpBaseUrl, createAssetUrl, openPreviewMutation, file.path]);
+  }, [
+    assetThreadRef,
+    environmentHttpBaseUrl,
+    createAssetUrl,
+    openPreviewMutation,
+    file.cwd,
+    file.path,
+  ]);
 
   if (fileState.isPending && fileState.contents === null) {
     return (

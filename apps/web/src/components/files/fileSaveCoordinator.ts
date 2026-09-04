@@ -21,6 +21,9 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   private timer: ReturnType<typeof setTimeout> | null = null;
   private latestContents = "";
   private latestRevision = 0;
+  private confirmedRevision = 0;
+  /** Bumped by cancel(), so a write already in flight can tell it was discarded. */
+  private cancelGeneration = 0;
   private lastChangeAt = 0;
   private saving = false;
   private disposed = false;
@@ -29,6 +32,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   constructor(private readonly options: FileSaveCoordinatorOptions<A, E>) {}
 
   change(contents: string): void {
+    if (this.disposed) return;
     this.latestContents = contents;
     this.latestRevision += 1;
     this.lastChangeAt = Date.now();
@@ -61,14 +65,21 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
    * `dispose()` treats there as nothing pending and skips its force-persist.
    * If a write is already in flight, this can't abort that network call —
    * there is no cancellation token wired through `persist()` — but it does
-   * clear `flushRequested` and zero `latestRevision` so the in-flight write's
-   * completion cannot reschedule a further persist: `persistLatest()`'s
-   * entry guard (`this.saving || this.latestRevision === 0`) makes any such
-   * stray reschedule a no-op when it fires.
+   * clear `flushRequested` and zero both revision counters so the in-flight
+   * write's completion cannot reschedule a further persist: `persistLatest()`'s
+   * entry guard (`this.saving || this.latestRevision === this.confirmedRevision`)
+   * makes any such stray reschedule a no-op when it fires.
+   *
+   * Both counters, not just `latestRevision`: upstream's stale-write fix
+   * (#8630) changed that guard from `latestRevision === 0` to a comparison
+   * against the last confirmed revision, so zeroing one side alone would leave
+   * them unequal and let a cancelled buffer persist after all.
    */
   cancel(): void {
     this.clearTimer();
     this.latestRevision = 0;
+    this.confirmedRevision = 0;
+    this.cancelGeneration++;
     this.flushRequested = false;
     this.options.onPendingChange(false);
   }
@@ -88,14 +99,22 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
-    if (this.saving || this.latestRevision === 0) return;
+    if (this.saving || this.latestRevision === this.confirmedRevision) return;
 
     this.saving = true;
     const contents = this.latestContents;
     const revision = this.latestRevision;
+    const generation = this.cancelGeneration;
     const result = await this.options.persist(contents);
+    if (generation !== this.cancelGeneration) {
+      // cancel() ran while this write was in flight. Its result must neither
+      // confirm the discarded buffer nor reschedule a further persist.
+      this.saving = false;
+      return;
+    }
     const succeeded = result._tag === "Success";
-    if (result._tag === "Success") {
+    if (succeeded) {
+      this.confirmedRevision = revision;
       this.options.onConfirmed(contents);
     } else {
       this.options.onError?.(Cause.squash(result.cause) as E);

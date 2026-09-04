@@ -80,7 +80,13 @@ const COMMAND_ICON_BY_SCRIPT_ICON: Record<ProjectScriptIcon, typeof PlayIcon> = 
  */
 export interface UnifiedWorkspaceThreadRowExtras {
   readonly statusPill: ThreadStatusPill | null;
-  readonly prStatus: { tooltip: string; url: string; colorClass: string } | null;
+  readonly prStatus: {
+    tooltip: string;
+    url: string;
+    colorClass: string;
+    state: "open" | "closed" | "merged";
+    isDraft?: boolean | undefined;
+  } | null;
   readonly terminalRunning: { label: string; colorClass: string; pulse: boolean } | null;
   readonly remoteEnvironmentLabel: string | null;
   readonly jumpLabel: string | null;
@@ -475,8 +481,8 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       ) : null}
 
       {(node.kind === "browser" || node.kind === "url") && node.iconUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element -- tiny favicon, not a Next.js app
         <img
+          // tiny favicon, not a Next.js app
           src={node.iconUrl}
           alt=""
           className="size-[var(--uw-tree-icon-size)] shrink-0 rounded-sm"
@@ -580,7 +586,13 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
                   )}
                   onClick={handlePrClick}
                 >
-                  <ChangeRequestStatusIcon className="size-3" />
+                  <ChangeRequestStatusIcon
+                    state={threadExtras.prStatus.state}
+                    {...(threadExtras.prStatus.isDraft === undefined
+                      ? {}
+                      : { isDraft: threadExtras.prStatus.isDraft })}
+                    className="size-3"
+                  />
                 </button>
               }
             />

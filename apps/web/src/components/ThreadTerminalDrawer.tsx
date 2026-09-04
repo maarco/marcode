@@ -862,12 +862,12 @@ export function TerminalViewport({
                     );
                   });
                 };
+                // Upstream's #9339 moved the open-links-in decision into the
+                // helper, dropping the click position and localApi inputs.
                 void openTerminalLinkInPreview({
                   url: match.text,
-                  position: { x: event.clientX, y: event.clientY },
                   threadRef,
                   openPreview,
-                  localApi,
                   fallbackToBrowser,
                 });
                 return;
@@ -986,7 +986,6 @@ export function TerminalViewport({
     };
     // autoFocus is intentionally omitted;
     // it is only read at mount time and must not trigger terminal teardown/recreation.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd, environmentId, runtimeEnvKey, terminalId, threadId, worktreePath]);
 
   useEffect(() => {
