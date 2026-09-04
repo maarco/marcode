@@ -158,9 +158,9 @@ it.layer(NodeServices.layer)("AnalyticsService test", (it) => {
       const telemetryLayer = AnalyticsService.layer.pipe(Layer.provideMerge(serverConfigLayer));
       const configLayer = ConfigProvider.layer(
         ConfigProvider.fromUnknown({
-          T3CODE_TELEMETRY_ENABLED: false,
-          T3CODE_POSTHOG_KEY: "phc_test_key",
-          T3CODE_POSTHOG_HOST: "http://localhost",
+          MARCODE_TELEMETRY_ENABLED: false,
+          MARCODE_POSTHOG_KEY: "phc_test_key",
+          MARCODE_POSTHOG_HOST: "http://localhost",
         }),
       );
       const batchServerLayer = HttpServer.serve(
