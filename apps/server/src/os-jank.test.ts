@@ -1,9 +1,9 @@
 import * as NodeOS from "node:os";
-import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Path from "effect/Path";
 import { assert } from "vite-plus/test";
 
 import { hydratePosixHome, resolveBaseDir } from "./os-jank.ts";
@@ -52,16 +52,20 @@ it("preserves an explicitly configured HOME", () => {
 // the next sync fails here instead.
 it.effect("resolves the default base directory to the Marcode home", () =>
   Effect.gen(function* () {
+    const path = yield* Path.Path;
+
     const baseDir = yield* resolveBaseDir(undefined);
 
-    assert.equal(baseDir, NodePath.join(NodeOS.homedir(), ".marcode"));
+    assert.equal(baseDir, path.join(NodeOS.homedir(), ".marcode"));
   }).pipe(Effect.provide(NodeServices.layer)),
 );
 
 it.effect("resolves a blank base directory to the Marcode home", () =>
   Effect.gen(function* () {
+    const path = yield* Path.Path;
+
     const baseDir = yield* resolveBaseDir("   ");
 
-    assert.equal(baseDir, NodePath.join(NodeOS.homedir(), ".marcode"));
+    assert.equal(baseDir, path.join(NodeOS.homedir(), ".marcode"));
   }).pipe(Effect.provide(NodeServices.layer)),
 );
