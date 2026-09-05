@@ -22,6 +22,15 @@ import { afterEach, describe, expect, vi } from "vite-plus/test";
 
 import { makeCli } from "../bin.ts";
 
+// ── Marcode fork seam ──
+// Upstream's fixtures hardcode `.t3` because that is where their CLI looks when
+// no base directory is given. Marcode resolves the same default to `~/.marcode`
+// (`resolveBaseDir` in ../os-jank.ts), so a literal `.t3` here would make the
+// fake desktop listen on a socket the CLI never dials — and the failure looks
+// like a broken CLI rather than a stale fixture. `os-jank.test.ts` pins the
+// resolver itself; this name only has to agree with it.
+const MARCODE_HOME_DIRECTORY_NAME = ".marcode";
+
 vi.mock("node:os", async (importOriginal) => {
   const os = await importOriginal<typeof import("node:os")>();
   return { ...os, homedir: vi.fn(os.homedir) };
@@ -211,7 +220,7 @@ describe("t3 app", () => {
     withTempDirectory("t3-app-preferred-test-", (root) =>
       Effect.gen(function* () {
         vi.mocked(NodeOS.homedir).mockReturnValue(root);
-        const baseDir = NodePath.join(root, ".t3");
+        const baseDir = NodePath.join(root, MARCODE_HOME_DIRECTORY_NAME);
         const desktop = yield* fakeDesktop({ baseDir });
         const development = yield* fakeDesktop({ baseDir, stateSubdirectory: "dev" });
 
@@ -227,7 +236,7 @@ describe("t3 app", () => {
     withTempDirectory("t3-app-dev-test-", (root) =>
       Effect.gen(function* () {
         vi.mocked(NodeOS.homedir).mockReturnValue(root);
-        const baseDir = NodePath.join(root, ".t3");
+        const baseDir = NodePath.join(root, MARCODE_HOME_DIRECTORY_NAME);
         const development = yield* fakeDesktop({ baseDir, stateSubdirectory: "dev" });
 
         yield* runCli(["app"]);
@@ -243,7 +252,7 @@ describe("t3 app", () => {
     withTempDirectory("t3-app-explicit-test-", (root) =>
       Effect.gen(function* () {
         vi.mocked(NodeOS.homedir).mockReturnValue(root);
-        const baseDir = NodePath.join(root, ".t3");
+        const baseDir = NodePath.join(root, MARCODE_HOME_DIRECTORY_NAME);
         const development = yield* fakeDesktop({ baseDir, stateSubdirectory: "dev" });
 
         const flagError = yield* runCli(["app", "--base-dir", baseDir]).pipe(Effect.flip);
@@ -261,7 +270,7 @@ describe("t3 app", () => {
       withTempDirectory("t3-app-response-test-", (root) =>
         Effect.gen(function* () {
           vi.mocked(NodeOS.homedir).mockReturnValue(root);
-          const baseDir = NodePath.join(root, ".t3");
+          const baseDir = NodePath.join(root, MARCODE_HOME_DIRECTORY_NAME);
           const desktop = yield* fakeDesktop({
             baseDir,
             reply: (request) =>
