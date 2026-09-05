@@ -11,6 +11,7 @@ import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
 import { Atom, AtomRegistry } from "effect/unstable/reactivity";
 
@@ -63,6 +64,9 @@ function testLayer(dispatched: ClientOrchestrationCommand[]) {
       const session: RpcSession.RpcSession = {
         client,
         initialConfig: Effect.never,
+        // Upstream added this to RpcSession; these tests dispatch commands and
+        // never subscribe, so the stub only has to satisfy the shape.
+        subscribeServerConfig: () => Stream.empty,
         ready: Effect.void,
         probe: Effect.void,
         closed: Effect.never,
