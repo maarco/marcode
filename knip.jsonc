@@ -37,6 +37,24 @@
     "apps/web": {
       // Worktree setup invokes this directly from t3.json.
       "entry": ["scripts/warm-dep-cache.ts"],
+      // ── Marcode fork seam ──
+      // Upstream-owned components with no importer in this fork's shell:
+      // FloatingPillNav owns settings navigation and the Connect identity, the
+      // floating Code editor replaced the editor scaffolding, and Marcode's
+      // xterm drawer and pill-nav chat header replaced the two components that
+      // consume panel-tab-close-button and useThreadActionMenu upstream. They
+      // are kept, not deleted, so upstream's changes to them keep merging
+      // cleanly; deleting them is a product decision, not a sync decision.
+      "ignore": [
+        "src/components/clerk/MobileClientsUserProfilePage.tsx",
+        "src/components/clerk/T3ConnectSidebarSignIn.tsx",
+        "src/components/settings/SettingsSidebarNav.tsx",
+        "src/components/ui/panel-tab-close-button.tsx",
+        "src/editor/api.ts",
+        "src/editor/breadcrumb.tsx",
+        "src/editor/git-types.ts",
+        "src/hooks/useThreadActionMenu.ts",
+      ],
     },
     "apps/mobile": {
       // Expo loads local config plugins by string; Metro handles platform variants.
