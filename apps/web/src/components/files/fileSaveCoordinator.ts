@@ -26,6 +26,14 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   private saving = false;
   private disposed = false;
   private flushRequested = false;
+  /**
+   * Bumped by `cancel()`. A write already in flight when the buffer is
+   * discarded must not report its revision as confirmed: upstream's entry
+   * guard compares `latestRevision` with `confirmedRevision`, so a stale
+   * confirmation would leave the two unequal and let the discarded buffer
+   * persist a second time.
+   */
+  private cancelToken = 0;
 
   constructor(private readonly options: FileSaveCoordinatorOptions<A, E>) {}
 
@@ -77,6 +85,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
    */
   cancel(): void {
     this.clearTimer();
+    this.cancelToken += 1;
     this.latestRevision = 0;
     this.confirmedRevision = 0;
     this.flushRequested = false;
@@ -106,22 +115,31 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     if (this.latestRevision === this.confirmedRevision) return;
 
     this.saving = true;
+    const cancelToken = this.cancelToken;
     const contents = this.latestContents;
     const revision = this.latestRevision;
     const result = await this.options.persist(contents);
+    const cancelled = cancelToken !== this.cancelToken;
     const succeeded = result._tag === "Success";
     // `cancel()` during the write zeroes the revision. Recording the completed
     // write as confirmed would then swallow the next edit, whose revision
     // climbs back to `revision` and compares equal to this stale confirmation.
     const discarded = this.latestRevision === 0;
     if (succeeded) {
-      if (!discarded) this.confirmedRevision = revision;
+      // The write did land, so the caller still hears about it; only the
+      // revision bookkeeping is skipped for a buffer that was discarded or
+      // superseded by a new buffer after cancel().
+      if (!discarded && !cancelled) this.confirmedRevision = revision;
       this.options.onConfirmed(contents);
     } else {
       this.options.onError?.(Cause.squash(result.cause) as E);
     }
 
     this.saving = false;
+    if (cancelled) {
+      this.flushRequested = false;
+      return;
+    }
     if (revision === this.latestRevision) {
       if (succeeded) this.options.onPendingChange(false);
       this.flushRequested = false;

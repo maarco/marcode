@@ -1,29 +1,42 @@
 # T3 Connect
 
-> For maintainers. Using T3 Code? See [docs/user](../user/).
+T3 Connect uses Clerk for cloud identity. The relay manages environment links,
+credentials for reaching environments, and managed tunnel allocations. After
+bootstrap, clients send application traffic through the environment's tunnel
+hostname; the relay Worker does not proxy their HTTP or WebSocket sessions.
 
-T3 Connect uses one Clerk application for web, desktop, and mobile authentication. The relay verifies
-two kinds of bearer credential: template JWTs generated from the `t3-relay` template with the shared
-`t3-code-relay` audience, and Clerk OAuth tokens issued to the CLI. `verifyRelayClientBearerToken` in
-`infra/relay/src/http/Api.ts` tries the template/session path first and falls back to OAuth
-verification (`acceptsToken: "oauth_token"`), so the CLI's OAuth credential works without a JWT
-template.
+Clerk, deployment, and native authentication setup live in the
+[Connect setup runbook](../operations/connect-setup.md).
 
-For the wider system diagram, see
-[t3-code-connect-auth-flow.html](./t3-code-connect-auth-flow.html).
+## The relay is a trusted broker
 
-## Application Keys
+An authenticated cloud user still needs an active environment link. The relay
+asks that environment to mint a one-time bootstrap credential bound to the
+client's DPoP key. The client exchanges it directly with the environment for an
+[environment session](./environment-auth.md). The relay never receives that
+session token, and possessing the bootstrap credential alone does not permit
+redeeming it without the client's private key.
 
-T3 Connect is disabled in a fresh clone. To enable it for source builds against the production
-deployment, copy the repository-root example file:
+Both sides authenticate this exchange. The environment accepts only bounded,
+replay-guarded relay proofs for its own identity, linked user, and requested
+operation. Signed environment responses bind the result to the request nonce;
+mint responses also bind the credential to the client proof key. The relay
+verifies those bindings before returning a credential. This prevents a different
+process behind the tunnel from impersonating the linked environment. The checks
+meet in the
+[environment cloud handlers](../../apps/server/src/cloud/http.ts) and
+[relay connector](../../infra/relay/src/environments/EnvironmentConnector.ts).
 
-```sh
-cp .env.example .env
-```
+The relay holds the signing authority for mint requests. DPoP protects an honest
+exchange from credential reuse; it does not make a compromised relay signing
+key harmless. Keep that trust assumption explicit when changing the protocol.
 
-`.env.example` carries the production public identifiers (the same values baked into official
-release builds). To target a different Clerk application or relay, set the values yourself in a
-repository-root `.env` or `.env.local` file:
+Managed tunnels expose only a validated loopback HTTP origin. Link proof checks
+reject forwarded authority headers, and the relay resolves endpoints from its
+own managed allocations rather than a caller-supplied URL. Health and mint
+requests must not follow redirects. These restrictions keep endpoint discovery
+from turning into arbitrary relay egress or exposing another service on the
+environment host.
 
 ```dotenv
 MARCODE_CLERK_PUBLISHABLE_KEY=<publishable key>
@@ -32,15 +45,25 @@ MARCODE_CLERK_CLI_OAUTH_CLIENT_ID=<public OAuth application client ID>
 MARCODE_RELAY_URL=https://relay.example.com
 ```
 
-The shared client loader projects these canonical values into framework-specific `VITE_*` and
-`EXPO_PUBLIC_*` aliases. Existing aliases remain accepted as overrides for compatibility, but new
-client configuration should use the canonical names.
+## A link outlives a connector process
 
-Configuration precedence is:
+CLI authorization, desired exposure, and a running connector have different
+lifetimes. Linking can record intent while the server is stopped. Startup
+reconciles that intent. CLI logout removes the stored cloud credential and
+disables exposure without uninstalling the environment's background service.
 
-1. Process or CI environment variables.
-2. Repository-root `.env.local`.
-3. Repository-root `.env`.
+Managed allocations belong to a user/environment pair. Provisioning checkpoints
+external tunnel and DNS resources so retries can reconcile partial work. A
+normal shutdown of a CLI-managed link releases its tunnel to avoid paying for
+an idle resource, retaining the hostname reservation for the next startup.
+It also retains the allocation record so the environment remains "offline"
+rather than becoming "not authorized".
+
+Two cases must retain the tunnel across shutdown. A link installed through a
+client has no startup provisioning path and depends on its stored connector
+token. An update handoff immediately starts a replacement server, and replacing
+the tunnel would add routing propagation delay to every update. These exceptions
+belong to [shutdown handling](../../apps/server/src/cloud/http.ts).
 
 The Clerk publishable key, JWT template name, CLI OAuth client ID, and relay URL are public
 identifiers, not secrets.
@@ -50,12 +73,14 @@ should set `MARCODE_CLERK_PUBLISHABLE_KEY`, `MARCODE_CLERK_JWT_TEMPLATE`,
 `MARCODE_CLERK_CLI_OAUTH_CLIENT_ID`, and `MARCODE_RELAY_URL` before building. EAS preview and
 production builds only need the Clerk publishable key, JWT template name, and relay URL in their EAS
 environment.
+Release and unlink claim the allocation generation before deleting external
+resources. A delayed cleanup must not delete a tunnel reused by a concurrent
+restart or relink. Unlink commits authorization revocation before external
+teardown, because a database failure must leave the active link usable. Failed
+teardown retains enough state to retry. See the
+[managed endpoint lifecycle](../../infra/relay/src/environments/ManagedEndpointProvider.ts).
 
-When any client-facing public value is absent, cloud UI is omitted. The `t3 connect` command group is
-always registered: when the CLI public values are absent, `makeCli` in `apps/server/src/bin.ts`
-registers a hidden fallback `connect` command that reports the missing configuration instead of
-silently vanishing from help. The bundled server still accepts runtime overrides for self-hosted or
-operator-managed deployments.
+## OAuth traps
 
 For a hosted relay deployment, copy `infra/relay/.env.example` to `infra/relay/.env`. The relay
 deployment reads `RELAY_DOMAIN`, `RELAY_API_ZONE_NAME`, `RELAY_TUNNEL_ZONE_NAME`,
@@ -271,3 +296,15 @@ Do not enable an empty allowlist: it blocks all new sign-ups.
 Clerk allowlists control who can sign up. They do not revoke an existing user's active cloud
 access. To remove an already-created user's access, ban that user in Clerk so their active
 sessions are ended and future sign-ins are rejected.
+Interactive clients and the headless CLI use the same Clerk application but
+different credentials. The relay accepts both session-template JWTs and CLI
+OAuth tokens; requiring a JWT template for the CLI would reject valid logins.
+The CLI is a public OAuth client using PKCE and stores no client secret.
+
+CLI authorization starts on the hosted `/connect` page so sign-in completes
+before entering Clerk's authorize endpoint. Sending a signed-out browser
+straight to that endpoint loses the authorize parameters during the sign-in
+redirect. The [shared flow](../../packages/shared/src/connectAuth.ts) preserves
+PKCE and state for both loopback and pasted-code callbacks. SSH and headless
+sessions use the pasted-code flow because the browser cannot ordinarily reach a
+listener on the remote machine.

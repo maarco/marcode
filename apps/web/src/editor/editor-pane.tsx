@@ -479,6 +479,8 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
       const result = await openFileInPreview({
         threadRef,
         filePath: file.path,
+        // Upstream added this so a host file outside the workspace still gets a
+        // signed asset URL; the floating editor already tracks each tab's root.
         workspaceRoot: file.cwd,
         httpBaseUrl,
         createAssetUrl,

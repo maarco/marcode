@@ -34,7 +34,11 @@ import {
 import type { UnifiedWorkspaceNode } from "../../unifiedWorkspace/types";
 import { FileTypeIcon, fileExtension, getFolderColor } from "../../editor/file-tree-visuals";
 import { cn } from "../../lib/utils";
-import { ChangeRequestStatusIcon, ThreadStatusLabel } from "../ThreadStatusIndicators";
+import {
+  ChangeRequestStatusIcon,
+  ThreadStatusLabel,
+  type ThreadPr,
+} from "../ThreadStatusIndicators";
 import type { ThreadStatusPill } from "../Sidebar.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { formatWorktreePathForDisplay } from "../../worktreeCleanup";
@@ -80,7 +84,15 @@ const COMMAND_ICON_BY_SCRIPT_ICON: Record<ProjectScriptIcon, typeof PlayIcon> = 
  */
 export interface UnifiedWorkspaceThreadRowExtras {
   readonly statusPill: ThreadStatusPill | null;
-  readonly prStatus: { tooltip: string; url: string; colorClass: string } | null;
+  readonly prStatus: {
+    tooltip: string;
+    url: string;
+    colorClass: string;
+    // Upstream's ChangeRequestStatusIcon resolves its glyph from the PR state,
+    // so the row has to carry it alongside the colour it already had.
+    state: NonNullable<ThreadPr>["state"];
+    isDraft?: boolean | undefined;
+  } | null;
   readonly terminalRunning: { label: string; colorClass: string; pulse: boolean } | null;
   readonly remoteEnvironmentLabel: string | null;
   readonly jumpLabel: string | null;
@@ -579,7 +591,11 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
                   )}
                   onClick={handlePrClick}
                 >
-                  <ChangeRequestStatusIcon className="size-3" />
+                  <ChangeRequestStatusIcon
+                    state={threadExtras.prStatus.state}
+                    isDraft={threadExtras.prStatus.isDraft ?? false}
+                    className="size-3"
+                  />
                 </button>
               }
             />

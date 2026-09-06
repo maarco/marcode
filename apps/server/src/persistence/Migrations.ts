@@ -48,7 +48,7 @@ import Migration0033 from "./Migrations/033_ProjectWorkspaceLayout.ts";
 import Migration0034 from "./Migrations/034_ProjectionThreadsSettled.ts";
 import Migration0035 from "./Migrations/035_ProjectionThreadsSnoozed.ts";
 import Migration0036 from "./Migrations/036_ProjectionThreadTitleRegeneration.ts";
-// Upstream shipped these as 033-047. Marcode's ProjectWorkspaceLayout already
+// Upstream shipped these as 032-047. Marcode's ProjectWorkspaceLayout already
 // occupies 033, so every shared migration sits one id higher here; renumbering
 // an applied id would re-run or skip it on existing installs. A new upstream
 // migration is renamed to the next free Marcode id on the way in.
@@ -64,6 +64,8 @@ import Migration0045 from "./Migrations/045_ClearAutomaticProjectModelDefaults.t
 import Migration0046 from "./Migrations/046_ProjectionProjectsAutoPull.ts";
 import Migration0047 from "./Migrations/047_RepairAutomaticSettlementTimestamps.ts";
 import Migration0048 from "./Migrations/048_ProjectionProjectIcon.ts";
+// Upstream 048_ProjectionThreadBranchPullRequest arrives as Marcode 049.
+import Migration0049 from "./Migrations/049_ProjectionThreadBranchPullRequest.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -124,6 +126,7 @@ export const migrationEntries = [
   [46, "ProjectionProjectsAutoPull", Migration0046],
   [47, "RepairAutomaticSettlementTimestamps", Migration0047],
   [48, "ProjectionProjectIcon", Migration0048],
+  [49, "ProjectionThreadBranchPullRequest", Migration0049],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

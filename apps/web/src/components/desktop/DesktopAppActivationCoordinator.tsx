@@ -6,7 +6,6 @@ import { handleDesktopAppActivationRequest } from "../../desktopAppActivation";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
 import { findProjectByPath, inferProjectTitleFromPath } from "../../lib/projectPaths";
 import { newProjectId } from "../../lib/utils";
-import { resolveDefaultProviderModelSelection } from "../../providerInstances";
 import { readProjects, waitForProject } from "../../state/entities";
 import { usePrimaryEnvironment } from "../../state/environments";
 import { projectEnvironment } from "../../state/projects";
@@ -52,10 +51,6 @@ export function DesktopAppActivationCoordinator() {
         ) ?? null,
       createProject: async (environmentId, workspaceRoot) => {
         const projectId = newProjectId();
-        const providers =
-          primaryEnvironment?.environmentId === environmentId
-            ? (primaryEnvironment.serverConfig?.providers ?? [])
-            : [];
         const result = await createProject({
           environmentId,
           input: {
@@ -63,12 +58,12 @@ export function DesktopAppActivationCoordinator() {
             title: inferProjectTitleFromPath(workspaceRoot),
             workspaceRoot,
             createWorkspaceRootIfMissing: false,
-            defaultModelSelection: resolveDefaultProviderModelSelection(providers, null),
+            defaultModelSelection: null,
           },
         });
         if (result._tag === "Failure") {
           const error = squashAtomCommandFailure(result);
-          throw error instanceof Error ? error : new Error("T3 Code could not add the project.");
+          throw error instanceof Error ? error : new Error("Marcode could not add the project.");
         }
         return projectId;
       },

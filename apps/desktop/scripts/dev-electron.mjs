@@ -38,6 +38,12 @@ const devAppPidFilePath = NodePath.join(desktopDir, ".marcode", "dev-electron.pi
 // oxlint-disable-next-line marcode/no-global-process-runtime -- Standalone dev script has no Effect runtime.
 const hostPlatform = NodeOS.platform();
 
+NodeChildProcess.execFileSync(
+  process.execPath,
+  [NodePath.join(desktopDir, "scripts/build-browser-secret.mjs")],
+  { stdio: "inherit" },
+);
+
 await waitForResources({
   baseDir: desktopDir,
   files: requiredFiles,

@@ -5,8 +5,8 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { terminalOutputText } from "@t3tools/client-runtime/state/terminal";
 import {
-  type ContextMenuItem,
   type ResolvedKeybindingsConfig,
   type ScopedThreadRef,
   type ThreadId,
@@ -258,6 +258,14 @@ function readThemeColor(styles: CSSStyleDeclaration, variable: string, fallback:
   return normalizeComputedColor(styles.getPropertyValue(variable), fallback);
 }
 
+// ── Marcode fork seam ──────────────────────────────────────────────────
+// Upstream replaced this drawer's xterm.js surface with their own Ghostty
+// surface (`~/terminal/ghostty/*`). Marcode keeps xterm deliberately: the
+// terminal search this file implements (find bar, match navigation, wrapped
+// link ranges) has no equivalent there. The cost is real and accepted —
+// every upstream change to the terminal subsystem is re-ported by hand, and
+// upstream's Ghostty-only helpers are not imported here. Port their fixes
+// into this implementation rather than reinstating theirs.
 function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
   const isDark = document.documentElement.classList.contains("dark");
   const fallbackBackground = isDark ? "rgb(14, 18, 24)" : "rgb(255, 255, 255)";
@@ -289,7 +297,11 @@ function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
       background: themedBackground,
       foreground: themedForeground,
       cursor: readThemeColor(themeStyles, "--terminal-cursor", "rgb(180, 203, 255)"),
-      selectionBackground: "rgba(180, 203, 255, 0.25)",
+      selectionBackground: readThemeColor(
+        themeStyles,
+        "--terminal-selection-background",
+        "rgba(180, 203, 255, 0.25)",
+      ),
       scrollbarSliderBackground: "rgba(255, 255, 255, 0.1)",
       scrollbarSliderHoverBackground: "rgba(255, 255, 255, 0.18)",
       scrollbarSliderActiveBackground: "rgba(255, 255, 255, 0.22)",
@@ -316,7 +328,11 @@ function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
     background: themedBackground,
     foreground: themedForeground,
     cursor: readThemeColor(themeStyles, "--terminal-cursor", "rgb(38, 56, 78)"),
-    selectionBackground: "rgba(37, 63, 99, 0.2)",
+    selectionBackground: readThemeColor(
+      themeStyles,
+      "--terminal-selection-background",
+      "rgba(37, 63, 99, 0.2)",
+    ),
     scrollbarSliderBackground: "rgba(0, 0, 0, 0.15)",
     scrollbarSliderHoverBackground: "rgba(0, 0, 0, 0.25)",
     scrollbarSliderActiveBackground: "rgba(0, 0, 0, 0.3)",
@@ -543,7 +559,12 @@ export function TerminalViewport({
       input: { threadId, terminalId, cols, rows },
     }),
   );
-  const terminalBuffer = terminalSession.buffer;
+  // ── Marcode fork seam ──
+  // Upstream replaced the session's flat `buffer` with chunked output plus a
+  // read cursor for their Ghostty surface. This xterm drawer reconciles by
+  // diffing the whole buffer, so flatten the chunks back to one string here
+  // rather than reshape the reconciliation loop below.
+  const terminalBuffer = terminalOutputText(terminalSession.output);
   const terminalError = terminalSession.error;
   const terminalStatus = terminalSession.status;
   const terminalVersion = terminalSession.version;

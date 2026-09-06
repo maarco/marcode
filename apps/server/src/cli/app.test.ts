@@ -22,6 +22,13 @@ import { afterEach, describe, expect, vi } from "vite-plus/test";
 
 import { makeCli } from "../bin.ts";
 
+// ── Marcode fork seam ──
+// Upstream's fixtures hardcode `.t3` because that is where their CLI looks when
+// no base directory is given. Marcode resolves the same default to `~/.marcode`
+// (`resolveBaseDir` in ../os-jank.ts), so a literal `.t3` here would make the
+// fake desktop listen on a socket the CLI never dials — and the failure looks
+// like a broken CLI rather than a stale fixture. `os-jank.test.ts` pins the
+// resolver itself; this name only has to agree with it.
 vi.mock("node:os", async (importOriginal) => {
   const os = await importOriginal<typeof import("node:os")>();
   return { ...os, homedir: vi.fn(os.homedir) };
@@ -186,7 +193,7 @@ describe("t3 app", () => {
           _tag: "DesktopAppUnreachableError",
           candidateAddresses: [expect.any(String)],
           workspaceRoot: yield* HostProcessWorkingDirectory,
-          message: expect.stringContaining("Could not reach the T3 Code desktop app."),
+          message: expect.stringContaining("Could not reach the Marcode desktop app."),
           cause: { code: "ENOENT" },
         });
         expect(yield* pathExists(baseDir)).toBe(false);

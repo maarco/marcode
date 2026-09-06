@@ -52,22 +52,45 @@ describe("clientPersistenceStorage", () => {
     expect(readBrowserClientSettings()).toEqual(settings);
   });
 
-  it("reports structured decode failures while preserving the fallback", async () => {
+  it.each(["not-json", '{"wordWrap":"invalid"}'])(
+    "does not treat invalid saved settings as absent: %s",
+    async (value) => {
+      const testWindow = getTestWindow();
+      testWindow.localStorage.setItem("marcode:client-settings:v1", value);
+      const { readBrowserClientSettings } = await import("./clientPersistenceStorage");
+
+      expect(() => readBrowserClientSettings()).toThrow(
+        expect.objectContaining({
+          _tag: "LocalStorageOperationError",
+          operation: "decode",
+          storageKey: "marcode:client-settings:v1",
+        }),
+      );
+      expect(testWindow.localStorage.getItem("marcode:client-settings:v1")).toBe(value);
+    },
+  );
+
+  it("preserves saved settings across a transient read failure", async () => {
     const testWindow = getTestWindow();
-    testWindow.localStorage.setItem("marcode:client-settings:v1", "not-json");
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const settings = { ...DEFAULT_CLIENT_SETTINGS, timestampFormat: "12-hour" as const };
+    testWindow.localStorage.setItem("marcode:client-settings:v1", JSON.stringify(settings));
+    const write = vi.spyOn(testWindow.localStorage, "setItem");
+    const failure = new Error("storage unavailable");
+    vi.spyOn(testWindow.localStorage, "getItem").mockImplementationOnce(() => {
+      throw failure;
+    });
     const { readBrowserClientSettings } = await import("./clientPersistenceStorage");
 
-    expect(readBrowserClientSettings()).toBeNull();
-    expect(consoleError).toHaveBeenCalledWith(
-      "Could not read persisted client settings.",
+    expect(() => readBrowserClientSettings()).toThrow(
       expect.objectContaining({
         _tag: "LocalStorageOperationError",
-        operation: "decode",
+        operation: "read",
         storageKey: "marcode:client-settings:v1",
-        cause: expect.anything(),
+        cause: failure,
       }),
     );
+    expect(readBrowserClientSettings()).toEqual(settings);
+    expect(write).not.toHaveBeenCalled();
   });
 
   it("defaults word wrap on and discards obsolete wrapping preferences", async () => {
@@ -93,14 +116,11 @@ describe("clientPersistenceStorage", () => {
 
   it("keeps the diff layout across reloads and defaults it to stacked", async () => {
     const testWindow = getTestWindow();
-    const { CLIENT_SETTINGS_STORAGE_KEY, readBrowserClientSettings, writeBrowserClientSettings } =
+    const { readBrowserClientSettings, writeBrowserClientSettings } =
       await import("./clientPersistenceStorage");
 
     expect(readBrowserClientSettings()).toBeNull();
-    // Read the key off the module: upstream seeds `t3code:client-settings:v1`
-    // here, which this fork does not write, so a literal silently seeds nothing
-    // and the assertion below stops covering the stored-settings path.
-    testWindow.localStorage.setItem(CLIENT_SETTINGS_STORAGE_KEY, JSON.stringify({}));
+    testWindow.localStorage.setItem("marcode:client-settings:v1", JSON.stringify({}));
     expect(readBrowserClientSettings()?.diffLayout).toBe("stacked");
 
     writeBrowserClientSettings({ ...DEFAULT_CLIENT_SETTINGS, diffLayout: "split" });

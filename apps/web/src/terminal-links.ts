@@ -199,6 +199,11 @@ export function collectWrappedTerminalLinkLine(
   };
 }
 
+// ── Marcode fork seam ──────────────────────────────────────────────────
+// Upstream removed these with their Ghostty terminal surface, which paints
+// link decorations itself. Marcode keeps xterm (see ThreadTerminalDrawer's
+// seam note), and its link decorations are addressed per buffer row, so the
+// character-index-to-buffer-position mapping still has to live here.
 function resolveCharacterPosition(
   segments: ReadonlyArray<WrappedTerminalLinkLineSegment>,
   characterIndex: number,
