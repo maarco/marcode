@@ -58,6 +58,7 @@ const RELEASE_ASSETS = {
   appIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIosIconPng),
   iosIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIconComposerProject),
   splashIcon: fromRepoRoot(BRAND_ASSET_PATHS.productionIosIconPng),
+  // Marcode's mark is black on a white rounded square across every channel.
   androidAdaptiveForeground: fromRepoRoot(BRAND_ASSET_PATHS.productionLinuxIconPng),
   androidAdaptiveBackgroundColor: "#ffffff",
   androidMonochromeIcon: "./assets/android-icon-mark.png",

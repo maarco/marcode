@@ -45,6 +45,7 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 // take well beyond the default 30s (e.g. a 375k-file repo takes ~40s on an idle
 // machine). Give it generous headroom while still bounding a genuinely hung git.
 const WORKTREE_ADD_TIMEOUT_MS = 300_000;
+const WORKTREE_REMOVE_TIMEOUT_MS = Duration.toMillis(Duration.minutes(5));
 const DEFAULT_MAX_OUTPUT_BYTES = 1_000_000;
 const OUTPUT_TRUNCATED_MARKER = "\n\n[truncated]";
 const PREPARED_COMMIT_PATCH_MAX_OUTPUT_BYTES = 49_000;
@@ -54,6 +55,10 @@ const RANGE_DIFF_PATCH_MAX_OUTPUT_BYTES = 59_000;
 const REVIEW_DIFF_PATCH_MAX_OUTPUT_BYTES = 120_000;
 const REVIEW_UNTRACKED_DIFF_MAX_OUTPUT_BYTES = 80_000;
 const REVIEW_DIFF_FILE_MAX_OUTPUT_BYTES = 1024 * 1024;
+// Patches the clients render are parsed against git's default a/ and b/ path
+// prefixes. A repository or global diff.noprefix or diff.mnemonicPrefix would
+// otherwise leak into the patch and leave every parsed file unnamed.
+export const PATCH_RENDER_PREFIX_ARGS = ["--src-prefix=a/", "--dst-prefix=b/"] as const;
 const WORKSPACE_FILES_MAX_OUTPUT_BYTES = 120_000;
 const STATUS_UPSTREAM_REFRESH_INTERVAL = Duration.seconds(15);
 const STATUS_UPSTREAM_REFRESH_TIMEOUT = Duration.seconds(5);
@@ -2285,6 +2290,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             "--no-ext-diff",
             "--no-textconv",
             "--minimal",
+            ...PATCH_RENDER_PREFIX_ARGS,
             "--",
             "/dev/null",
             relativePath,
@@ -2337,6 +2343,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         "--no-ext-diff",
         "--no-textconv",
         "--minimal",
+        ...PATCH_RENDER_PREFIX_ARGS,
         ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
         "HEAD",
         "--",
@@ -2373,6 +2380,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
               "--no-ext-diff",
               "--no-textconv",
               "--minimal",
+              ...PATCH_RENDER_PREFIX_ARGS,
               ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
               `${baseRef}...HEAD`,
             ],
@@ -3158,7 +3166,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       "GitVcsDriver.removeWorktree",
       input.cwd,
       args,
-      { timeoutMs: 15_000, allowNonZeroExit: true },
+      {
+        // Removing dependency-heavy worktrees is filesystem-bound and can take
+        // minutes, especially on Windows. Keep it bounded without interrupting
+        // git midway through cleanup.
+        timeoutMs: WORKTREE_REMOVE_TIMEOUT_MS,
+        allowNonZeroExit: true,
+      },
     );
     if (result.exitCode === 0) {
       return;

@@ -12,21 +12,20 @@ import * as TestClock from "effect/testing/TestClock";
 import { ChildProcessSpawner } from "effect/unstable/process";
 
 import {
-  buildWslNodeEnvPreamble,
   buildWslRuntimeInstallScript,
+  NODE_PTY_BUILD_SCRIPT,
+  NODE_PTY_PROBE_SCRIPT,
+  WSL_NODE_PTY_MARKER,
   buildWslRuntimeInvalidateScript,
   buildWslRuntimePruneScript,
   DesktopWslDistroListError,
   formatMissingToolsReason,
-  formatNodePtyProbeFailureReason,
-  formatWslShellTransportFailureReason,
   parseNodePath,
   parseNodeVersion,
   parseResolvedPath,
   parseToolchainReport,
   parseWslRuntimeRoot,
   probeWslDistros,
-  sanitizeWslRuntimeId,
 } from "./DesktopWslEnvironment.ts";
 
 const encoder = new TextEncoder();
@@ -144,46 +143,19 @@ describe("probeWslDistros", () => {
   });
 });
 
-describe("formatNodePtyProbeFailureReason", () => {
-  it("identifies a packaged build that omitted the Linux node-pty prebuild", () => {
-    const reason = formatNodePtyProbeFailureReason(4);
-
-    expect(reason).toContain("packaged Linux node-pty binary was not included");
-    expect(reason).toContain("--wsl-prebuild");
-  });
-
-  it("leaves other node-pty load failures to the compatibility diagnostic", () => {
-    expect(formatNodePtyProbeFailureReason(1)).toBeNull();
-  });
-});
-
-describe("formatWslShellTransportFailureReason", () => {
-  it("distinguishes timeouts and spawn failures from normal shell exit codes", () => {
-    expect(formatWslShellTransportFailureReason("timeout")).toContain("timed out");
-    expect(formatWslShellTransportFailureReason("spawn")).toContain("could not start wsl.exe");
-    expect(formatWslShellTransportFailureReason("process")).toContain("lost communication");
-    expect(formatWslShellTransportFailureReason(null)).toBeNull();
-  });
-});
-
-describe("buildWslNodeEnvPreamble", () => {
-  it("passes the required Node engine range into the shared resolver", () => {
-    const preamble = buildWslNodeEnvPreamble("^22.16 || ^23.11 || >=24.10");
-
-    expect(preamble).toContain("T3_NODE_ENGINE_RANGE='^22.16 || ^23.11 || >=24.10'");
-    expect(preamble.indexOf("T3_NODE_ENGINE_RANGE=")).toBeLessThan(
-      preamble.lastIndexOf("ensure_remote_node_path || true"),
-    );
-  });
-
-  it("keeps the shared resolver permissive when no Node engine range is provided", () => {
-    expect(buildWslNodeEnvPreamble()).toContain("T3_NODE_ENGINE_RANGE=''");
-  });
-});
-
 describe("WSL runtime cache", () => {
-  it("sanitizes cache ids before interpolating them into Linux paths", () => {
-    expect(sanitizeWslRuntimeId("1.2.3/x64; touch /tmp/nope")).toBe("1.2.3_x64__touch__tmp_nope");
+  it.each([
+    [
+      "install",
+      (id: string) => buildWslRuntimeInstallScript("/runtime.tar.gz", id, "b".repeat(64)),
+    ],
+    ["prune", buildWslRuntimePruneScript],
+    ["invalidate", buildWslRuntimeInvalidateScript],
+  ] as const)("sanitizes cache ids in the %s script", (_, buildScript) => {
+    const runtimeId = "1.2.3/x64; touch /tmp/nope";
+    const script = buildScript(runtimeId);
+    expect(script).toContain("/1.2.3_x64__touch__tmp_nope");
+    expect(script).not.toContain(runtimeId);
   });
 
   it("installs through a temporary directory and only reuses valid completed caches", () => {
@@ -193,7 +165,7 @@ describe("WSL runtime cache", () => {
       "b".repeat(64),
     );
 
-    expect(script).toContain('runtime_parent="$HOME/.t3/wsl-runtime"');
+    expect(script).toContain('runtime_parent="$HOME/.marcode/wsl-runtime"');
     expect(script).toContain('  [ -f "$ready_marker" ] &&');
     expect(script).toContain('  [ -f "$runtime_root/apps/server/dist/bin.mjs" ] &&');
     expect(script).toContain('  [ -f "$runtime_root/node_modules/node-pty/package.json" ] &&');
@@ -293,7 +265,7 @@ describe("WSL runtime cache", () => {
     );
     // The marker the probe reads must sit beside the binary, or the runtime is
     // just as unusable as one missing pty.node outright.
-    expect(script).toContain('    [ -f "${candidate%/*}/t3code-wsl-node-pty.json" ] || continue');
+    expect(script).toContain(`    [ -f "\${candidate%/*}/${WSL_NODE_PTY_MARKER}" ] || continue`);
 
     // Readiness gates the short-circuit, so a cache missing the payload
     // reinstalls from the archive instead of being reused forever.
@@ -361,8 +333,8 @@ describe("WSL runtime cache", () => {
   });
 
   it("parses only absolute Linux runtime paths", () => {
-    expect(parseWslRuntimeRoot("runtimeRoot:/home/josh/.t3/wsl-runtime/1.2.3-x64\n")).toBe(
-      "/home/josh/.t3/wsl-runtime/1.2.3-x64",
+    expect(parseWslRuntimeRoot("runtimeRoot:/home/josh/.marcode/wsl-runtime/1.2.3-x64\n")).toBe(
+      "/home/josh/.marcode/wsl-runtime/1.2.3-x64",
     );
     expect(parseWslRuntimeRoot("runtimeRoot:relative/path\n")).toBeNull();
     expect(parseWslRuntimeRoot("noise\n")).toBeNull();
@@ -417,7 +389,9 @@ describe("WSL runtime cache", () => {
 
     // Readiness is a presence check, so a tree whose pty.node is present but
     // unloadable stays ready forever unless the probe can revoke the marker.
-    expect(script).toContain('rm -f "$HOME/.t3/wsl-runtime/1.2.3_x64/.t3code-wsl-runtime-ready"');
+    expect(script).toContain(
+      'rm -f "$HOME/.marcode/wsl-runtime/1.2.3_x64/.t3code-wsl-runtime-ready"',
+    );
     // Deleting the tree here would pull it out from under any backend still
     // running from it; the next install moves an unready root aside instead.
     expect(script).not.toContain("rm -rf");
@@ -446,7 +420,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         `printf '%s' ${sh(SERVER_ENTRY_SOURCE)} > "$stage/apps/server/dist/bin.mjs"`,
         `printf '%s' '{"name":"node-pty","version":"0.0.0-test"}' > "$stage/node_modules/node-pty/package.json"`,
         `printf '%s' 'pty-native-payload' > "$stage/node_modules/node-pty/prebuilds/linux-x64/pty.node"`,
-        `printf '%s' '{"arch":"x64"}' > "$stage/node_modules/node-pty/prebuilds/linux-x64/t3code-wsl-node-pty.json"`,
+        `printf '%s' '{"arch":"x64"}' > "$stage/node_modules/node-pty/prebuilds/linux-x64/${WSL_NODE_PTY_MARKER}"`,
         `tar -czf "$work/wsl-runtime.tar.gz" -C "$stage" apps/server/dist node_modules`,
         `printf 'work:%s\\n' "$work"`,
         `printf 'archiveSha:%s\\n' "$(sha256sum "$work/wsl-runtime.tar.gz" | cut -d ' ' -f 1)"`,
@@ -472,9 +446,9 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
       archivePath,
       archiveSha,
       runtimeId,
-      runtimeParent: `${work}/home/.t3/wsl-runtime`,
-      runtimeRoot: `${work}/home/.t3/wsl-runtime/${runtimeId}`,
-      serverEntry: `${work}/home/.t3/wsl-runtime/${runtimeId}/apps/server/dist/bin.mjs`,
+      runtimeParent: `${work}/home/.marcode/wsl-runtime`,
+      runtimeRoot: `${work}/home/.marcode/wsl-runtime/${runtimeId}`,
+      serverEntry: `${work}/home/.marcode/wsl-runtime/${runtimeId}/apps/server/dist/bin.mjs`,
       installScript,
       install: (archive?: string, sha?: string) => runShell(installScript(archive, sha)),
     };
@@ -701,7 +675,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         "set -eu",
         "work=$(mktemp -d)",
         'home="$work/home"',
-        'runtime_parent="$home/.t3/wsl-runtime"',
+        'runtime_parent="$home/.marcode/wsl-runtime"',
         'mkdir -p "$runtime_parent"',
         'make_ready() { mkdir -p "$runtime_parent/$1/apps/server/dist"; printf ready > "$runtime_parent/$1/.t3code-wsl-runtime-ready"; }',
         "make_ready sha256-current",
@@ -877,4 +851,36 @@ describe("formatMissingToolsReason", () => {
     expect(reason).toContain("build-essential");
     expect(reason).not.toContain("nvm");
   });
+});
+
+// ── Marcode fork seam ──
+// The node-pty prebuild marker is written by one script, probed by a second and
+// scanned by a third. Marcode renamed it from upstream's `t3code-` prefix, and
+// upstream later added the third consumer still carrying the old name — a
+// rename that merges clean and then reports every cached WSL runtime as missing
+// its native payload, reinstalling it on every launch. Pin all three to the one
+// constant so the next sync fails here instead of in a user's WSL distro.
+describe("node-pty prebuild marker", () => {
+  it("carries the Marcode name", () => {
+    expect(WSL_NODE_PTY_MARKER).toBe("marcode-wsl-node-pty.json");
+  });
+
+  it("is written, probed, and scanned under the same name", () => {
+    const build = NODE_PTY_BUILD_SCRIPT("/linux/server");
+    const probe = NODE_PTY_PROBE_SCRIPT("/linux/server");
+    const install = buildWslRuntimeInstallScript("/archive.tar.zst", "1.2.3-x64", "a".repeat(64));
+
+    for (const script of [build, probe, install]) {
+      expect(script).toContain(WSL_NODE_PTY_MARKER);
+      expect(script).not.toContain("t3code-wsl-node-pty");
+    }
+  });
+});
+
+// The WSL runtime is staged under Marcode's data directory, not upstream's.
+it("stages the WSL runtime under the Marcode home", () => {
+  const script = buildWslRuntimeInstallScript("/archive.tar.zst", "1.2.3-x64", "a".repeat(64));
+
+  expect(script).toContain('runtime_parent="$HOME/.marcode/wsl-runtime"');
+  expect(script).not.toContain("$HOME/.t3/");
 });

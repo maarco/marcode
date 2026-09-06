@@ -15,6 +15,11 @@ import { resolveShortcutCommand } from "../keybindings";
 import { isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { useLegacySidebarEnabled } from "../hooks/useSettings";
+import {
+  PanelAnimationSuppressionProvider,
+  usePanelAnimationSettings,
+  usePanelNavigationSuppression,
+} from "../panelAnimations";
 import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
 import LegacyThreadSidebar from "./LegacySidebar";
 import ThreadSidebar from "./Sidebar";
@@ -102,7 +107,11 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   // upstream promoted that sidebar to the default, and Marcode's unified
   // workspace tree now mounts inside it (see Sidebar.tsx's fork seam).
   const legacySidebarEnabled = useLegacySidebarEnabled();
+  const { active: panelAnimationsActive, durationMs: panelAnimationDurationMs } =
+    usePanelAnimationSettings();
   const pathname = useLocation({ select: (location) => location.pathname });
+  const panelAnimationsSuppressed = usePanelNavigationSuppression(pathname);
+  const routePanelAnimationsActive = panelAnimationsActive && !panelAnimationsSuppressed;
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
@@ -127,6 +136,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   });
   const sidebarProviderStyle = {
     "--sidebar-width": `${sidebarWidth}px`,
+    "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...(isMacosDesktop && !isWindowFullscreen
       ? { "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET }
       : {}),
@@ -170,37 +180,44 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   }, [navigate, pathname]);
 
   return (
-    <SidebarProvider className="h-dvh! min-h-0!" defaultOpen style={sidebarProviderStyle}>
-      {/* Upstream keeps the project projection subscribed while settings swaps the
-          thread sidebar out of the tree. Marcode unmounts the whole sidebar there,
-          so this retention matters more here, not less. */}
-      <ProjectProjectionRetention />
-      {/* Marcode renders no sidebar on settings routes: FloatingPillNav owns
-          brand, settings and sidebar controls, so upstream's in-sidebar
-          SettingsSidebarNav would duplicate them. */}
-      {!isOnSettings && (
-        <Sidebar
-          side="left"
-          variant="floating"
-          collapsible="offcanvas"
-          data-app-sidebar=""
-          className="text-foreground"
-          resizable={{
-            maxWidth: sidebarMaximumWidth,
-            minWidth: THREAD_SIDEBAR_MIN_WIDTH,
-            shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
-              nextWidth <= currentWidth ||
-              wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
-            storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-            onResize: setSidebarWidth,
-          }}
-        >
-          {legacySidebarEnabled ? <LegacyThreadSidebar /> : <ThreadSidebar />}
-          <SidebarRail onDoubleClick={resetSidebarWidth} />
-        </Sidebar>
-      )}
-      {children}
-      {!isOnSettings && <SidebarControl />}
-    </SidebarProvider>
+    <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
+      <SidebarProvider
+        className="h-dvh! min-h-0!"
+        data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
+        defaultOpen
+        style={sidebarProviderStyle}
+      >
+        {/* Upstream keeps the project projection subscribed while settings swaps the
+            thread sidebar out of the tree. Marcode unmounts the whole sidebar there,
+            so this retention matters more here, not less. */}
+        <ProjectProjectionRetention />
+        {/* Marcode renders no sidebar on settings routes: FloatingPillNav owns
+            brand, settings and sidebar controls, so upstream's in-sidebar
+            SettingsSidebarNav would duplicate them. */}
+        {!isOnSettings && (
+          <Sidebar
+            side="left"
+            variant="floating"
+            collapsible="offcanvas"
+            data-app-sidebar=""
+            className="text-foreground"
+            resizable={{
+              maxWidth: sidebarMaximumWidth,
+              minWidth: THREAD_SIDEBAR_MIN_WIDTH,
+              shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
+                nextWidth <= currentWidth ||
+                wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
+              storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
+              onResize: setSidebarWidth,
+            }}
+          >
+            {legacySidebarEnabled ? <LegacyThreadSidebar /> : <ThreadSidebar />}
+            <SidebarRail onDoubleClick={resetSidebarWidth} />
+          </Sidebar>
+        )}
+        {children}
+        {!isOnSettings && <SidebarControl />}
+      </SidebarProvider>
+    </PanelAnimationSuppressionProvider>
   );
 }

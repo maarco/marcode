@@ -107,7 +107,7 @@ export class ThemeFileInvalidError extends Schema.TaggedErrorClass<ThemeFileInva
   { filePath: Schema.String, cause: Schema.Defect() },
 ) {
   override get message(): string {
-    return `${this.filePath} is not a valid theme file. Use a theme exported from T3 Code, or a seeded file with name, appearance, canvas, and accent.`;
+    return `${this.filePath} is not a valid theme file. Use a theme exported from Marcode, or a seeded file with name, appearance, canvas, and accent.`;
   }
 }
 
@@ -178,7 +178,7 @@ export class ThemeTargetMissingError extends Schema.TaggedErrorClass<ThemeTarget
   }
 }
 
-// Marcode fork seam: upstream reads T3CODE_HOME here. Marcode's base-dir
+// Marcode fork seam: upstream reads T3CODE_HOME here. This CLI's base-dir
 // variable is MARCODE_HOME everywhere else in this CLI (`config.ts`, `pair`,
 // `triage`) and in the installed systemd unit, so upstream's own intent below
 // — match the rest of the CLI — is what selects this name.

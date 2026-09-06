@@ -154,7 +154,6 @@ function SidebarUpdateReleaseNotesTooltip({
     </div>
   );
 }
-
 export function SidebarUpdateArchitectureWarning() {
   return isElectron ? <SidebarUpdateArchitectureWarningContent /> : null;
 }

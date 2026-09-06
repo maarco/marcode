@@ -19,7 +19,6 @@ import {
   applyWorkspaceLayoutOperation,
   collectWorkspaceLayoutDescendantIds,
   computeWorkspaceLayoutPlacementRank,
-  findThreadById,
   isLiveWorkspaceResourceItemId,
   listThreadsByProjectId,
   normalizeWorkspaceRelativePath,
@@ -138,9 +137,7 @@ const messageSendCommand: OrchestrationCommand = {
 };
 
 describe("commandInvariants", () => {
-  it("finds threads by id and project", () => {
-    expect(findThreadById(readModel, ThreadId.make("thread-1"))?.projectId).toBe("project-a");
-    expect(findThreadById(readModel, ThreadId.make("missing"))).toBeUndefined();
+  it("lists threads by project", () => {
     expect(
       listThreadsByProjectId(readModel, ProjectId.make("project-b")).map((thread) => thread.id),
     ).toEqual([ThreadId.make("thread-2")]);

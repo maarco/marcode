@@ -3,8 +3,9 @@ import { it as effectIt } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import * as NodeOS from "node:os";
-import { assert, it } from "vite-plus/test";
 
+import { assert } from "vite-plus/test";
+import { it } from "vite-plus/test";
 import { hydratePosixHome, resolveBaseDir } from "./os-jank.ts";
 
 it("hydrates HOME for minimal service environments from the user account", () => {
@@ -53,6 +54,16 @@ effectIt.effect("defaults the base directory to the Marcode home", () =>
     const path = yield* Path.Path;
 
     const resolved = yield* resolveBaseDir(undefined);
+
+    assert.equal(resolved, path.join(NodeOS.homedir(), ".marcode"));
+  }).pipe(Effect.provide(NodeServices.layer)),
+);
+
+effectIt.effect("resolves a blank base directory to the Marcode home", () =>
+  Effect.gen(function* () {
+    const path = yield* Path.Path;
+
+    const resolved = yield* resolveBaseDir("   ");
 
     assert.equal(resolved, path.join(NodeOS.homedir(), ".marcode"));
   }).pipe(Effect.provide(NodeServices.layer)),

@@ -33,14 +33,6 @@ import {
   requestRelayClientInstallConfirmation,
 } from "./relayClientInstallDialog";
 
-export function normalizeRelayBaseUrl(value: string | null | undefined): string | null {
-  const trimmed = value?.trim();
-  if (!trimmed) {
-    return null;
-  }
-  return trimmed.replace(/\/+$/g, "");
-}
-
 function relayUrl(): string | null {
   return resolveCloudPublicConfig().relayUrl;
 }

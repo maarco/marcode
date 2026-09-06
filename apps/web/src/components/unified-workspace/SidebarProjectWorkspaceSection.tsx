@@ -404,5 +404,3 @@ export const SidebarProjectWorkspaceSection = memo(function SidebarProjectWorksp
     </div>
   );
 });
-
-export default SidebarProjectWorkspaceSection;

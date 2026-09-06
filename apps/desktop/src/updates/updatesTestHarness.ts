@@ -34,6 +34,11 @@ export interface UpdatesHarnessOptions {
   readonly env?: Record<string, string | undefined>;
 }
 
+// The accessor is annotated so the inferred harness type names the exported
+// alias instead of expanding it into builder-util-runtime, which pnpm does not
+// link into this workspace (TS2883).
+type ReadFeedUrls = () => ReadonlyArray<ElectronUpdater.ElectronUpdaterFeedUrl>;
+
 export function makeHarness(options: UpdatesHarnessOptions = {}) {
   let checkCount = 0;
   let quitAndInstallCount = 0;
@@ -225,7 +230,7 @@ export function makeHarness(options: UpdatesHarnessOptions = {}) {
     quitAndInstalls: () => quitAndInstallCount,
     installSteps,
     downloadCount: () => downloadCount,
-    feedUrls: () => feedUrls,
+    feedUrls: (() => feedUrls) as ReadFeedUrls,
     fullChangelog: () => fullChangelog,
     listenerCount: () =>
       Array.from(listeners.values()).reduce(

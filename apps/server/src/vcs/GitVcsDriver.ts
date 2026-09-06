@@ -46,7 +46,11 @@ import {
   type VcsShowStashInput,
   type VcsShowStashResult,
 } from "@t3tools/contracts";
-import { makeGitVcsDriverCore, splitNullSeparatedGitStdoutPaths } from "./GitVcsDriverCore.ts";
+import {
+  makeGitVcsDriverCore,
+  PATCH_RENDER_PREFIX_ARGS,
+  splitNullSeparatedGitStdoutPaths,
+} from "./GitVcsDriverCore.ts";
 import * as VcsDriver from "./VcsDriver.ts";
 import * as VcsProcess from "./VcsProcess.ts";
 
@@ -465,6 +469,7 @@ const gitCommand = (
     readonly allowNonZeroExit?: boolean;
     readonly timeoutMs?: number;
     readonly maxOutputBytes?: number;
+    readonly outputMode?: VcsProcess.VcsProcessInput["outputMode"];
     readonly appendTruncationMarker?: boolean;
   },
 ) =>
@@ -481,6 +486,7 @@ const gitCommand = (
       : {}),
     ...(options?.timeoutMs !== undefined ? { timeoutMs: options.timeoutMs } : {}),
     ...(options?.maxOutputBytes !== undefined ? { maxOutputBytes: options.maxOutputBytes } : {}),
+    ...(options?.outputMode !== undefined ? { outputMode: options.outputMode } : {}),
     ...(options?.appendTruncationMarker !== undefined
       ? { appendTruncationMarker: options.appendTruncationMarker }
       : {}),
@@ -519,6 +525,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
       ...(input.allowNonZeroExit !== undefined ? { allowNonZeroExit: input.allowNonZeroExit } : {}),
       ...(input.timeoutMs !== undefined ? { timeoutMs: input.timeoutMs } : {}),
       ...(input.maxOutputBytes !== undefined ? { maxOutputBytes: input.maxOutputBytes } : {}),
+      ...(input.outputMode !== undefined ? { outputMode: input.outputMode } : {}),
       ...(input.appendTruncationMarker !== undefined
         ? { appendTruncationMarker: input.appendTruncationMarker }
         : {}),
@@ -872,6 +879,7 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         "checkpoint.from_ref": input.fromCheckpointRef,
         "checkpoint.to_ref": input.toCheckpointRef,
         "checkpoint.ignore_whitespace": input.ignoreWhitespace,
+        "checkpoint.format": input.format ?? "patch",
         "checkpoint.fallback_from_to_head": input.fallbackFromToHead,
       });
 
@@ -903,16 +911,18 @@ export const makeVcsDriverShape = Effect.fn("makeGitVcsDriverShape")(function* (
         cwd: input.cwd,
         args: [
           "diff",
-          "--patch",
+          ...(input.format === "numstat" ? ["--numstat", "-z"] : ["--patch"]),
           "--no-color",
           "--no-ext-diff",
           "--no-textconv",
+          ...PATCH_RENDER_PREFIX_ARGS,
           ...(input.ignoreWhitespace ? ["--ignore-all-space"] : []),
           `${fromRevision}^{commit}`,
           `${input.toCheckpointRef}^{commit}`,
         ],
         allowNonZeroExit: true,
         maxOutputBytes: CHECKPOINT_DIFF_MAX_OUTPUT_BYTES,
+        outputMode: input.format === "numstat" ? "error" : "truncate",
       });
 
       if (result.exitCode !== 0) {

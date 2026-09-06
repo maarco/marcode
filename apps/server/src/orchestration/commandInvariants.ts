@@ -27,7 +27,7 @@ function invariantError(commandType: string, detail: string): OrchestrationComma
   });
 }
 
-export function findThreadById(
+function findThreadById(
   readModel: OrchestrationReadModel,
   threadId: ThreadId,
 ): OrchestrationThread | undefined {
@@ -179,23 +179,6 @@ export function requireThreadAbsent(input: {
     ),
   );
 }
-
-export function requireNonNegativeInteger(input: {
-  readonly commandType: OrchestrationCommand["type"];
-  readonly field: string;
-  readonly value: number;
-}): Effect.Effect<void, OrchestrationCommandInvariantError> {
-  if (Number.isInteger(input.value) && input.value >= 0) {
-    return Effect.void;
-  }
-  return Effect.fail(
-    invariantError(
-      input.commandType,
-      `${input.field} must be an integer greater than or equal to 0.`,
-    ),
-  );
-}
-
 // --- Workspace layout (unified workspace tree sidebar) ---
 //
 // Shared, pure domain logic for `project.workspace-layout.apply` /
