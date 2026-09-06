@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 
 import { useLocalStorage } from "./hooks/useLocalStorage";
 
-export const PROVIDER_UPDATE_DISMISSALS_STORAGE_KEY = "marcode:provider-update-dismissals:v1";
+const PROVIDER_UPDATE_DISMISSALS_STORAGE_KEY = "marcode:provider-update-dismissals:v1";
 
 const ProviderUpdateDismissalsSchema = Schema.Struct({
   keys: Schema.Array(Schema.String),
