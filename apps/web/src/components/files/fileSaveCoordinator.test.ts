@@ -3,7 +3,12 @@ import type { AtomCommandResult } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/unstable/reactivity";
 
-import { FileSaveCoordinator } from "./fileSaveCoordinator";
+import {
+  cancelDeferredFileSaveCoordinatorDispose,
+  deferFileSaveCoordinatorDispose,
+  FileSaveCoordinator,
+  type FileSaveCoordinatorDisposalTimers,
+} from "./fileSaveCoordinator";
 
 function deferred() {
   let resolve!: (result: AtomCommandResult<void, never>) => void;
@@ -400,5 +405,21 @@ describe("FileSaveCoordinator", () => {
     await vi.runAllTimersAsync();
 
     expect(persist).toHaveBeenCalledTimes(2);
+  });
+
+  it("defers disposal so a Strict Mode effect replay keeps the coordinator usable", async () => {
+    vi.useFakeTimers();
+    const dispose = vi.fn();
+    const coordinator = { dispose };
+    const pending: FileSaveCoordinatorDisposalTimers = new Map();
+
+    deferFileSaveCoordinatorDispose(pending, coordinator);
+    cancelDeferredFileSaveCoordinatorDispose(pending, coordinator);
+    await vi.runAllTimersAsync();
+    expect(dispose).not.toHaveBeenCalled();
+
+    deferFileSaveCoordinatorDispose(pending, coordinator);
+    await vi.runAllTimersAsync();
+    expect(dispose).toHaveBeenCalledOnce();
   });
 });

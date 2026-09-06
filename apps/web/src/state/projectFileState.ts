@@ -3,10 +3,14 @@ import type { EnvironmentId, ProjectReadFileResult } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
 import { AsyncResult } from "effect/unstable/reactivity";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { appAtomRegistry } from "~/rpc/atomRegistry";
-import { FileSaveCoordinator } from "~/components/files/fileSaveCoordinator";
+import {
+  cancelDeferredFileSaveCoordinatorDispose,
+  deferFileSaveCoordinatorDispose,
+  FileSaveCoordinator,
+  type FileSaveCoordinatorDisposalTimers,
+} from "~/components/files/fileSaveCoordinator";
 import {
   clearProjectFileQueryData,
   confirmProjectFileQueryData,
@@ -155,36 +159,6 @@ export interface ProjectFileEditor {
 }
 
 /**
- * Non-reactive lookup of the file's last CONFIRMED (server-read, not
- * optimistic-merged) result.
- *
- * Deliberately reads the raw query atom via the registry rather than the
- * `useProjectFile`/`useProjectFileQuery` hooks' merged view. That view
- * prefers the optimistic overlay, and a write is exactly what stamps
- * `truncated: false` into the overlay ({@link setProjectFileQueryData}) — so
- * a write gate that read the merged view would be circular: the write would
- * erase the very signal meant to block it. The confirmed atom only changes
- * on a real server response, so it can't be corrupted by the write it gates.
- *
- * Kept separate from {@link isConfirmedReadWritable} (which takes the result
- * of this, not the ids) so the actual gating decision is a pure function,
- * testable without an atom registry: query atoms in this reactivity system
- * are computed/read-only and can't be seeded with `.set()` the way the
- * optimistic overlay atom can.
- */
-function getConfirmedFileResult(
-  environmentId: EnvironmentId,
-  cwd: string,
-  relativePath: string,
-): ProjectReadFileResult | null {
-  return Option.getOrNull(
-    AsyncResult.value(
-      appAtomRegistry.get(getProjectFileQueryAtom(environmentId, cwd, relativePath)),
-    ),
-  );
-}
-
-/**
  * True when a confirmed read makes it safe to base a new write on it: it
  * succeeded, and it wasn't truncated.
  *
@@ -256,15 +230,22 @@ export function useProjectFileEditor(
   options?: ProjectFileEditorOptions,
 ): ProjectFileEditor {
   const writeFile = useAtomCommand(projectEnvironment.writeFile);
+  const confirmedQuery = useAtomValue(getProjectFileQueryAtom(environmentId, cwd, relativePath));
+  const confirmedRef = useRef<ProjectReadFileResult | null>(null);
+  // Subscribe to the raw query, not the optimistic merged view. Keeping the
+  // latest confirmed value in a ref lets the stable coordinator re-check the
+  // read at write time without falling back to a stale registry snapshot.
+  confirmedRef.current = Option.getOrNull(AsyncResult.value(confirmedQuery));
   const onPendingChange = options?.onPendingChange;
   const [isSaving, setIsSaving] = useState(false);
+  const deferredDisposeTimers = useRef<FileSaveCoordinatorDisposalTimers>(new Map());
 
   const coordinator = useMemo(
     () =>
       new FileSaveCoordinator({
         debounceMs: FILE_AUTOSAVE_DEBOUNCE_MS,
         persist: async (contents) => {
-          const confirmed = getConfirmedFileResult(environmentId, cwd, relativePath);
+          const confirmed = confirmedRef.current;
           const blocked = blockedWriteResult(cwd, relativePath, confirmed);
           if (blocked) return blocked;
           setIsSaving(true);
@@ -287,7 +268,15 @@ export function useProjectFileEditor(
     [cwd, environmentId, onPendingChange, relativePath, writeFile],
   );
 
-  useEffect(() => () => coordinator.dispose(), [coordinator]);
+  useEffect(() => {
+    // React Strict Mode replays effect cleanup/setup on mount. A synchronous
+    // dispose poisons the coordinator retained by that replay, so defer the
+    // cleanup by one task and cancel it when the same coordinator reattaches.
+    cancelDeferredFileSaveCoordinatorDispose(deferredDisposeTimers.current, coordinator);
+    return () => {
+      deferFileSaveCoordinatorDispose(deferredDisposeTimers.current, coordinator);
+    };
+  }, [coordinator]);
 
   // register/unregister with the global registry for flushProjectFile()
   useEffect(() => {
@@ -301,7 +290,7 @@ export function useProjectFileEditor(
 
   const update = useCallback(
     (contents: string) => {
-      const confirmed = getConfirmedFileResult(environmentId, cwd, relativePath);
+      const confirmed = confirmedRef.current;
       applyProjectFileEdit(environmentId, cwd, relativePath, contents, confirmed, coordinator);
     },
     [coordinator, cwd, environmentId, relativePath],

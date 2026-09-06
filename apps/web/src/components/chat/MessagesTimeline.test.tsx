@@ -233,6 +233,34 @@ function buildAssistantTimelineEntry(text: string) {
 }
 
 describe("MessagesTimeline", () => {
+  it("uses the Marcode mark for t3-code timeline tools", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "entry-t3-code-tool",
+            kind: "work",
+            createdAt: MESSAGE_CREATED_AT,
+            entry: {
+              id: "work-t3-code-tool",
+              createdAt: MESSAGE_CREATED_AT,
+              label: "Got delegated task status",
+              tone: "tool",
+              itemType: "mcp_tool_call",
+              toolData: { server: "t3-code", tool: "task_status" },
+              toolLifecycleStatus: "completed",
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('viewBox="0 0 32 32"');
+    expect(markup).toContain('fill="#ffffff"');
+    expect(markup).toContain('fill="#0a0a0a"');
+  });
+
   it("renders a feedback command and its pending response as normal thread messages", () => {
     const submission = {
       id: MessageId.make("feedback-command"),

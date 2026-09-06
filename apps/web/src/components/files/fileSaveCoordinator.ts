@@ -144,3 +144,38 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     this.schedule(remainingDebounce);
   }
 }
+
+export interface DisposableFileSaveCoordinator {
+  dispose(): void;
+}
+
+export type FileSaveCoordinatorDisposalTimers = Map<
+  DisposableFileSaveCoordinator,
+  ReturnType<typeof setTimeout>
+>;
+
+/**
+ * Defer hook cleanup by one task so React Strict Mode can replay the effect
+ * without permanently disposing the coordinator retained by the hook.
+ */
+export function deferFileSaveCoordinatorDispose(
+  pending: FileSaveCoordinatorDisposalTimers,
+  coordinator: DisposableFileSaveCoordinator,
+): void {
+  const timer = setTimeout(() => {
+    if (pending.get(coordinator) !== timer) return;
+    pending.delete(coordinator);
+    coordinator.dispose();
+  }, 0);
+  pending.set(coordinator, timer);
+}
+
+export function cancelDeferredFileSaveCoordinatorDispose(
+  pending: FileSaveCoordinatorDisposalTimers,
+  coordinator: DisposableFileSaveCoordinator,
+): void {
+  const timer = pending.get(coordinator);
+  if (timer === undefined) return;
+  clearTimeout(timer);
+  pending.delete(coordinator);
+}
