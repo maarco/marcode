@@ -64,7 +64,30 @@
       // UI component modules are copied and adapted as cohesive sets. Keep their
       // named subcomponents even before they have callers; the file audit still
       // reports an entire component module when nothing imports it.
-      "ignoreIssues": { "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"] },
+      //
+      // ── Marcode fork seam ──
+      // The 223ff449 sync widened upstream's `knip:check --exports` run from two
+      // packages to eight, so it now audits this fork's own modules for the
+      // first time. The entries below are Marcode-owned surfaces that export a
+      // cohesive set (the floating editor's adapted components, the ambient
+      // effects module, the unified workspace tree, the pill-nav shell) or hold
+      // one currently-unreferenced helper. They are scoped per path rather than
+      // suppressed wholesale so deleting the dead ones later also deletes its
+      // entry here. Pruning them is a product decision, not a sync decision.
+      "ignoreIssues": {
+        "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
+        "src/editor/*.{ts,tsx}": ["exports", "nsExports", "duplicates"],
+        "src/components/chat/chatAmbient*.{ts,tsx}": ["exports", "nsExports", "duplicates"],
+        "src/components/unified-workspace/*.{ts,tsx}": ["exports", "nsExports", "duplicates"],
+        "src/components/FloatingPillNav.tsx": ["exports", "nsExports"],
+        "src/components/PillNavHoverCard.tsx": ["exports", "nsExports"],
+        "src/components/SidebarStageBackdrop.tsx": ["exports", "nsExports"],
+        "src/components/clerk/T3ConnectUserProfilePage.tsx": ["exports", "nsExports"],
+        "src/cloud/managedRelayState.ts": ["exports"],
+        "src/hooks/useCopyToClipboard.ts": ["exports"],
+        "src/state/entities.ts": ["exports"],
+        "src/state/projectFileState.ts": ["exports"],
+      },
     },
     "apps/mobile": {
       // Expo loads local config plugins by string; Metro handles platform variants.
@@ -86,6 +109,17 @@
     "packages/*": {
       // These workspace packages are private to this monorepo.
       "includeEntryExports": true,
+    },
+    "packages/contracts": {
+      "includeEntryExports": true,
+      // Every RPC is exported for symmetry with its siblings and consumed by the
+      // RpcGroup declared in the same file, so the export audit never sees a
+      // cross-module importer for the project-file and VCS ones.
+      "ignoreIssues": { "src/rpc.ts": ["exports"] },
+    },
+    "packages/client-runtime": {
+      "includeEntryExports": true,
+      "ignoreIssues": { "src/state/projectEntities.ts": ["exports"] },
     },
     "packages/effect-acp": {
       "includeEntryExports": true,
