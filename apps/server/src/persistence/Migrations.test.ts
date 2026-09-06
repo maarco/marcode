@@ -11,7 +11,7 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   // to keep id 33 inside the assertion: it is the anchor the offset is measured
   // from, so widen this window rather than let it slide past 33.
   assert.deepStrictEqual(
-    migrationEntries.slice(-16).map(([id, name]) => [id, name]),
+    migrationEntries.slice(-17).map(([id, name]) => [id, name]),
     [
       [33, "ProjectWorkspaceLayout"],
       [34, "ProjectionThreadsSettled"],
@@ -31,6 +31,8 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
       [46, "ProjectionProjectsAutoPull"],
       [47, "RepairAutomaticSettlementTimestamps"],
       [48, "ProjectionProjectIcon"],
+      // Added by the 223ff449 sync as upstream's 048.
+      [49, "ProjectionThreadBranchPullRequest"],
     ],
   );
 

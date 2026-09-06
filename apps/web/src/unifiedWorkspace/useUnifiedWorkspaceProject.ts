@@ -48,7 +48,7 @@ import {
 import { useClientSettings } from "~/hooks/useSettings";
 import { randomUUID } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
-import { useDiscoveredPorts } from "~/portDiscoveryState";
+import { useDiscoveredPortsState } from "~/portDiscoveryState";
 import {
   isPreviewSupportedInRuntime,
   setActivePreviewTab,
@@ -184,7 +184,7 @@ export function useUnifiedWorkspaceProject(input: {
   // environment (`apps/web/src/state/terminalSessions.ts:51`); filtered client-side to this
   // project's threads below — no project-scoped selector existed, and none was needed.
   const allKnownTerminalSessions = useKnownTerminalSessions({ environmentId, threadId: null });
-  const discoveredPorts = useDiscoveredPorts(environmentId);
+  const discoveredPorts = useDiscoveredPortsState(environmentId).servers;
   const terminals = useMemo(
     () =>
       allKnownTerminalSessions

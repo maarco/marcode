@@ -23,6 +23,16 @@ describe("ElectronProtocol", () => {
     unhandleMock.mockReset();
   });
 
+  // Replaces the DesktopClerk test upstream deleted when it un-exported
+  // createDesktopClerkBridge. Marcode renames both desktop schemes, so pin them
+  // here: an upstream rename must fail loudly instead of merging in silently.
+  it("resolves Marcode's desktop schemes", () => {
+    assert.equal(ElectronProtocol.getDesktopScheme(true), "marcode-dev");
+    assert.equal(ElectronProtocol.getDesktopScheme(false), "marcode");
+    assert.equal(ElectronProtocol.getDesktopUrl(true), "marcode-dev://app/");
+    assert.equal(ElectronProtocol.getDesktopUrl(false), "marcode://app/");
+  });
+
   it.effect("proxies the stable renderer origin to the current app server", () =>
     Effect.gen(function* () {
       let handler: ((request: Request) => Promise<Response>) | undefined;
