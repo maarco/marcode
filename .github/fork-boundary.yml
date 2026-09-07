@@ -1,0 +1,113 @@
+version: 1
+
+# Each rule names an upstream-owned seam that must stay small during a sync.
+# The manifest is intentionally about invariants and proof surfaces, not a list
+# of every Marcode-owned file in the repository.
+rules:
+  - id: unified-workspace-sidebar
+    upstreamSurface:
+      - apps/web/src/components/Sidebar.tsx
+      - apps/web/src/components/AppSidebarLayout.tsx
+      - apps/web/src/components/sidebar/SidebarChrome.tsx
+    marcodeOwner:
+      - apps/web/src/components/unified-workspace/SidebarProjectWorkspaceSection.tsx
+      - apps/web/src/unifiedWorkspace/buildTree.ts
+      - apps/web/src/unifiedWorkspace/activateNode.ts
+    invariant: The workspace tree owns attached files, folders, terminals, browser tabs, URL shortcuts, and project actions behind a narrow shell seam.
+    compatibilityIdentifiers:
+      - "@t3tools/*"
+      - t3code:storage
+    focusedTests:
+      - apps/web/src/components/unified-workspace/SidebarProjectWorkspaceSection.seam.test.ts
+      - apps/web/src/unifiedWorkspace/buildTree.test.ts
+      - apps/web/src/unifiedWorkspace/activateNode.test.ts
+    liveVerification:
+      - web:390px unified workspace sidebar
+      - web:820px unified workspace sidebar
+
+  - id: chat-ambient-effects
+    upstreamSurface:
+      - apps/web/src/components/ChatView.tsx
+      - apps/web/src/components/chat/ChatHeader.tsx
+      - apps/web/src/index.css
+    marcodeOwner:
+      - apps/web/src/components/chat/chatAmbientEffects.tsx
+      - apps/web/src/components/chat/chatAmbientAnimation.ts
+      - apps/web/src/components/chat/ThreeShaderCanvas.tsx
+      - apps/web/src/components/chat/marcodeChatChrome.css
+      - apps/web/src/components/chat/MarcodeThreadActions.tsx
+      - apps/web/src/components/chat/ThreadActionsCluster.tsx
+      - apps/web/src/components/chat/openInPickerPolicy.ts
+    invariant: Ambient chat effects remain lazy, visibility-gated, reduced-motion aware, and mounted through a small ChatView seam.
+    compatibilityIdentifiers:
+      - data-chat-ambient-canvas
+      - prefers-reduced-motion
+    focusedTests:
+      - apps/web/src/components/chat/chatAmbientEffects.test.ts
+      - apps/web/src/components/chat/chatAmbientAnimation.test.ts
+      - apps/web/src/components/ChatView.layout.test.ts
+    liveVerification:
+      - web:390px chat composer and ambient layer
+      - web:820px chat composer and ambient layer
+
+  - id: right-panel-boundary
+    upstreamSurface:
+      - apps/web/src/components/RightPanelTabs.tsx
+      - apps/web/src/rightPanelStore.ts
+    marcodeOwner:
+      - apps/web/src/components/marcodeRightPanelChrome.tsx
+      - apps/web/src/marcodeRightPanelPolicy.ts
+    invariant: The right panel has one Marcode-owned tab state and must not silently regain retired file-surface behavior during an upstream merge.
+    compatibilityIdentifiers:
+      - right-panel
+      - t3code:right-panel
+    focusedTests:
+      - apps/web/src/components/RightPanelTabs.test.tsx
+      - apps/web/src/rightPanelStore.test.ts
+    liveVerification:
+      - web:390px right panel open and closed states
+      - web:820px right panel tabs and document surface
+
+  - id: migration-registry
+    upstreamSurface:
+      - apps/server/src/persistence/Migrations.ts
+    marcodeOwner:
+      - apps/server/src/persistence/marcodeMigrations.ts
+      - apps/server/src/persistence/Migrations.test.ts
+    invariant: Applied migration IDs are immutable; future Marcode migrations use a reserved namespace instead of renumbering upstream entries.
+    compatibilityIdentifiers:
+      - effect_sql_migrations
+      - migration-id-033
+    focusedTests:
+      - apps/server/src/persistence/Migrations.test.ts
+    liveVerification:
+      - server disposable SQLite startup and migration replay
+
+  - id: fork-identity
+    upstreamSurface:
+      - apps/server/src/cli/config.ts
+      - apps/server/src/cli/service.ts
+      - apps/web/src/branding.ts
+      - apps/desktop/src/app/DesktopEnvironment.ts
+      - apps/mobile/src/lib/runtime.ts
+    marcodeOwner:
+      - packages/shared/src/forkIdentity.ts
+      - apps/web/src/branding.ts
+      - apps/server/src/cli/config.ts
+    invariant: Marcode product identity and runtime-home names are centralized, while upstream protocol, storage, scheme, and package compatibility identifiers remain unchanged.
+    compatibilityIdentifiers:
+      - "@t3tools/*"
+      - T3CODE_
+      - .t3
+      - t3code.service
+      - MARCODE_HOME
+    focusedTests:
+      - apps/server/src/cli/config.test.ts
+      - apps/web/src/branding.test.ts
+      - apps/desktop/src/app/DesktopEnvironment.test.ts
+      - apps/mobile/src/lib/mobileBranding.test.ts
+      - packages/shared/src/forkIdentity.test.ts
+    liveVerification:
+      - web authenticated pairing and settings route
+      - desktop local server launch
+      - mobile connection bootstrap

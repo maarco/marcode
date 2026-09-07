@@ -4,6 +4,7 @@ import type {
   DesktopRuntimeArch,
   DesktopRuntimeInfo,
 } from "@t3tools/contracts";
+import { MARCODE_PRODUCT_NAME } from "@t3tools/shared/forkIdentity";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -88,7 +89,7 @@ export class DesktopEnvironment extends Context.Service<
 // Marcode is the user-facing desktop brand. Keep the legacy T3 Code and
 // Marcode (Alpha) names below for migration and compatibility paths; they
 // are not menu labels.
-const APP_BASE_NAME = "Marcode";
+const APP_BASE_NAME = MARCODE_PRODUCT_NAME;
 
 function resolveDesktopAppStageLabel(input: {
   readonly isDevelopment: boolean;

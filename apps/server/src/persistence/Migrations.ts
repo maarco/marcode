@@ -48,10 +48,10 @@ import Migration0033 from "./Migrations/033_ProjectWorkspaceLayout.ts";
 import Migration0034 from "./Migrations/034_ProjectionThreadsSettled.ts";
 import Migration0035 from "./Migrations/035_ProjectionThreadsSnoozed.ts";
 import Migration0036 from "./Migrations/036_ProjectionThreadTitleRegeneration.ts";
-// Upstream shipped these as 032-047. Marcode's ProjectWorkspaceLayout already
-// occupies 033, so every shared migration sits one id higher here; renumbering
-// an applied id would re-run or skip it on existing installs. A new upstream
-// migration is renamed to the next free Marcode id on the way in.
+// IDs 1-49 are frozen compatibility history. The entries after 033 preserve
+// the historical Marcode offset; changing an applied id would re-run or skip
+// it on existing installs. Future upstream migrations append at the next free
+// deployed id, while new Marcode-only migrations use the 9000+ registry below.
 import Migration0037 from "./Migrations/037_ProjectionThreadsPinned.ts";
 import Migration0038 from "./Migrations/038_ProjectionTurnsKeysetIndex.ts";
 import Migration0039 from "./Migrations/039_ProjectionThreadsPinOrderKey.ts";
@@ -64,8 +64,12 @@ import Migration0045 from "./Migrations/045_ClearAutomaticProjectModelDefaults.t
 import Migration0046 from "./Migrations/046_ProjectionProjectsAutoPull.ts";
 import Migration0047 from "./Migrations/047_RepairAutomaticSettlementTimestamps.ts";
 import Migration0048 from "./Migrations/048_ProjectionProjectIcon.ts";
-// Upstream 048_ProjectionThreadBranchPullRequest arrives as Marcode 049.
+// Historical upstream 048_ProjectionThreadBranchPullRequest was recorded as 049.
 import Migration0049 from "./Migrations/049_ProjectionThreadBranchPullRequest.ts";
+// Upstream 049_ProjectionThreadsActiveOrderKey arrives as Marcode 050 so the
+// already-applied Marcode 049 id remains immutable.
+import Migration0050 from "./Migrations/050_ProjectionThreadsActiveOrderKey.ts";
+import { marcodeMigrationEntries } from "./marcodeMigrations.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -77,7 +81,12 @@ import Migration0049 from "./Migrations/049_ProjectionThreadBranchPullRequest.ts
  * Uses Migrator.fromRecord which parses the key format and
  * returns migrations sorted by ID.
  */
-export const migrationEntries = [
+// IDs 1-49 are frozen deployed history. They include the old Marcode 033
+// collision and must never be renumbered. Upstream additions after that
+// boundary append as deployed migrations; new Marcode entries use the
+// high-numbered registry in marcodeMigrations.ts instead of being interleaved
+// into this list.
+const deployedMigrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
   [2, "OrchestrationCommandReceipts", Migration0002],
   [3, "CheckpointDiffBlobs", Migration0003],
@@ -127,7 +136,10 @@ export const migrationEntries = [
   [47, "RepairAutomaticSettlementTimestamps", Migration0047],
   [48, "ProjectionProjectIcon", Migration0048],
   [49, "ProjectionThreadBranchPullRequest", Migration0049],
+  [50, "ProjectionThreadsActiveOrderKey", Migration0050],
 ] as const;
+
+export const migrationEntries = [...deployedMigrationEntries, ...marcodeMigrationEntries] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
