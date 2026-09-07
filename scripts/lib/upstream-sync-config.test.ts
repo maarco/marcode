@@ -52,6 +52,7 @@ schedule:
 
 pullRequest:
   draft: true
+  singleFlight: true
   titleTemplate: "chore(upstream): sync marcode through {upstreamShortSha}"
   labels:
     - upstream-sync

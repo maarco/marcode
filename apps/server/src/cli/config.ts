@@ -1,6 +1,7 @@
 import * as NetService from "@t3tools/shared/Net";
 import { parsePersistedServerObservabilitySettings } from "@t3tools/shared/serverSettings";
 import { DesktopBackendBootstrap, PortSchema } from "@t3tools/contracts";
+import { MARCODE_HOME_ENV } from "@t3tools/shared/forkIdentity";
 import * as Config from "effect/Config";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -104,7 +105,10 @@ const EnvServerConfig = Config.all({
   ),
   port: Config.port("MARCODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
   host: Config.string("MARCODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  marcodeHome: Config.string("MARCODE_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  marcodeHome: Config.string(MARCODE_HOME_ENV).pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
   devUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option, Config.map(Option.getOrUndefined)),
   devAllowedOrigins: Config.string("MARCODE_DEV_ALLOWED_ORIGINS").pipe(
     Config.withDefault(""),

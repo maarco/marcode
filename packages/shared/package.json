@@ -43,6 +43,10 @@
       "types": "./src/logging.ts",
       "import": "./src/logging.ts"
     },
+    "./forkIdentity": {
+      "types": "./src/forkIdentity.ts",
+      "import": "./src/forkIdentity.ts"
+    },
     "./observability": {
       "types": "./src/observability.ts",
       "import": "./src/observability.ts"

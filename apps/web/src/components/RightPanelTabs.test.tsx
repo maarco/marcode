@@ -5,10 +5,12 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   RightPanelTabs,
   shouldOpenDefaultBrowserProfileFromMenuClick,
-  surfaceShortcutActionForKey,
-  surfaceShortcutTargetsTypingContext,
   tabMuteMenuItem,
 } from "./RightPanelTabs";
+import {
+  surfaceShortcutActionForKey,
+  surfaceShortcutTargetsTypingContext,
+} from "./marcodeRightPanelChrome";
 
 describe("browser profile submenu", () => {
   it("reserves touch clicks for opening the choices while mouse clicks use the default", () => {
