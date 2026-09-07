@@ -310,6 +310,8 @@ export function syncBrowserChromeTheme() {
     getComputedStyle(resolveBrowserChromeSurface()).backgroundColor,
   );
   const fallbackColor = normalizeThemeColor(getComputedStyle(document.body).backgroundColor);
+  // Marcode fork seam: onboarding owns a true-black canvas even when the
+  // saved application preference is light. Restore that preference on cleanup.
   const backgroundColor = onboardingActive
     ? "#000"
     : (themeChromeColor ?? surfaceColor ?? fallbackColor);
@@ -373,6 +375,8 @@ function applyTheme(theme: Theme, { suppressTransitions = false, preservePreview
     appearanceMode,
     themeHalves,
   );
+  // Marcode fork seam: the onboarding wizard intentionally stays dark and
+  // never applies a saved custom palette until its cleanup runs.
   if (onboardingActive) {
     document.documentElement.classList.add("dark");
   } else {

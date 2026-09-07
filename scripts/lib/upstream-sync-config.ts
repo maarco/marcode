@@ -61,6 +61,7 @@ export const UpstreamSyncManifest = Schema.Struct({
   }),
   pullRequest: Schema.Struct({
     draft: Schema.Literal(true),
+    singleFlight: Schema.Literal(true),
     titleTemplate: NonEmptyString,
     labels: Schema.Array(NonEmptyString),
     reviewers: Schema.Array(NonEmptyString),

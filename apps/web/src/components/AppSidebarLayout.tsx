@@ -1,4 +1,3 @@
-import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
   useEffect,
@@ -11,27 +10,21 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 
 import { isElectron } from "../env";
 import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalStorage";
-import { resolveShortcutCommand } from "../keybindings";
 import { isMacPlatform } from "../lib/utils";
-import { primaryServerKeybindingsAtom } from "../state/server";
 import { useLegacySidebarEnabled } from "../hooks/useSettings";
 import {
   PanelAnimationSuppressionProvider,
   usePanelAnimationSettings,
   usePanelNavigationSuppression,
 } from "../panelAnimations";
-import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
-import LegacyThreadSidebar from "./LegacySidebar";
-import ThreadSidebar from "./Sidebar";
 import { useProjects } from "../state/entities";
+import { MarcodeSidebarControl, MarcodeSidebarShell } from "./marcodeSidebarLayout";
 import {
   resolveInitialThreadSidebarWidth,
   resolveThreadSidebarMaximumWidth,
-  THREAD_MAIN_CONTENT_MIN_WIDTH,
-  THREAD_SIDEBAR_MIN_WIDTH,
   THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
 } from "./threadSidebarWidth";
-import { Sidebar, SidebarProvider, SidebarRail, useSidebar } from "./ui/sidebar";
+import { SidebarProvider } from "./ui/sidebar";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "90px";
 
@@ -54,42 +47,6 @@ function readInitialThreadSidebarWidth(): number {
     console.error("Could not read persisted thread sidebar width.", error);
     return resolveInitialThreadSidebarWidth(null, window.innerWidth);
   }
-}
-
-// no visible trigger — the pill nav's Threads button and the keybinding cover it
-function SidebarControl() {
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const { toggleSidebar } = useSidebar();
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.defaultPrevented) return;
-      if (
-        event.target instanceof HTMLElement &&
-        event.target.closest("[data-keybinding-capture]")
-      ) {
-        return;
-      }
-      if (resolveShortcutCommand(event, keybindings) !== "sidebar.toggle") return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      toggleSidebar();
-    };
-
-    // Capture before focused editors consume commands such as Mod+B for rich-text formatting.
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [keybindings, toggleSidebar]);
-
-  // the floating pill nav's workspace category toggles the sidebar via this event
-  useEffect(() => {
-    const onToggle = () => toggleSidebar();
-    window.addEventListener(TOGGLE_SIDEBAR_EVENT, onToggle);
-    return () => window.removeEventListener(TOGGLE_SIDEBAR_EVENT, onToggle);
-  }, [toggleSidebar]);
-
-  return null;
 }
 
 // Settings swaps the thread sidebar out of the tree. Keep the lightweight
@@ -187,36 +144,16 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         defaultOpen
         style={sidebarProviderStyle}
       >
-        {/* Upstream keeps the project projection subscribed while settings swaps the
-            thread sidebar out of the tree. Marcode unmounts the whole sidebar there,
-            so this retention matters more here, not less. */}
         <ProjectProjectionRetention />
-        {/* Marcode renders no sidebar on settings routes: FloatingPillNav owns
-            brand, settings and sidebar controls, so upstream's in-sidebar
-            SettingsSidebarNav would duplicate them. */}
-        {!isOnSettings && (
-          <Sidebar
-            side="left"
-            variant="floating"
-            collapsible="offcanvas"
-            data-app-sidebar=""
-            className="text-foreground"
-            resizable={{
-              maxWidth: sidebarMaximumWidth,
-              minWidth: THREAD_SIDEBAR_MIN_WIDTH,
-              shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
-                nextWidth <= currentWidth ||
-                wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
-              storageKey: THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
-              onResize: setSidebarWidth,
-            }}
-          >
-            {legacySidebarEnabled ? <LegacyThreadSidebar /> : <ThreadSidebar />}
-            <SidebarRail onDoubleClick={resetSidebarWidth} />
-          </Sidebar>
-        )}
+        <MarcodeSidebarShell
+          isOnSettings={isOnSettings}
+          legacySidebarEnabled={legacySidebarEnabled}
+          sidebarMaximumWidth={sidebarMaximumWidth}
+          onResize={setSidebarWidth}
+          onResetWidth={resetSidebarWidth}
+        />
         {children}
-        {!isOnSettings && <SidebarControl />}
+        {!isOnSettings && <MarcodeSidebarControl />}
       </SidebarProvider>
     </PanelAnimationSuppressionProvider>
   );

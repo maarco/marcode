@@ -6,6 +6,7 @@ import "@fontsource-variable/inter/index.css";
 import "@fontsource/jetbrains-mono/400.css";
 import "@fontsource/jetbrains-mono/500.css";
 import "./index.css";
+import "./components/chat/marcodeChatChrome.css";
 
 import { isElectron } from "./env";
 import { hasCloudPublicConfig } from "./cloud/publicConfig";

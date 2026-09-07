@@ -9,14 +9,12 @@ import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import {
   Bot,
   Check,
-  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileDiff,
   GitPullRequest,
   Globe2,
   MoreHorizontal,
-  Plus,
   TerminalSquare,
   Volume2,
   VolumeOff,
@@ -27,7 +25,6 @@ import {
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
-  type ReactElement,
   type ReactNode,
   useCallback,
   useEffect,
@@ -43,18 +40,7 @@ import { cn } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
 import { Button } from "~/components/ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
-import { Kbd } from "~/components/ui/kbd";
-import {
-  Menu,
-  MenuItem,
-  MenuPopup,
-  MenuSeparator,
-  MenuShortcut,
-  MenuSub,
-  MenuSubPopup,
-  MenuSubTrigger,
-  MenuTrigger,
-} from "~/components/ui/menu";
+import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "~/components/ui/menu";
 import { useBrowserDefaults } from "~/browser/browserDefaults";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { faviconUrlForOrigin } from "~/lib/favicon";
@@ -67,6 +53,12 @@ import {
   type FloatingShellRect,
 } from "../floatingShellGeometry";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import {
+  MarcodeRightPanelAddMenu,
+  MarcodeRightPanelEmptyState as RightPanelEmptyState,
+} from "./marcodeRightPanelChrome";
+
+export { shouldOpenDefaultBrowserProfileFromMenuClick } from "./marcodeRightPanelChrome";
 
 import { PreviewPanelShell, type PreviewPanelMode } from "./preview/PreviewPanelShell";
 import { FaviconImage } from "./preview/PreviewFaviconIcon";
@@ -133,45 +125,6 @@ export interface PullRequestTabStatus {
 
 export type PullRequestTabStatusSeed = Pick<PullRequestTabStatus, "state" | "isDraft">;
 
-export function shouldOpenDefaultBrowserProfileFromMenuClick(
-  pointerType: string | undefined,
-): boolean {
-  return pointerType !== "touch";
-}
-
-const SURFACE_DISABLED_REASONS = {
-  browser: "Browser previews are only available in the Marcode desktop app.",
-  terminal: "Terminal surfaces are only available from a project thread.",
-  diff: "Diff is only available for server threads in Git repositories.",
-  pullRequest: "This thread's branch has no pull request yet.",
-  agents: "Agents are only available from a thread.",
-} as const;
-
-/** Overlays that must win over the launcher's letter shortcuts. */
-const LAUNCHER_SHORTCUT_BLOCKING_LAYERS = [
-  '[data-slot="dialog-popup"]',
-  '[data-slot="alert-dialog-popup"]',
-  '[data-slot="command-dialog-popup"]',
-  '[data-slot="menu-popup"]',
-  '[data-slot="select-popup"]',
-  '[data-slot="popover-popup"]',
-  '[data-slot="combobox-popup"]',
-  '[data-slot="autocomplete-popup"]',
-].join(",");
-
-/**
- * One-line unavailability hints for the empty-state cards. No `files` entry:
- * the floating Code editor owns file editing, so the right panel has no files
- * surface to launch.
- */
-const SURFACE_UNAVAILABLE_HINTS = {
-  browser: "Only available in the desktop app.",
-  terminal: "Available when a project is open.",
-  diff: "Available for Git repositories.",
-  pullRequest: "No pull request on this branch yet.",
-  agents: "Available from a thread.",
-} as const;
-
 // No `copy-path`: that action exists upstream for right-panel file tabs, which
 // Marcode does not have.
 type TabContextMenuAction =
@@ -225,360 +178,6 @@ type TabAudioState = "none" | "audible" | "muted";
 function tabAudioState(overlay: DesktopPreviewOverlay | null): TabAudioState {
   if (!overlay?.audible) return "none";
   return overlay.audioMuted ? "muted" : "audible";
-}
-
-type SurfaceShortcutEvent = Pick<
-  KeyboardEvent,
-  "altKey" | "ctrlKey" | "defaultPrevented" | "isComposing" | "key" | "metaKey"
->;
-
-export function surfaceShortcutActionForKey<
-  const Action extends { available: boolean; shortcut: string },
->(actions: readonly Action[], event: SurfaceShortcutEvent): Action | null {
-  if (event.defaultPrevented || event.isComposing) return null;
-  if (event.metaKey || event.ctrlKey || event.altKey) return null;
-  return (
-    actions.find(
-      (action) => action.available && action.shortcut.toLowerCase() === event.key.toLowerCase(),
-    ) ?? null
-  );
-}
-
-/**
- * A focused editable is a typing context whether or not it has text yet: an
- * empty chat composer at rest is still where the user's next keystrokes are
- * meant to land, and claiming launcher letters from it would redirect prompts
- * into whatever surface opens. The `:not` clause lets `closest` see past
- * non-editable islands (`contenteditable="false"`) to an editable host around
- * them, matching ComposerPendingUserInputPanel's typing guard.
- */
-export function surfaceShortcutTargetsTypingContext(
-  target: { closest(selectors: string): unknown } | null,
-): boolean {
-  return (
-    target?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])') !=
-    null
-  );
-}
-
-function DisabledReasonTooltip(props: { reason: string; trigger: ReactElement }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger render={props.trigger} />
-      <TooltipPopup side="top">{props.reason}</TooltipPopup>
-    </Tooltip>
-  );
-}
-
-function SurfaceMenuItem(props: {
-  available: boolean;
-  disabledReason?: string;
-  shortcut: string;
-  onClick: () => void;
-  children: ReactNode;
-}) {
-  const item = (
-    <MenuItem
-      className={!props.available ? "data-disabled:pointer-events-auto" : undefined}
-      onClick={props.onClick}
-      disabled={!props.available}
-      aria-keyshortcuts={props.shortcut}
-    >
-      {props.children}
-      <MenuShortcut>{props.shortcut}</MenuShortcut>
-    </MenuItem>
-  );
-  if (props.available || !props.disabledReason) return item;
-  return <DisabledReasonTooltip reason={props.disabledReason} trigger={item} />;
-}
-
-/**
- * Card launcher shown when the right panel has no surfaces. Keyboard-first
- * without palette chrome: a surface's letter opens it directly from anywhere
- * outside a typing context, and arrows plus Enter work while the launcher is
- * focused. The highlight only appears on hover or arrow use. Unavailable
- * surfaces stay visible with a one-line reason.
- */
-function RightPanelEmptyState(props: {
-  onAddBrowser: () => void;
-  onAddBrowserInProfile: (profileId: string) => void;
-  browserProfiles: ReadonlyArray<{ readonly id: string; readonly name: string }>;
-  onAddTerminal: () => void;
-  onAddDiff: () => void;
-  onAddPullRequest: () => void;
-  onAddAgents: () => void;
-  browserAvailable: boolean;
-  terminalAvailable: boolean;
-  diffAvailable: boolean;
-  pullRequestAvailable: boolean;
-  agentsAvailable: boolean;
-  liveAgentCount: number;
-}) {
-  // -1 means no highlight: it only appears on hover or arrow use.
-  const [highlight, setHighlight] = useState(-1);
-
-  const actions = [
-    {
-      label: "Browser",
-      description: "Open a local app or URL.",
-      icon: Globe2,
-      shortcut: "B",
-      available: props.browserAvailable,
-      disabledReason: SURFACE_UNAVAILABLE_HINTS.browser,
-      onClick: props.onAddBrowser,
-      badgeCount: 0,
-    },
-    {
-      label: "Terminal",
-      description: "Start a shell in this workspace.",
-      icon: TerminalSquare,
-      shortcut: "T",
-      available: props.terminalAvailable,
-      disabledReason: SURFACE_UNAVAILABLE_HINTS.terminal,
-      onClick: props.onAddTerminal,
-      badgeCount: 0,
-    },
-    {
-      label: "Diff",
-      description: "Review changes in this thread.",
-      icon: FileDiff,
-      shortcut: "D",
-      available: props.diffAvailable,
-      disabledReason: SURFACE_UNAVAILABLE_HINTS.diff,
-      onClick: props.onAddDiff,
-      badgeCount: 0,
-    },
-    {
-      label: "Pull Request",
-      description: "Open this branch's pull request.",
-      icon: GitPullRequest,
-      shortcut: "P",
-      available: props.pullRequestAvailable,
-      disabledReason: SURFACE_UNAVAILABLE_HINTS.pullRequest,
-      onClick: props.onAddPullRequest,
-      badgeCount: 0,
-    },
-    {
-      label: "Agents",
-      description: "Follow subagents and workflows.",
-      icon: Bot,
-      shortcut: "A",
-      available: props.agentsAvailable,
-      disabledReason: SURFACE_UNAVAILABLE_HINTS.agents,
-      onClick: props.onAddAgents,
-      badgeCount: props.liveAgentCount,
-    },
-  ] as const;
-
-  type SurfaceAction = (typeof actions)[number];
-
-  const availableActions = actions.filter((action) => action.available);
-  const highlightIndex =
-    availableActions.length === 0 ? -1 : Math.min(highlight, availableActions.length - 1);
-
-  // Letter shortcuts work while the launcher is visible, not only while it
-  // is focused; focus moves around too easily (stray clicks) to carry them.
-  // Capture phase so app-level key handlers cannot swallow the event first;
-  // typing contexts and already-handled events are left alone.
-  const shortcutActionsRef = useRef(availableActions);
-  useEffect(() => {
-    shortcutActionsRef.current = availableActions;
-  });
-  useEffect(() => {
-    const handler = (event: KeyboardEvent) => {
-      const action = surfaceShortcutActionForKey(shortcutActionsRef.current, event);
-      if (!action) return;
-      if (document.querySelector(LAUNCHER_SHORTCUT_BLOCKING_LAYERS)) return;
-      const target = event.target;
-      if (target instanceof Element && surfaceShortcutTargetsTypingContext(target)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      action.onClick();
-    };
-    window.addEventListener("keydown", handler, true);
-    return () => window.removeEventListener("keydown", handler, true);
-  }, []);
-
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-    if (availableActions.length === 0) return;
-    if (event.key === "ArrowDown" || event.key === "ArrowRight") {
-      event.preventDefault();
-      setHighlight((highlightIndex + 1) % availableActions.length);
-      return;
-    }
-    if (event.key === "ArrowUp" || event.key === "ArrowLeft") {
-      event.preventDefault();
-      setHighlight(
-        highlightIndex === -1
-          ? availableActions.length - 1
-          : (highlightIndex - 1 + availableActions.length) % availableActions.length,
-      );
-      return;
-    }
-    if (event.key === "Enter") {
-      // A focused card button owns its own activation; only open from the
-      // highlight when the container itself has focus.
-      if (event.target instanceof HTMLElement && event.target.closest("button")) return;
-      const action = availableActions[highlightIndex];
-      if (!action) return;
-      event.preventDefault();
-      action.onClick();
-    }
-  };
-
-  // Stable identity so React only runs this callback ref on mount/unmount;
-  // an inline arrow would re-attach and re-focus on every render.
-  const focusOnMount = useCallback((node: HTMLDivElement | null) => {
-    node?.focus();
-  }, []);
-
-  const isHighlighted = (action: SurfaceAction) =>
-    highlightIndex !== -1 && availableActions[highlightIndex] === action;
-
-  const actionIcon = (action: SurfaceAction, iconClassName = "size-4") => {
-    const Icon = action.icon;
-    return (
-      <span className="relative inline-flex shrink-0">
-        <Icon className={iconClassName} />
-        {action.badgeCount > 0 ? (
-          <span
-            aria-hidden
-            className="absolute -top-1.5 -right-2 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-info px-1 text-[9px] font-semibold tabular-nums text-white"
-          >
-            {action.badgeCount}
-          </span>
-        ) : null}
-      </span>
-    );
-  };
-
-  const cardShellClass =
-    "rounded-lg border border-border/80 bg-card dark:border-transparent dark:shadow-none dark:inset-ring-1 dark:inset-ring-white/5";
-  const highlightedCardClass = "bg-accent/60 dark:inset-ring-white/20";
-
-  return (
-    <div
-      ref={focusOnMount}
-      role="toolbar"
-      tabIndex={0}
-      onKeyDown={handleKeyDown}
-      // "panel", not upstream's "surface": Marcode calls these right-panel
-      // surfaces panels in user-visible copy.
-      aria-label="Open a panel"
-      data-surface-launcher-keys={availableActions.map((action) => action.shortcut).join("")}
-      className={cn(
-        "flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 pt-6 outline-none",
-        // The panel topbar sits above this container; matching bottom padding
-        // keeps the cards centered against the full panel, not the leftover.
-        "pb-[calc(var(--workspace-topbar-height)+--spacing(6))]",
-      )}
-    >
-      <div className="relative w-full max-w-lg">
-        <div className="absolute inset-x-0 bottom-full mb-5 text-center">
-          <h3 className="font-medium text-foreground text-sm">Open a panel</h3>
-          <p className="mt-1 text-muted-foreground text-xs">
-            Choose what to show in the right panel.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          {actions.map((action) =>
-            action.available ? (
-              // The card is itself a button, so the profile chooser sits beside
-              // it in a wrapper rather than inside it. Hover lives on the
-              // wrapper: the chooser overlays the card, and a pointer moving
-              // onto it must not read as leaving the card.
-              <div
-                key={action.label}
-                className="group relative"
-                onMouseEnter={() => setHighlight(availableActions.indexOf(action))}
-                onMouseLeave={() =>
-                  setHighlight((current) =>
-                    current === availableActions.indexOf(action) ? -1 : current,
-                  )
-                }
-              >
-                <button
-                  type="button"
-                  onClick={action.onClick}
-                  className={cn(
-                    // Full height: the wrapper is the grid item that stretches
-                    // to the row, so the button must fill it to stay level with
-                    // its neighbour and keep the chooser anchored inside.
-                    "relative flex h-full w-full cursor-pointer flex-col items-start p-4 text-left transition group-hover:border-border group-hover:bg-accent/60",
-                    cardShellClass,
-                    isHighlighted(action) && highlightedCardClass,
-                  )}
-                >
-                  <Kbd className="absolute top-3 right-3">{action.shortcut}</Kbd>
-                  <span className="flex items-center gap-2 pe-8">
-                    {actionIcon(action)}
-                    <span className="font-medium text-sm">{action.label}</span>
-                  </span>
-                  <span className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
-                    {action.description}
-                  </span>
-                </button>
-                {/*
-                  Same choice the tab bar's "+" menu offers: the card opens the
-                  default profile, the chevron picks another. Only worth showing
-                  once there is something to choose between.
-                */}
-                {action.label === "Browser" && props.browserProfiles.length > 1 ? (
-                  <Menu>
-                    <MenuTrigger
-                      render={
-                        <Button
-                          aria-label="Open browser in a profile"
-                          className="absolute right-3 bottom-3 [--control-icon-color:currentColor]"
-                          size="icon-xs"
-                          variant="ghost-muted"
-                        />
-                      }
-                    >
-                      <ChevronDown className="size-3.5" />
-                    </MenuTrigger>
-                    <MenuPopup
-                      align="end"
-                      side="bottom"
-                      sideOffset={6}
-                      className="min-w-40 max-w-56"
-                    >
-                      {props.browserProfiles.map((profile) => (
-                        <MenuItem
-                          key={profile.id}
-                          onClick={() => props.onAddBrowserInProfile(profile.id)}
-                        >
-                          <span className="min-w-0 truncate">{profile.name}</span>
-                        </MenuItem>
-                      ))}
-                    </MenuPopup>
-                  </Menu>
-                ) : null}
-              </div>
-            ) : (
-              <div
-                key={action.label}
-                className={cn(
-                  "relative flex w-full flex-col items-start p-4 opacity-40",
-                  cardShellClass,
-                )}
-              >
-                <Kbd className="absolute top-3 right-3">{action.shortcut}</Kbd>
-                <span className="flex items-center gap-2 pe-8">
-                  {actionIcon(action)}
-                  <span className="font-medium text-sm">{action.label}</span>
-                </span>
-                <span className="mt-1.5 text-muted-foreground text-xs leading-relaxed">
-                  {action.disabledReason}
-                </span>
-              </div>
-            ),
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function surfaceTitle(
@@ -750,7 +349,6 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     collides: false,
   });
   const [tabOverflow, setTabOverflow] = useState(false);
-  const [addSurfaceMenuOpen, setAddSurfaceMenuOpen] = useState(false);
   const [tabScrollState, setTabScrollState] = useState({
     hasOverflow: false,
     canScrollLeft: false,
@@ -787,60 +385,6 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       behavior: reduceMotion ? "auto" : "smooth",
     });
   }, []);
-
-  // Marcode retired the right-panel Files surface (the floating editor owns
-  // file editing), so upstream's "Files" entry is deliberately absent here.
-  const addSurfaceActions = [
-    {
-      label: "Browser",
-      icon: Globe2,
-      shortcut: "B",
-      available: props.browserAvailable,
-      disabledReason: SURFACE_DISABLED_REASONS.browser,
-      onClick: props.onAddBrowser,
-    },
-    {
-      label: "Terminal",
-      icon: TerminalSquare,
-      shortcut: "T",
-      available: props.terminalAvailable,
-      disabledReason: SURFACE_DISABLED_REASONS.terminal,
-      onClick: props.onAddTerminal,
-    },
-    {
-      label: "Diff",
-      icon: FileDiff,
-      shortcut: "D",
-      available: props.diffAvailable,
-      disabledReason: SURFACE_DISABLED_REASONS.diff,
-      onClick: props.onAddDiff,
-    },
-    {
-      label: "Pull request",
-      icon: GitPullRequest,
-      shortcut: "P",
-      available: props.pullRequestAvailable,
-      disabledReason: SURFACE_DISABLED_REASONS.pullRequest,
-      onClick: props.onAddPullRequest,
-    },
-    {
-      label: "Agents",
-      icon: Bot,
-      shortcut: "A",
-      available: props.agentsAvailable,
-      disabledReason: SURFACE_DISABLED_REASONS.agents,
-      onClick: props.onAddAgents,
-    },
-  ] as const;
-
-  const handleAddSurfaceMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    const action = surfaceShortcutActionForKey(addSurfaceActions, event.nativeEvent);
-    if (!action) return;
-    event.preventDefault();
-    event.stopPropagation();
-    setAddSurfaceMenuOpen(false);
-    action.onClick();
-  };
 
   const handleTabContextMenu = useCallback(
     async (event: ReactMouseEvent, surface: RightPanelSurface) => {
@@ -1322,93 +866,21 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             </MenuPopup>
           </Menu>
         ) : null}
-        {props.surfaces.length > 0 ? (
-          <Menu open={addSurfaceMenuOpen} onOpenChange={setAddSurfaceMenuOpen}>
-            <MenuTrigger
-              render={
-                <Button
-                  aria-label="Add panel surface"
-                  className="size-6 shrink-0 text-muted-foreground hover:text-foreground"
-                  size="icon-xs"
-                  variant="ghost"
-                />
-              }
-            >
-              <Plus className="size-3.5" />
-            </MenuTrigger>
-            <MenuPopup
-              align="start"
-              side="bottom"
-              sideOffset={6}
-              className="min-w-44"
-              onKeyDownCapture={handleAddSurfaceMenuKeyDown}
-            >
-              {addSurfaceActions.map((action) => {
-                const Icon = action.icon;
-                // Browser collapses into one row: clicking the trigger opens
-                // the default profile (the common case stays one click),
-                // while hover or arrow reveals the profiles. The choice
-                // lives at open time because a tab's profile is fixed then —
-                // Electron only honours a partition before attach.
-                if (action.label === "Browser" && action.available) {
-                  return (
-                    <MenuSub key={action.label}>
-                      <MenuSubTrigger
-                        className="[&>svg:last-child]:ms-0"
-                        aria-keyshortcuts={action.shortcut}
-                        onClick={(event) => {
-                          const pointerType =
-                            "pointerType" in event.nativeEvent &&
-                            typeof event.nativeEvent.pointerType === "string"
-                              ? event.nativeEvent.pointerType
-                              : undefined;
-                          // Touch has no hover path to the profile choices:
-                          // its first tap opens the submenu, then a profile
-                          // is selected there. Mouse click keeps the common
-                          // default-profile action at one click.
-                          if (!shouldOpenDefaultBrowserProfileFromMenuClick(pointerType)) return;
-                          setAddSurfaceMenuOpen(false);
-                          action.onClick();
-                        }}
-                      >
-                        <Icon />
-                        {action.label}
-                        <MenuShortcut>{action.shortcut}</MenuShortcut>
-                      </MenuSubTrigger>
-                      {/*
-                        Capped and truncated: profile names are user-supplied
-                        and run to 48 characters, which would otherwise widen
-                        the popup to fit-content and wrap.
-                      */}
-                      <MenuSubPopup className="min-w-40 max-w-56">
-                        {browserProfiles.map((profile) => (
-                          <MenuItem
-                            key={profile.id}
-                            onClick={() => props.onAddBrowserInProfile(profile.id)}
-                          >
-                            <span className="min-w-0 truncate">{profile.name}</span>
-                          </MenuItem>
-                        ))}
-                      </MenuSubPopup>
-                    </MenuSub>
-                  );
-                }
-                return (
-                  <SurfaceMenuItem
-                    key={action.label}
-                    available={action.available}
-                    disabledReason={action.disabledReason}
-                    shortcut={action.shortcut}
-                    onClick={action.onClick}
-                  >
-                    <Icon />
-                    {action.label}
-                  </SurfaceMenuItem>
-                );
-              })}
-            </MenuPopup>
-          </Menu>
-        ) : null}
+        <MarcodeRightPanelAddMenu
+          surfacesCount={props.surfaces.length}
+          onAddBrowser={props.onAddBrowser}
+          onAddBrowserInProfile={props.onAddBrowserInProfile}
+          browserProfiles={browserProfiles}
+          onAddTerminal={props.onAddTerminal}
+          onAddDiff={props.onAddDiff}
+          onAddPullRequest={props.onAddPullRequest}
+          onAddAgents={props.onAddAgents}
+          browserAvailable={props.browserAvailable}
+          terminalAvailable={props.terminalAvailable}
+          diffAvailable={props.diffAvailable}
+          pullRequestAvailable={props.pullRequestAvailable}
+          agentsAvailable={props.agentsAvailable}
+        />
         {tabScrollState.hasOverflow ? (
           <div
             className="flex shrink-0 items-center gap-0.5 [-webkit-app-region:no-drag]"

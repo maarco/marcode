@@ -3,6 +3,11 @@ import {
   HostProcessPlatform,
   HostProcessUserId,
 } from "@t3tools/shared/hostProcess";
+import {
+  MARCODE_HOME_ENV,
+  MARCODE_PRODUCT_NAME,
+  MARCODE_SERVICE_UNIT_FILE,
+} from "@t3tools/shared/forkIdentity";
 import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
@@ -33,8 +38,7 @@ import {
 
 // Marcode ships its own unit name so a Marcode install and an upstream T3 Code
 // install can coexist as separate per-user systemd services.
-const BOOT_SERVICE_NAME = "marcode";
-export const BOOT_SERVICE_UNIT_FILE = `${BOOT_SERVICE_NAME}.service`;
+export const BOOT_SERVICE_UNIT_FILE = MARCODE_SERVICE_UNIT_FILE;
 // `.service` suffix keeps the label distinct from the desktop app's bundle id
 // (com.t3tools.t3code), so launchd and TCC records never collide.
 const BOOT_SERVICE_LAUNCHD_LABEL = "com.t3tools.t3code.service";
@@ -68,14 +72,14 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
   // The user manager has no reliable network-online target; server networking retries itself.
   return [
     "[Unit]",
-    "Description=Marcode server",
+    `Description=${MARCODE_PRODUCT_NAME} server`,
     "StartLimitIntervalSec=300",
     "StartLimitBurst=5",
     "",
     "[Service]",
     "Type=simple",
     "WorkingDirectory=%h",
-    `Environment=MARCODE_HOME=${quoteSystemdValue(plan.baseDir)}`,
+    `Environment=${MARCODE_HOME_ENV}=${quoteSystemdValue(plan.baseDir)}`,
     `Environment=${BOOT_SERVICE_UNIT_ENV}=${BOOT_SERVICE_UNIT_FILE}`,
     `ExecStart=${quoteSystemdValue(plan.nodePath)} ${quoteSystemdValue(plan.launcherPath)}`,
     // Let the launcher mark an explicit stop before it signals the server.
@@ -138,7 +142,7 @@ export function renderBootServicePlist(
     // Marcode fork seam: upstream's plist exports T3CODE_HOME. The service
     // launcher (`resolveLauncherBaseDir`) reads MARCODE_HOME and exits without
     // it, so the launchd unit must match the systemd unit above.
-    `    <key>MARCODE_HOME</key>`,
+    `    <key>${MARCODE_HOME_ENV}</key>`,
     `    <string>${escapeXmlText(plan.baseDir)}</string>`,
     `    <key>${BOOT_SERVICE_UNIT_ENV}</key>`,
     `    <string>${BOOT_SERVICE_PLIST_FILE}</string>`,

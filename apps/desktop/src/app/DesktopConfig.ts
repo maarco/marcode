@@ -2,6 +2,8 @@ import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Option from "effect/Option";
 
+import { MARCODE_HOME_ENV } from "@t3tools/shared/forkIdentity";
+
 const trimNonEmptyOption = (value: string): Option.Option<string> => {
   const trimmed = value.trim();
   return trimmed.length > 0 ? Option.some(trimmed) : Option.none();
@@ -36,7 +38,7 @@ export const DesktopConfig = Config.all({
   appDataDirectory: trimmedString("APPDATA"),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
   xdgDataHome: trimmedString("XDG_DATA_HOME"),
-  marcodeHome: trimmedString("MARCODE_HOME"),
+  marcodeHome: trimmedString(MARCODE_HOME_ENV),
   devServerUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option),
   appUserModelIdOverride: trimmedString("MARCODE_DESKTOP_APP_USER_MODEL_ID"),
   devRemoteT3ServerEntryPath: trimmedString("MARCODE_DEV_REMOTE_T3_SERVER_ENTRY_PATH"),

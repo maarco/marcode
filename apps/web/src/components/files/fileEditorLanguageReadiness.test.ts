@@ -116,6 +116,9 @@ afterEach(async () => {
   pool?.terminate();
   await Promise.all(terminationPromises);
   await disposeHighlighter();
+  // Termination queues one final worker-state frame. Drain the test adapter's
+  // setImmediate-backed RAF before removing the animation-frame globals.
+  await new Promise<void>((resolve) => setImmediate(resolve));
   vi.unstubAllGlobals();
 });
 

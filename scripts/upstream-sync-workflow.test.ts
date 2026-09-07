@@ -17,8 +17,15 @@ const ciSource = read(".github/workflows/ci.yml");
 const relayDeploySource = read(".github/workflows/deploy-relay.yml");
 
 const manifest = parseYaml(manifestSource) as {
+  integration: { branchTemplate: string };
   schedule: { enabled: boolean; cron: string };
-  pullRequest: { draft: boolean; titleTemplate: string; labels: string[]; reviewers: string[] };
+  pullRequest: {
+    draft: boolean;
+    singleFlight: boolean;
+    titleTemplate: string;
+    labels: string[];
+    reviewers: string[];
+  };
   requiredPullRequestChecks: string[];
   target: { branch: string };
 };
@@ -79,6 +86,29 @@ describe("upstream-sync workflow", () => {
       group: "upstream-sync-main",
       "cancel-in-progress": false,
     });
+  });
+
+  it("serializes open upstream sync pull requests and reuses the current one", () => {
+    const guard = stepByName("Enforce single-flight upstream pull request") as {
+      if: string;
+      id: string;
+      with: { script: string };
+    };
+    expect(guard.id).toBe("singleflight");
+    expect(guard.if).toContain("steps.plan.outputs.status != 'conflicted'");
+    expect(guard.with.script).toContain('state: "open"');
+    expect(guard.with.script).toContain("upstream-sync");
+    expect(guard.with.script).toContain("syncPulls.length > 1");
+    expect(guard.with.script).toContain('core.setOutput("reuse", "true")');
+    expect(guard.with.script).toContain("pull.base.sha !== report.target.sha");
+    expect(guard.with.script).toContain("do not create a second chain");
+  });
+
+  it("validates the fork boundary manifest before integration", () => {
+    const boundary = stepByName("Validate fork boundary manifest") as { run: string };
+    expect(boundary.run).toContain("node scripts/fork-boundary.ts check");
+    expect(boundary.run).toContain("upstream-plan.json");
+    expect(boundary.run).toContain("fork-boundary.json");
   });
 
   it("checks out full history with persisted credentials", () => {
@@ -148,6 +178,7 @@ describe("upstream-sync workflow", () => {
   it("integrates and pushes only on a clean merge", () => {
     const integrate = stepByName("Integrate and push") as { if: string; run: string };
     expect(integrate.if).toContain("steps.plan.outputs.status == 'clean-merge'");
+    expect(integrate.if).toContain("steps.singleflight.outputs.reuse != 'true'");
     expect(integrate.run).toContain("--push");
   });
 
@@ -158,10 +189,18 @@ describe("upstream-sync workflow", () => {
       env: Record<string, string>;
       with: { script: string };
     };
-    expect(Object.keys(pr.env)).toEqual(["INTEGRATE_REPORT"]);
-    expect(pr.with.script).toContain("integration.plan");
-    expect(pr.with.script).toContain("integration.integrationBranch");
-    expect(pr.with.script).toContain("integration.mergeSha");
+    expect(Object.keys(pr.env)).toEqual([
+      "INTEGRATE_REPORT",
+      "PLAN_REPORT",
+      "BOUNDARY_REPORT",
+      "REUSE_PULL_NUMBER",
+      "REUSE_HEAD_SHA",
+    ]);
+    expect(pr.with.script).toContain("integration?.plan");
+    expect(pr.with.script).toContain("integration?.integrationBranch");
+    expect(pr.with.script).toContain("integration?.mergeSha");
+    expect(pr.with.script).toContain("pulls.get");
+    expect(pr.with.script).toContain("BOUNDARY_REPORT");
   });
 
   it("reuses an existing pull request before creating one", () => {
@@ -170,6 +209,7 @@ describe("upstream-sync workflow", () => {
       with: { script: string };
     };
     expect(pr.if).toContain("steps.integrate.outputs.pushed == 'true'");
+    expect(pr.if).toContain("steps.singleflight.outputs.reuse == 'true'");
     const script = pr.with.script;
     expect(script.indexOf("pulls.list")).toBeGreaterThan(-1);
     expect(script.indexOf("pulls.list")).toBeLessThan(script.indexOf("pulls.create"));
@@ -188,7 +228,13 @@ describe("upstream-sync workflow", () => {
 
   it("keeps pull-request literals equal to the manifest", () => {
     expect(manifest.pullRequest.draft).toBe(true);
+    expect(manifest.pullRequest.singleFlight).toBe(true);
     expect(readArrayLiteral("labels")).toEqual(manifest.pullRequest.labels);
+    const branchExpression = manifest.integration.branchTemplate.replace(
+      "{upstreamShortSha}",
+      "${report.source.sha.slice(0, 12)}",
+    );
+    expect(workflowSource).toContain(`const expectedHead = \`${branchExpression}\`;`);
     expect(workflowSource).toContain(
       `\`${manifest.pullRequest.titleTemplate.replace("{upstreamShortSha}", "${shortSha}")}\``,
     );

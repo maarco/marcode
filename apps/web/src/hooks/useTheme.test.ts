@@ -213,6 +213,7 @@ describe("onboarding theme", () => {
     const root = {
       classList: {
         add: (name: string) => classes.add(name),
+        contains: (name: string) => classes.has(name),
         remove: (name: string) => classes.delete(name),
         toggle: (name: string, force?: boolean) => {
           const next = force ?? !classes.has(name);

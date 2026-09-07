@@ -70,6 +70,7 @@ schedule:
   cron: "17 14 * * *"
 pullRequest:
   draft: true
+  singleFlight: true
   titleTemplate: "chore(upstream): sync fixture through {upstreamShortSha}"
   labels:
     - upstream-sync

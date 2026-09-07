@@ -13,13 +13,19 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { resolveStorage } from "./lib/storage";
+import {
+  isPullRequestsPanelKey,
+  isRetiredRightPanelSurfaceKind,
+  MARCODE_RIGHT_PANEL_KINDS,
+  MARCODE_RIGHT_PANEL_STORAGE_KEY,
+  MARCODE_RIGHT_PANEL_STORAGE_VERSION,
+  type MarcodeRightPanelKind,
+} from "./marcodeRightPanelPolicy";
 
-// Marcode drops upstream's "files"/"file" kinds: the floating Code editor is
-// the only file-editing surface here. "plan" is gone on both sides — upstream
-// folded plans into the transcript. "pull-request" is upstream's change-request
-// surface and is not file editing, so Marcode carries it.
-export const RIGHT_PANEL_KINDS = ["diff", "preview", "terminal", "pull-request", "agents"] as const;
-export type RightPanelKind = (typeof RIGHT_PANEL_KINDS)[number];
+// Marcode drops upstream's file/files kinds: the floating Code editor is the
+// only file-editing surface here. Keep this export stable for client callers.
+export const RIGHT_PANEL_KINDS = MARCODE_RIGHT_PANEL_KINDS;
+export type RightPanelKind = MarcodeRightPanelKind;
 
 export type RightPanelSurface =
   | { id: `browser:${string}`; kind: "preview"; resourceId: string }
@@ -51,19 +57,6 @@ export type RightPanelSurface =
       number: number;
     }
   | { id: "agents"; kind: "agents" };
-
-const RIGHT_PANEL_STORAGE_KEY = "marcode:right-panel-state:v2";
-// v9 removed the "plan" surface kind (plans render inline in the transcript);
-// Marcode had already removed the "file"/"files" surfaces for the floating editor.
-// v10 keys pull-request surfaces by reference instead of a singleton tab.
-// v11 stops persisting the pull-request list's shared panel, so a restart opens the page fresh.
-const RIGHT_PANEL_STORAGE_VERSION = 11;
-
-/**
- * The pull-request list's shared panel (see PULL_REQUESTS_PANEL_ID in the route) is session
- * state: reopening the app should show the list, not last session's tabs and detail fetches.
- */
-const isPullRequestsPanelKey = (threadKey: string) => threadKey.endsWith(":pull-requests-panel");
 
 export interface ThreadRightPanelState {
   isOpen: boolean;
@@ -291,11 +284,7 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                     // retired them for the floating editor) or `plan`
                     // (upstream folded plans into the transcript). None has a
                     // render branch anymore, so drop rather than upgrade.
-                    if (
-                      surface.kind === "file" ||
-                      surface.kind === "files" ||
-                      (surface as { kind?: string }).kind === "plan"
-                    ) {
+                    if (isRetiredRightPanelSurfaceKind((surface as { kind?: unknown }).kind)) {
                       return [];
                     }
                     if (surface.kind === "pull-request") {
@@ -317,7 +306,7 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                         }),
                       ];
                     }
-                    if (surface.kind !== "terminal") return [surface];
+                    if (surface.kind !== "terminal") return [surface as RightPanelSurface];
                     if (
                       !("resourceId" in surface) ||
                       typeof surface.resourceId !== "string" ||
@@ -680,8 +669,8 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
         }),
     }),
     {
-      name: RIGHT_PANEL_STORAGE_KEY,
-      version: RIGHT_PANEL_STORAGE_VERSION,
+      name: MARCODE_RIGHT_PANEL_STORAGE_KEY,
+      version: MARCODE_RIGHT_PANEL_STORAGE_VERSION,
       storage: createJSONStorage(() =>
         resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
       ),
