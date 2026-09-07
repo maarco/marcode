@@ -197,8 +197,8 @@ describe("upstream-sync workflow", () => {
       "REUSE_HEAD_SHA",
     ]);
     expect(pr.with.script).toContain("integration?.plan");
-    expect(pr.with.script).toContain("integration.integrationBranch");
-    expect(pr.with.script).toContain("integration.mergeSha");
+    expect(pr.with.script).toContain("integration?.integrationBranch");
+    expect(pr.with.script).toContain("integration?.mergeSha");
     expect(pr.with.script).toContain("pulls.get");
     expect(pr.with.script).toContain("BOUNDARY_REPORT");
   });
