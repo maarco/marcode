@@ -1,3 +1,4 @@
+// @effect-diagnostics nodeBuiltinImport:off - Fork-boundary assertions read checked-in files directly.
 /**
  * Pins the fork seam that keeps Marcode's first-run flow on a true-black
  * canvas.
@@ -57,10 +58,10 @@ describe("dark onboarding fork seam", () => {
     }
   });
 
-  it("does not reintroduce the upstream wordmark this fork replaced", () => {
-    // `MarcodeMark` is the brand glyph; `T3Wordmark` does not exist here and an
-    // upstream re-add would only fail at build time.
+  it("renders the Marcode brand glyph in the wizard header", () => {
+    // The matching removal — that upstream's wordmark component is gone from
+    // every source root — is owned by scripts/brand-mark-ownership.test.ts.
     expect(welcomeWizardSource).toContain('from "../MarcodeMark"');
-    expect(welcomeWizardSource).not.toContain("<T3Wordmark");
+    expect(welcomeWizardSource).toContain("<MarcodeMark");
   });
 });

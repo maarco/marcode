@@ -199,9 +199,12 @@ export function WelcomeWizard({
         <div className="flex min-h-0 flex-col">
           <DialogHeader className="gap-4">
             {/*
-              Marcode fork seam: upstream renders `T3Wordmark` + "Code" here.
-              This fork has no wordmark component — `MarcodeMark` is the brand
-              glyph (see apps/web/src/components/MarcodeMark.tsx).
+              Marcode fork seam: upstream renders their wordmark component plus
+              "Code" here. This fork removed that component; `MarcodeMark` is
+              the brand glyph (see apps/web/src/components/MarcodeMark.tsx).
+              scripts/brand-mark-ownership.test.ts fails if the upstream name
+              reappears anywhere under apps/{web,mobile,desktop}/src, which is
+              why it is described rather than written out.
             */}
             <div className="flex items-center gap-2" role="img" aria-label="Marcode">
               <MarcodeMark className="size-5 shrink-0" />
