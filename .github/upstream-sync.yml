@@ -93,6 +93,9 @@ hotspots:
   - path: "apps/web/src/hooks/useHandleNewThread.ts"
     owner: web-runtime
     reason: "Unified-workspace placement and upstream draft carry-forward behavior"
+  - path: "apps/web/src/hooks/useTheme*"
+    owner: web-shell
+    reason: "Marcode intentionally keeps the onboarding wizard dark while retaining upstream theme plumbing"
   - path: "apps/web/src/rightPanelStore.ts"
     owner: web-runtime
     reason: "Marcode multi-surface state"
