@@ -30,6 +30,7 @@ rules:
       - apps/web/src/components/ChatView.tsx
       - apps/web/src/components/chat/ChatHeader.tsx
       - apps/web/src/index.css
+      - apps/web/src/main.tsx
     marcodeOwner:
       - apps/web/src/components/chat/chatAmbientEffects.tsx
       - apps/web/src/components/chat/chatAmbientAnimation.ts
