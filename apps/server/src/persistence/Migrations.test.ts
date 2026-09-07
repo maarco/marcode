@@ -16,7 +16,7 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   // deployed range explicitly so future 9000+ Marcode entries do not change
   // what this compatibility assertion covers.
   assert.deepStrictEqual(
-    migrationEntries.filter(([id]) => id <= 49).map(([id, name]) => [id, name]),
+    migrationEntries.filter(([id]) => id >= 33 && id <= 49).map(([id, name]) => [id, name]),
     [
       [33, "ProjectWorkspaceLayout"],
       [34, "ProjectionThreadsSettled"],

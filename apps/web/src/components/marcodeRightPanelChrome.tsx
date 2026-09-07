@@ -33,7 +33,7 @@ import {
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 
 /** Reasons shown by the Marcode launcher when an upstream surface is unavailable. */
-export const SURFACE_DISABLED_REASONS = {
+const SURFACE_DISABLED_REASONS = {
   browser: "Browser previews are only available in the Marcode desktop app.",
   terminal: "Terminal surfaces are only available from a project thread.",
   diff: "Diff is only available for server threads in Git repositories.",
@@ -53,7 +53,7 @@ const LAUNCHER_SHORTCUT_BLOCKING_LAYERS = [
   '[data-slot="autocomplete-popup"]',
 ].join(",");
 
-export const SURFACE_UNAVAILABLE_HINTS = {
+const SURFACE_UNAVAILABLE_HINTS = {
   browser: "Only available in the desktop app.",
   terminal: "Available when a project is open.",
   diff: "Available for Git repositories.",
@@ -103,7 +103,7 @@ function DisabledReasonTooltip(props: { reason: string; trigger: ReactElement })
   );
 }
 
-export function SurfaceMenuItem(props: {
+function SurfaceMenuItem(props: {
   available: boolean;
   disabledReason?: string;
   shortcut: string;
