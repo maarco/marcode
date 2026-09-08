@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest";
 
 import { migrationEntries } from "./Migrations.ts";
 import {
+  defineMarcodeMigration,
   MARCODE_MIGRATION_ID_START,
   marcodeMigrationEntries,
   validateMarcodeMigrationEntries,
@@ -56,5 +57,24 @@ it("reserves a separate high-numbered namespace for future Marcode migrations", 
   assert.deepStrictEqual(
     migrationEntries.slice(0, 49).map(([id]) => id),
     Array.from({ length: 49 }, (_, index) => index + 1),
+  );
+});
+
+// The registry is empty until Marcode needs a schema change, so this is the
+// only thing holding the reserved namespace open. Without it the constructor
+// has no caller and reads as dead code, which is how a future sync would come
+// to renumber an applied migration.
+it("only mints Marcode migrations inside the reserved namespace", () => {
+  const entry = defineMarcodeMigration(MARCODE_MIGRATION_ID_START, "Example", "migration");
+  assert.deepStrictEqual(entry, [MARCODE_MIGRATION_ID_START, "Example", "migration"]);
+
+  assert.throws(
+    () => defineMarcodeMigration(MARCODE_MIGRATION_ID_START - 1, "TooLow", "migration"),
+    /must be >= 9000/,
+  );
+  assert.throws(() => defineMarcodeMigration(51, "UpstreamRange", "migration"), /must be >= 9000/);
+  assert.throws(
+    () => defineMarcodeMigration(9000.5, "NotAnInteger", "migration"),
+    /must be >= 9000/,
   );
 });

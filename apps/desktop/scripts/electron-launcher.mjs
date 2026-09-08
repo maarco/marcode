@@ -17,8 +17,8 @@ const devBundleIdSuffix = NodePath.basename(repoRoot)
   .replaceAll(/[^a-z0-9]+/g, "");
 // ── Marcode fork seam ── product identity only. LAUNCHER_VERSION tracks the
 // launcher logic below, which is upstream's, so it follows upstream's number.
-export const APP_DISPLAY_NAME = isDevelopment ? "Marcode (Dev)" : "Marcode";
-export const APP_BUNDLE_ID = isDevelopment
+const APP_DISPLAY_NAME = isDevelopment ? "Marcode (Dev)" : "Marcode";
+const APP_BUNDLE_ID = isDevelopment
   ? `app.marcode.desktop.dev.${devBundleIdSuffix || "local"}`
   : "app.marcode.desktop";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["marcode-dev"] : ["marcode"];
