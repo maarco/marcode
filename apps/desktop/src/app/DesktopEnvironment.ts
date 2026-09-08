@@ -14,6 +14,7 @@ import * as Path from "effect/Path";
 
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
+import { resolveLinuxDesktopEntryName } from "./DesktopEarlyElectronStartup.ts";
 import { resolveDesktopBaseDir, resolveDesktopStateDir } from "./DesktopStatePaths.ts";
 import { isNightlyDesktopVersion } from "../updates/updateChannels.ts";
 
@@ -102,7 +103,7 @@ function resolveDesktopAppStageLabel(input: {
   return isNightlyDesktopVersion(input.appVersion) ? "Nightly" : "";
 }
 
-function resolveDesktopAppBranding(input: {
+export function resolveDesktopAppBranding(input: {
   readonly isDevelopment: boolean;
   readonly appVersion: string;
 }): DesktopAppBranding {
@@ -236,7 +237,10 @@ const make = Effect.fn("desktop.environment.make")(function* (
     appUserModelId: Option.getOrElse(config.appUserModelIdOverride, () =>
       isDevelopment ? "app.marcode.desktop.dev" : "app.marcode.desktop",
     ),
-    linuxDesktopEntryName: isDevelopment ? "marcode-dev.desktop" : "marcode.desktop",
+    // ── Marcode fork seam ── upstream moved the entry name behind a shared
+    // resolver; take the refactor and keep Marcode's names (see
+    // DesktopEarlyElectronStartup.resolveLinuxDesktopEntryName).
+    linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     linuxWmClass: isDevelopment ? "marcode-dev" : "marcode",
     linuxApplicationsDir,
     appImagePath: config.appImagePath,
