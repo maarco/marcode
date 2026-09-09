@@ -81,7 +81,11 @@ describe("DesktopEarlyElectronStartup", () => {
     });
 
     assert.deepEqual(options, {
-      linuxWmClass: "t3code-dev",
+      isDevelopment: true,
+      // Must match DesktopEnvironment: the pre-ready path sets Chromium's
+      // --class switch and the environment reports it.
+      linuxWmClass: "marcode-dev",
+      linuxDesktopEntryName: "marcode-dev.desktop",
       passwordStore: "gnome-libsecret",
     });
   });

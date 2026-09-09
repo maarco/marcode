@@ -7,6 +7,7 @@ import * as Option from "effect/Option";
 
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
+import { resolveLinuxDesktopEntryName } from "./DesktopEarlyElectronStartup.ts";
 
 const defaultInput = {
   dirname: "/repo/apps/desktop/dist-electron",
@@ -75,6 +76,7 @@ describe("DesktopEnvironment", () => {
       assert.equal(environment.backendCwd, "/repo");
       assert.equal(environment.appUserModelId, "app.marcode.desktop.dev");
       assert.equal(environment.linuxWmClass, "marcode-dev");
+      assert.equal(environment.linuxDesktopEntryName, "marcode-dev.desktop");
       assert.deepEqual(
         Option.map(environment.devServerUrl, (url) => url.href),
         Option.some("http://localhost:5173/"),
@@ -119,6 +121,19 @@ describe("DesktopEnvironment", () => {
         environment.backendEntryPath,
         "/install/resources/server.asar/apps/server/dist/bin.mjs",
       );
+    }),
+  );
+
+  it.effect("uses the stable desktop entry as the packaged Linux portal identity", () =>
+    Effect.gen(function* () {
+      const environment = yield* makeEnvironment({
+        platform: "linux",
+        isPackaged: true,
+        appPath: "/tmp/.mount_t3code/resources/app.asar",
+        resourcesPath: "/tmp/.mount_t3code/resources",
+      });
+
+      assert.equal(environment.linuxDesktopEntryName, "marcode.desktop");
     }),
   );
 
@@ -167,5 +182,30 @@ describe("DesktopEnvironment", () => {
         Option.some("/Users/alice/project"),
       );
     }),
+  );
+
+  // ── Marcode fork seam ─────────────────────────────────────────────────────
+  // Linux identity is produced twice: the pre-ready path (which sets Chromium's
+  // --class switch and writes the .desktop entry before Electron is ready) and
+  // this environment. Upstream keeps these as independent literals, so an
+  // upstream rename lands in one of them and merges clean, leaving Marcode with
+  // a mismatched window class or a desktop entry the portal cannot resolve.
+  // Pin the agreement so the next sync fails here instead of at runtime.
+  it.effect.each([
+    { isDevelopment: true, env: { VITE_DEV_SERVER_URL: "http://localhost:5173" } },
+    { isDevelopment: false, env: {} as Record<string, string | undefined> },
+  ])(
+    "matches the pre-ready Linux identity (development: $isDevelopment)",
+    ({ isDevelopment, env }) =>
+      Effect.gen(function* () {
+        const environment = yield* makeEnvironment({ platform: "linux" }, env);
+
+        assert.equal(
+          environment.linuxDesktopEntryName,
+          resolveLinuxDesktopEntryName(isDevelopment),
+          "DesktopEnvironment and DesktopEarlyElectronStartup must name the same .desktop entry",
+        );
+        assert.equal(environment.linuxWmClass, isDevelopment ? "marcode-dev" : "marcode");
+      }),
   );
 });

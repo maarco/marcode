@@ -18,7 +18,7 @@ import {
   upstreamSyncStatus,
 } from "./lib/upstream-sync-git.ts";
 
-export class UpstreamSyncReportWriteError extends Schema.TaggedErrorClass<UpstreamSyncReportWriteError>()(
+export class UpstreamSyncReportWriteError extends Schema.TaggedError<UpstreamSyncReportWriteError>()(
   "UpstreamSyncReportWriteError",
   {
     path: Schema.String,
