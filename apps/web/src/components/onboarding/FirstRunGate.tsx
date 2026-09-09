@@ -104,6 +104,11 @@ export function FirstRunGate({
   }));
   const { decision, stalled } = gateState;
   const settingsReadFailed = hydrationStatus === "failed" || hydrationStatus === "retrying";
+  // Marcode fork seam: upstream removed this mount when it dropped the
+  // onboarding theme surface. Marcode keeps the wizard (and the stalled /
+  // settings-failure screens that stand in for it) on a true-black canvas
+  // regardless of the saved appearance, so the gate owns the theme for as
+  // long as it renders one of them.
   const ownsOnboardingTheme = settingsReadFailed || stalled || decision === "wizard";
 
   useLayoutEffect(() => {

@@ -99,6 +99,9 @@ function themeHalvesSignature(halves: ThemeHalves | null): string {
   return `${halves?.light ?? ""}|${halves?.dark ?? ""}`;
 }
 
+// Marcode fork seam: upstream deleted this helper along with the onboarding
+// theme surface. Marcode's wizard stays dark, so the branches below still need
+// to know when it owns the document.
 function isOnboardingThemeActive(): boolean {
   return (
     typeof document !== "undefined" &&
