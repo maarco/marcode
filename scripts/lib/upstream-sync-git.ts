@@ -81,7 +81,7 @@ export const UpstreamSyncIntegrateReport = Schema.Struct({
 });
 export type UpstreamSyncIntegrateReport = typeof UpstreamSyncIntegrateReport.Type;
 
-export class UpstreamSyncGitError extends Schema.TaggedErrorClass<UpstreamSyncGitError>()(
+export class UpstreamSyncGitError extends Schema.TaggedError<UpstreamSyncGitError>()(
   "UpstreamSyncGitError",
   {
     operation: Schema.String,
@@ -103,7 +103,7 @@ export class UpstreamSyncGitError extends Schema.TaggedErrorClass<UpstreamSyncGi
   }
 }
 
-export class UpstreamSyncStateError extends Schema.TaggedErrorClass<UpstreamSyncStateError>()(
+export class UpstreamSyncStateError extends Schema.TaggedError<UpstreamSyncStateError>()(
   "UpstreamSyncStateError",
   {
     rule: Schema.String,
