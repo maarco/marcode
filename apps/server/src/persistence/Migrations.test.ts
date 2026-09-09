@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest";
 
 import { migrationEntries } from "./Migrations.ts";
 import {
+  defineMarcodeMigration,
   MARCODE_MIGRATION_ID_START,
   marcodeMigrationEntries,
   validateMarcodeMigrationEntries,
@@ -57,4 +58,17 @@ it("reserves a separate high-numbered namespace for future Marcode migrations", 
     migrationEntries.slice(0, 49).map(([id]) => id),
     Array.from({ length: 49 }, (_, index) => index + 1),
   );
+});
+
+it("refuses Marcode migration ids that reach into the deployed namespace", () => {
+  // The helper is the guard rail for the next Marcode migration: keeping it
+  // covered means the reserved-id boundary cannot be quietly widened, and knip's
+  // server-export scope sees a real consumer.
+  assert.deepStrictEqual(defineMarcodeMigration(MARCODE_MIGRATION_ID_START, "Example", "effect"), [
+    MARCODE_MIGRATION_ID_START,
+    "Example",
+    "effect",
+  ]);
+  assert.throws(() => defineMarcodeMigration(MARCODE_MIGRATION_ID_START - 1, "TooLow", "effect"));
+  assert.throws(() => defineMarcodeMigration(9000.5, "NotAnInteger", "effect"));
 });
