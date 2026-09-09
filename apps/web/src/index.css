@@ -817,6 +817,13 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     align-items: center;
   }
 
+  /* FloatingPillNav is mounted outside the app shell and fixed to the viewport.
+     Keep the shared page headers below its measured footprint while it is
+     docked at the top, including sidebarless settings and pull requests. */
+  html[data-floating-pill-nav-top="true"] [data-marcode-workspace-header] {
+    margin-top: var(--marcode-floating-pill-nav-top-inset);
+  }
+
   /* Mentiko's decision header pattern: the animated GIF is the fill, and the
      browser clips that fill to each glyph. Keep the filter monochrome so the
      movement reads as light in the dark thread shell instead of as a neon blob. */

@@ -44,6 +44,11 @@ import {
   clearFloatingShellGeometry,
   scheduleFloatingShellGeometry,
 } from "../floatingShellGeometry";
+import {
+  FLOATING_PILL_NAV_TOP_INSET_ATTRIBUTE,
+  FLOATING_PILL_NAV_TOP_INSET_VARIABLE,
+  resolveFloatingPillNavTopInset,
+} from "../floatingShellLayout";
 
 export const TOGGLE_COMMAND_PALETTE_EVENT = "marcode:toggle-command-palette";
 // workspace children dispatch these; ChatView (surfaces) and SidebarControl (sidebar) listen
@@ -703,16 +708,30 @@ export function FloatingPillNav() {
     edge: "top" as SnapEdge,
     scale: 1,
     isMobile: false,
+    isDragging: false,
   });
   geometryMeta.current = {
     edge: isDragging ? edgeProximity.edge : position.edge,
     scale: pillScale,
     isMobile,
+    isDragging,
   };
   const publishGeometry = useCallback(() => {
     const element = pillRef.current;
     if (!element) return;
     const rect = element.getBoundingClientRect();
+    const root = document.documentElement;
+    const topInset = resolveFloatingPillNavTopInset({
+      ...geometryMeta.current,
+      bottom: rect.bottom,
+    });
+    if (topInset !== null) {
+      root.style.setProperty(FLOATING_PILL_NAV_TOP_INSET_VARIABLE, topInset);
+      root.setAttribute(FLOATING_PILL_NAV_TOP_INSET_ATTRIBUTE, "true");
+    } else {
+      root.style.removeProperty(FLOATING_PILL_NAV_TOP_INSET_VARIABLE);
+      root.removeAttribute(FLOATING_PILL_NAV_TOP_INSET_ATTRIBUTE);
+    }
     scheduleFloatingShellGeometry({
       rect: {
         top: rect.top,
@@ -722,7 +741,9 @@ export function FloatingPillNav() {
         width: rect.width,
         height: rect.height,
       },
-      ...geometryMeta.current,
+      edge: geometryMeta.current.edge,
+      scale: geometryMeta.current.scale,
+      isMobile: geometryMeta.current.isMobile,
     });
   }, []);
   const { prefs: pillPrefs } = usePillNavPreferences();
@@ -743,16 +764,22 @@ export function FloatingPillNav() {
     if (!element) return;
 
     const onResize = () => publishGeometry();
+    const onTransitionEnd = () => publishGeometry();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(onResize);
     observer?.observe(element);
     window.addEventListener("resize", onResize);
     window.visualViewport?.addEventListener("resize", onResize);
+    element.addEventListener("transitionend", onTransitionEnd);
 
     return () => {
       observer?.disconnect();
       window.removeEventListener("resize", onResize);
       window.visualViewport?.removeEventListener("resize", onResize);
+      element.removeEventListener("transitionend", onTransitionEnd);
       clearFloatingShellGeometry();
+      const root = document.documentElement;
+      root.style.removeProperty(FLOATING_PILL_NAV_TOP_INSET_VARIABLE);
+      root.removeAttribute(FLOATING_PILL_NAV_TOP_INSET_ATTRIBUTE);
     };
   }, [publishGeometry]);
 
