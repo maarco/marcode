@@ -426,17 +426,22 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
     const flatAddActionControl =
       importableScripts.length > 0 ? (
         <Menu highlightItemOnHover={false}>
-          <MenuTrigger
+          <PillNavHoverCard
+            metaKey="thread:add-action"
             render={
-              <button
-                type="button"
-                className={pillIconButtonClass()}
-                aria-label="Project actions"
-              />
+              <MenuTrigger
+                render={
+                  <button
+                    type="button"
+                    className={pillIconButtonClass()}
+                    aria-label="Project actions"
+                  />
+                }
+              >
+                <AddFilled className="size-4" />
+              </MenuTrigger>
             }
-          >
-            <AddFilled className="size-4" />
-          </MenuTrigger>
+          />
           <MenuPopup align="end">
             {importMenuItems}
             <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>

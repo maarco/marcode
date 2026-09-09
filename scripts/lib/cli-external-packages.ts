@@ -48,6 +48,12 @@ export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   // becoming real if either is ever declared as a dependency.
   "bufferutil",
   "utf-8-validate",
+  // AgentSessionJson imports these package subpaths directly. The packer
+  // leaves those imports external when it cannot resolve the package from the
+  // workspace install, so keep the pair in the staged runtime closure rather
+  // than shipping a bundle that dies before the desktop window appears.
+  "stream-chain",
+  "stream-json",
 ] as const;
 
 /**

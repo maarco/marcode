@@ -55,6 +55,12 @@ describe("shouldBundleCliDependency", () => {
     }
   });
 
+  it("leaves server packages with bare emitted subpath imports external", () => {
+    for (const id of ["stream-chain/defs.js", "stream-json/core/parser.js"]) {
+      assert.strictEqual(shouldBundleCliDependency(id), false, id);
+    }
+  });
+
   it("leaves bun-only entry points external", () => {
     assert.strictEqual(shouldBundleCliDependency("@effect/platform-bun"), false);
     assert.strictEqual(shouldBundleCliDependency("@effect/sql-sqlite-bun"), false);
@@ -87,7 +93,7 @@ describe("selectCliRuntimeExternalDependencies", () => {
   it("selects every external root declared by the server", () => {
     assert.deepStrictEqual(
       Object.keys(selectCliRuntimeExternalDependencies(serverPackageJson.dependencies)).sort(),
-      ["@ff-labs/fff-node", "msgpackr-extract", "node-pty"],
+      ["@ff-labs/fff-node", "msgpackr-extract", "node-pty", "stream-chain", "stream-json"],
     );
   });
 });

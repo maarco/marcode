@@ -61,6 +61,8 @@ import {
   resolveMockUpdateServerPort,
   resolveMockUpdateServerUrl,
   resolvePackageManagerUserAgent,
+  findMacPackagedAsar,
+  validateMacPackagedPayload,
   stageLinuxIconSize,
   stageDesktopDmgBackground,
   stageMacIcons,
@@ -718,6 +720,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
           "@pierre/diffs": "1.3.0",
           "msgpackr-extract": "3.0.4",
           "node-pty": "1.1.0",
+          "stream-chain": "4.2.5",
+          "stream-json": "3.6.0",
         },
         desktopDependencies: {
           "@clerk/electron": "0.0.34",
@@ -730,6 +734,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         "@ff-labs/fff-node": "0.9.4",
         "msgpackr-extract": "3.0.4",
         "node-pty": "1.1.0",
+        "stream-chain": "4.2.5",
+        "stream-json": "3.6.0",
         "@clerk/electron": "0.0.34",
         effect: "4.0.0-beta.103",
         "@ff-labs/fff-bin-darwin-arm64": "0.9.4",
@@ -1061,6 +1067,37 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   // The fixture's t3code.exe is a text placeholder, not an executable. These
   // cases reach the native-load probe, so pin only that host-platform check to
   // Linux. Host-native paths and the real Windows tar/archive checks still run.
+  it.effect("validates the macOS app archive before the DMG is published", () =>
+    Effect.scoped(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const fixture = yield* makeWindowsPayloadFixture({ copyUnpackedNatives: true });
+        const stageDistDir = yield* fs.makeTempDirectoryScoped({
+          prefix: "t3-mac-packaged-payload-test-",
+        });
+        const asarPath = path.join(
+          stageDistDir,
+          "mac-arm64",
+          "Marcode.app",
+          "Contents",
+          "Resources",
+          "app.asar",
+        );
+        yield* fs.makeDirectory(path.dirname(asarPath), { recursive: true });
+        yield* fs.copyFile(fixture.generatedAsarPath, asarPath);
+        yield* fs.copy(`${fixture.generatedAsarPath}.unpacked`, `${asarPath}.unpacked`);
+
+        assert.equal(yield* findMacPackagedAsar(stageDistDir), asarPath);
+        const result = yield* validateMacPackagedPayload({
+          stageDistDir,
+          verbose: false,
+        });
+        assert.equal(result.asarPath, asarPath);
+      }),
+    ),
+  );
+
   it.effect("validates every ASAR-unpacked native in the packaged Windows payload", () =>
     Effect.scoped(
       Effect.gen(function* () {

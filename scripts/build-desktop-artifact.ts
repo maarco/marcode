@@ -596,7 +596,7 @@ export class BundleNotSelfContainedError extends Schema.TaggedErrorClass<BundleN
   { exitCode: Schema.Number, output: Schema.String },
 ) {
   override get message(): string {
-    return `The packaged server bundle could not load from the isolated, extracted sidecar (exit ${this.exitCode}). Anything it imports that is neither a Node built-in nor in the selected runtime-external closure is unavailable to both backends. Output:
+    return `The packaged server bundle could not load from the isolated, extracted app archive (exit ${this.exitCode}). Anything it imports that is neither a Node built-in nor in the selected runtime-external closure is unavailable to the backend. Output:
 ${this.output}`;
   }
 }
@@ -2148,6 +2148,54 @@ const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBundleIsSel
           ),
       }),
     );
+  },
+);
+
+/** Find the macOS .app archive produced alongside the DMG in electron-builder's output. */
+export const findMacPackagedAsar = Effect.fn("findMacPackagedAsar")(function* (
+  stageDistDir: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const pendingDirectories = [stageDistDir];
+
+  while (pendingDirectories.length > 0) {
+    const directory = pendingDirectories.pop();
+    if (directory === undefined) break;
+
+    for (const entry of yield* fs.readDirectory(directory)) {
+      const entryPath = path.join(directory, entry);
+      const stat = yield* fs.stat(entryPath).pipe(Effect.orElseSucceed(() => null));
+      if (stat?.type !== "Directory") continue;
+
+      if (entry.endsWith(".app")) {
+        const asarPath = path.join(entryPath, "Contents", "Resources", "app.asar");
+        if (yield* fs.exists(asarPath).pipe(Effect.orElseSucceed(() => false))) return asarPath;
+        continue;
+      }
+
+      pendingDirectories.push(entryPath);
+    }
+  }
+
+  return null;
+});
+
+export const validateMacPackagedPayload = Effect.fn("validateMacPackagedPayload")(
+  function* (input: { readonly stageDistDir: string; readonly verbose: boolean }) {
+    const asarPath = yield* findMacPackagedAsar(input.stageDistDir);
+    if (asarPath === null) {
+      return yield* new BundleNotSelfContainedError({
+        exitCode: -1,
+        output: `Expected an app.asar under a packaged macOS .app in ${input.stageDistDir}.`,
+      });
+    }
+
+    yield* verifyPackagedBundleIsSelfContained({
+      asarPath,
+      verbose: input.verbose,
+    });
+    return { asarPath } as const;
   },
 );
 
@@ -3850,8 +3898,8 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
     });
   }
 
-  // Prove the packaged bundle is self-contained by loading it the way the WSL
-  // backend does, rather than by reasoning about the emitted source.
+  // Prove the packaged bundle is self-contained by loading it the way the
+  // desktop/WSL backend does, rather than by reasoning about the emitted source.
   //
   // Static analysis kept getting this wrong here. Scanning for bare imports
   // matched specifiers inside effect's JSDoc examples and inside ajv's runtime
@@ -3859,9 +3907,9 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
   // missed a build that inlined `effect` while leaving `yaml` external. Node's
   // resolver has no such ambiguity: it either finds every import or it does not.
   //
-  // Only Windows unpacks anything; macOS and Linux keep the whole tree inside
-  // the app asar. Windows validates and executes the separately packed server
-  // sidecar after electron-builder copies it into the final payload.
+  // Windows validates and executes the separately packed server sidecar after
+  // electron-builder copies it into the final payload. macOS validates the
+  // app.asar embedded in the generated .app before the DMG is copied out.
   if (options.platform === "win") {
     yield* validateWindowsPackagedPayload({
       stageDistDir,
@@ -3871,6 +3919,11 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
         arch: options.arch,
         prebuildPath: options.wslPrebuild,
       }),
+      verbose: options.verbose,
+    });
+  } else if (options.platform === "mac") {
+    yield* validateMacPackagedPayload({
+      stageDistDir,
       verbose: options.verbose,
     });
   }
