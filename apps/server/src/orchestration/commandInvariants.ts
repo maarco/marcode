@@ -34,7 +34,7 @@ function findThreadById(
   return readModel.threads.find((thread) => thread.id === threadId);
 }
 
-export function findProjectById(
+function findProjectById(
   readModel: OrchestrationReadModel,
   projectId: ProjectId,
 ): OrchestrationProject | undefined {
@@ -216,7 +216,7 @@ export function isLiveWorkspaceResourceItemId(id: string): boolean {
  * same convention back out into a typed `ProjectWorkspaceLayoutRejection`.
  * Keep both sides in sync if this wire convention ever changes.
  */
-export function workspaceLayoutRejectionDetail(rejection: {
+function workspaceLayoutRejectionDetail(rejection: {
   readonly tag: ProjectWorkspaceLayoutErrorTag;
   readonly message: string;
   readonly currentVersion?: ProjectWorkspaceLayoutVersion;
@@ -329,7 +329,7 @@ export function findWorkspaceLayoutEntryById(
 }
 
 /** Searches every project's layout — used only to distinguish "missing" from "cross-project". */
-export function findWorkspaceLayoutEntryInAnyProject(
+function findWorkspaceLayoutEntryInAnyProject(
   readModel: OrchestrationReadModel,
   itemId: ProjectWorkspaceItemId,
 ): { readonly projectId: ProjectId; readonly entry: ProjectWorkspaceEntry } | undefined {
@@ -343,7 +343,7 @@ export function findWorkspaceLayoutEntryInAnyProject(
 }
 
 /** Commands and URL shortcuts are leaves in v1; every other kind can host children. */
-export function isWorkspaceLayoutContainerKind(kind: ProjectWorkspaceEntry["kind"]): boolean {
+function isWorkspaceLayoutContainerKind(kind: ProjectWorkspaceEntry["kind"]): boolean {
   return kind !== "command" && kind !== "url";
 }
 

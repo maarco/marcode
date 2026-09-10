@@ -5,6 +5,10 @@ export const MARCODE_RIGHT_PANEL_KINDS = [
   "preview",
   "terminal",
   "pull-request",
+  // Upstream's thread-linked pull request list (d29c56a5). Distinct from the
+  // repo-wide list panel Marcode retired in v11: that one is a full page here,
+  // this one is the thread's own linked PRs beside its `pull-request` tabs.
+  "pull-requests",
   "agents",
 ] as const;
 

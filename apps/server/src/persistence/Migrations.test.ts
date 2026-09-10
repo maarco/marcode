@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest";
 
 import { migrationEntries } from "./Migrations.ts";
 import {
+  defineMarcodeMigration,
   MARCODE_MIGRATION_ID_START,
   marcodeMigrationEntries,
   validateMarcodeMigrationEntries,
@@ -16,7 +17,7 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   // deployed range explicitly so future 9000+ Marcode entries do not change
   // what this compatibility assertion covers.
   assert.deepStrictEqual(
-    migrationEntries.filter(([id]) => id >= 33 && id <= 49).map(([id, name]) => [id, name]),
+    migrationEntries.filter(([id]) => id >= 33 && id <= 51).map(([id, name]) => [id, name]),
     [
       [33, "ProjectWorkspaceLayout"],
       [34, "ProjectionThreadsSettled"],
@@ -39,6 +40,10 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
       [48, "ProjectionProjectIcon"],
       // Added by the 223ff449 sync as upstream's 048.
       [49, "ProjectionThreadBranchPullRequest"],
+      // Added by the 6c583620 sync as upstream's 049.
+      [50, "ProjectionThreadsActiveOrderKey"],
+      // Added by the d29c56a5 sync as upstream's 050.
+      [51, "ProjectionThreadPullRequests"],
     ],
   );
 
@@ -57,4 +62,17 @@ it("reserves a separate high-numbered namespace for future Marcode migrations", 
     migrationEntries.slice(0, 49).map(([id]) => id),
     Array.from({ length: 49 }, (_, index) => index + 1),
   );
+});
+
+it("refuses Marcode migration ids that reach into the deployed namespace", () => {
+  // The helper is the guard rail for the next Marcode migration: keeping it
+  // covered means the reserved-id boundary cannot be quietly widened, and knip's
+  // server-export scope sees a real consumer.
+  assert.deepStrictEqual(defineMarcodeMigration(MARCODE_MIGRATION_ID_START, "Example", "effect"), [
+    MARCODE_MIGRATION_ID_START,
+    "Example",
+    "effect",
+  ]);
+  assert.throws(() => defineMarcodeMigration(MARCODE_MIGRATION_ID_START - 1, "TooLow", "effect"));
+  assert.throws(() => defineMarcodeMigration(9000.5, "NotAnInteger", "effect"));
 });

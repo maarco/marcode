@@ -87,6 +87,7 @@ import { serverEnvironment } from "../state/server";
 import { previewEnvironment } from "../state/preview";
 import { terminalEnvironment } from "../state/terminal";
 import { openTerminalLinkInPreview } from "./preview/openTerminalLinkInPreview";
+import { stackedThreadToast, toastManager } from "./ui/toast";
 import { useAtomCommand } from "../state/use-atom-command";
 import {
   resolveTerminalFontPreference,
@@ -888,6 +889,18 @@ export function TerminalViewport({
                   threadRef,
                   openPreview,
                   fallbackToBrowser,
+                  // Upstream #10060: cmd/ctrl-click bypasses the in-app preview
+                  // preference. Marcode keeps its own link provider, so the
+                  // override is applied here rather than on onLinkActivate.
+                  forceBrowser: event.metaKey || event.ctrlKey,
+                }).catch((error: unknown) => {
+                  toastManager.add(
+                    stackedThreadToast({
+                      type: "error",
+                      title: "Unable to open link",
+                      description: error instanceof Error ? error.message : "An error occurred.",
+                    }),
+                  );
                 });
                 return;
               }
