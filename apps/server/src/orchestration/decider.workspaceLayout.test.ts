@@ -66,6 +66,7 @@ function baseThread(input: {
     activities: [],
     proposedPlans: [],
     checkpoints: [],
+    pullRequests: [],
     deletedAt: input.deletedAt ?? null,
   };
 }

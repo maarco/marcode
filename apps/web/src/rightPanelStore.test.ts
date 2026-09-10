@@ -2,6 +2,8 @@ import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { type EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { beforeEach, describe, expect, it } from "vite-plus/test";
 
+import { isRetiredRightPanelSurfaceKind } from "./marcodeRightPanelPolicy";
+
 import {
   migratePersistedRightPanelState,
   pullRequestSurface,
@@ -385,6 +387,20 @@ describe("rightPanelStore", () => {
     expect(RIGHT_PANEL_KINDS).not.toContain("plan");
   });
 
+  // The d29c56a5 sync adopted upstream's thread-linked pull request surface.
+  // It reuses the "pull-requests" kind id that Marcode's v11 migration retired
+  // for the repo-wide list panel, so pin the adoption: dropping the kind again
+  // would leave `open(ref, "pull-requests")` and ThreadPullRequestsPanel with
+  // no surface to render, and the retired-kind sweep must keep ignoring it.
+  it("exposes upstream's thread-linked pull request surface", () => {
+    expect(RIGHT_PANEL_KINDS).toContain("pull-requests");
+    expect(isRetiredRightPanelSurfaceKind("pull-requests")).toBe(false);
+    useRightPanelStore.getState().open(refA, "pull-requests");
+    expect(
+      selectSelectedRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA),
+    ).toEqual({ id: "pull-requests", kind: "pull-requests" });
+  });
+
   it("close hides the panel without clearing its selected surface", () => {
     useRightPanelStore.getState().open(refA, "agents");
     useRightPanelStore.getState().close(refA);
@@ -472,6 +488,18 @@ describe("rightPanelStore", () => {
       selectActiveRightPanelSurface(useRightPanelStore.getState().byThreadKey, refA),
     ).toMatchObject({ url });
     expect(state.surfaces[1]).not.toHaveProperty("url");
+  });
+
+  it("keeps matching repository and number on different hosts as separate tabs", () => {
+    const first = { projectId: "project-a", repository: "acme/api", number: 7, host: "github.com" };
+    const second = { ...first, host: "github.example.com" };
+    useRightPanelStore.getState().openPullRequest(refA, first);
+    useRightPanelStore.getState().openPullRequest(refA, second);
+    const state = selectThreadRightPanelState(useRightPanelStore.getState().byThreadKey, refA);
+    expect(state.surfaces).toEqual([pullRequestSurface(first), pullRequestSurface(second)]);
+    expect(pullRequestSurfaceId({ ...first, host: "GITHUB.COM" })).toBe(
+      pullRequestSurfaceId(first),
+    );
   });
 
   it("keeps one pull request read from two servers as two tabs", () => {

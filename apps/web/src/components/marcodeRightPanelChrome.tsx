@@ -3,6 +3,7 @@ import {
   ChevronDown,
   FileDiff,
   GitPullRequest,
+  GitPullRequestArrow,
   Globe2,
   Plus,
   TerminalSquare,
@@ -38,6 +39,7 @@ const SURFACE_DISABLED_REASONS = {
   terminal: "Terminal surfaces are only available from a project thread.",
   diff: "Diff is only available for server threads in Git repositories.",
   pullRequest: "This thread's branch has no pull request yet.",
+  pullRequests: "Linked pull requests are only available for server threads.",
   agents: "Agents are only available from a thread.",
 } as const;
 
@@ -58,6 +60,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   terminal: "Available when a project is open.",
   diff: "Available for Git repositories.",
   pullRequest: "No pull request on this branch yet.",
+  pullRequests: "Available for server threads.",
   agents: "Available from a thread.",
 } as const;
 
@@ -134,11 +137,13 @@ export function MarcodeRightPanelAddMenu(props: {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -174,6 +179,14 @@ export function MarcodeRightPanelAddMenu(props: {
       available: props.pullRequestAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.pullRequest,
       onClick: props.onAddPullRequest,
+    },
+    {
+      label: "Linked pull requests",
+      icon: GitPullRequestArrow,
+      shortcut: "L",
+      available: props.pullRequestsAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.pullRequests,
+      onClick: props.onAddPullRequests,
     },
     {
       label: "Agents",
@@ -287,11 +300,13 @@ export function MarcodeRightPanelEmptyState(props: {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
   liveAgentCount: number;
 }) {
@@ -335,6 +350,16 @@ export function MarcodeRightPanelEmptyState(props: {
       available: props.pullRequestAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.pullRequest,
       onClick: props.onAddPullRequest,
+      badgeCount: 0,
+    },
+    {
+      label: "Linked pull requests",
+      description: "Every pull request this thread has linked, stacks included.",
+      icon: GitPullRequestArrow,
+      shortcut: "L",
+      available: props.pullRequestsAvailable,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.pullRequests,
+      onClick: props.onAddPullRequests,
       badgeCount: 0,
     },
     {

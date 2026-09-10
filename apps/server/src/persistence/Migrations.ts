@@ -69,6 +69,9 @@ import Migration0049 from "./Migrations/049_ProjectionThreadBranchPullRequest.ts
 // Upstream 049_ProjectionThreadsActiveOrderKey arrives as Marcode 050 so the
 // already-applied Marcode 049 id remains immutable.
 import Migration0050 from "./Migrations/050_ProjectionThreadsActiveOrderKey.ts";
+// Upstream 050_ProjectionThreadPullRequests arrives as Marcode 051, one past
+// the Marcode-offset tail, for the same reason.
+import Migration0051 from "./Migrations/051_ProjectionThreadPullRequests.ts";
 import { marcodeMigrationEntries } from "./marcodeMigrations.ts";
 
 /**
@@ -137,6 +140,7 @@ const deployedMigrationEntries = [
   [48, "ProjectionProjectIcon", Migration0048],
   [49, "ProjectionThreadBranchPullRequest", Migration0049],
   [50, "ProjectionThreadsActiveOrderKey", Migration0050],
+  [51, "ProjectionThreadPullRequests", Migration0051],
 ] as const;
 
 export const migrationEntries = [...deployedMigrationEntries, ...marcodeMigrationEntries] as const;
