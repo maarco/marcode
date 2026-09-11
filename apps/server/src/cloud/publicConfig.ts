@@ -49,21 +49,23 @@ function normalizeSecureUrl(value: string): string | null {
   }
 }
 
-export const buildTimeRelayUrl =
+// ── Marcode fork seam ── the build-time defines are __MARCODE_BUILD_*; the
+// upstream __T3CODE_BUILD_* spellings are never injected by this build.
+const buildTimeRelayUrl =
   typeof __MARCODE_BUILD_RELAY_URL__ === "undefined"
     ? ""
     : (normalizeSecureRelayUrl(__MARCODE_BUILD_RELAY_URL__) ?? "");
-export const buildTimeClerkPublishableKey = readBuildTimeValue(
+const buildTimeClerkPublishableKey = readBuildTimeValue(
   typeof __MARCODE_BUILD_CLERK_PUBLISHABLE_KEY__ === "undefined"
     ? undefined
     : __MARCODE_BUILD_CLERK_PUBLISHABLE_KEY__,
 );
-export const buildTimeClerkCliOAuthClientId = readBuildTimeValue(
+const buildTimeClerkCliOAuthClientId = readBuildTimeValue(
   typeof __MARCODE_BUILD_CLERK_CLI_OAUTH_CLIENT_ID__ === "undefined"
     ? undefined
     : __MARCODE_BUILD_CLERK_CLI_OAUTH_CLIENT_ID__,
 );
-export const buildTimeRelayClientTracing = {
+const buildTimeRelayClientTracing = {
   tracesUrl: readBuildTimeValue(
     typeof __MARCODE_BUILD_RELAY_CLIENT_OTLP_TRACES_URL__ === "undefined"
       ? undefined

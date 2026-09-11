@@ -66,6 +66,8 @@ function baseThread(input: {
     activities: [],
     proposedPlans: [],
     checkpoints: [],
+    // Upstream's multi-PR thread linking made this a required field.
+    pullRequests: [],
     deletedAt: input.deletedAt ?? null,
   };
 }

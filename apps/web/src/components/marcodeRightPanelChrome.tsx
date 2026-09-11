@@ -3,8 +3,10 @@ import {
   ChevronDown,
   FileDiff,
   GitPullRequest,
+  GitPullRequestArrow,
   Globe2,
   Plus,
+  Smartphone,
   TerminalSquare,
 } from "lucide-react";
 import {
@@ -38,7 +40,9 @@ const SURFACE_DISABLED_REASONS = {
   terminal: "Terminal surfaces are only available from a project thread.",
   diff: "Diff is only available for server threads in Git repositories.",
   pullRequest: "This thread's branch has no pull request yet.",
+  pullRequests: "Linked pull requests are only available for server threads.",
   agents: "Agents are only available from a thread.",
+  device: "Devices are only available from a thread.",
 } as const;
 
 /** Overlays that must win over the launcher's letter shortcuts. */
@@ -58,7 +62,9 @@ const SURFACE_UNAVAILABLE_HINTS = {
   terminal: "Available when a project is open.",
   diff: "Available for Git repositories.",
   pullRequest: "No pull request on this branch yet.",
+  pullRequests: "Available for server threads.",
   agents: "Available from a thread.",
+  device: "Available from a thread.",
 } as const;
 
 export function shouldOpenDefaultBrowserProfileFromMenuClick(
@@ -134,12 +140,16 @@ export function MarcodeRightPanelAddMenu(props: {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
+  onAddDevice: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
+  deviceAvailable: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const actions = [
@@ -176,12 +186,28 @@ export function MarcodeRightPanelAddMenu(props: {
       onClick: props.onAddPullRequest,
     },
     {
+      label: "Linked pull requests",
+      icon: GitPullRequestArrow,
+      shortcut: "L",
+      available: props.pullRequestsAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.pullRequests,
+      onClick: props.onAddPullRequests,
+    },
+    {
       label: "Agents",
       icon: Bot,
       shortcut: "A",
       available: props.agentsAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.agents,
       onClick: props.onAddAgents,
+    },
+    {
+      label: "Device",
+      icon: Smartphone,
+      shortcut: "M",
+      available: props.deviceAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.device,
+      onClick: props.onAddDevice,
     },
   ] as const;
 
@@ -287,12 +313,16 @@ export function MarcodeRightPanelEmptyState(props: {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
+  onAddDevice: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
+  deviceAvailable: boolean;
   liveAgentCount: number;
 }) {
   const [highlight, setHighlight] = useState(-1);
@@ -338,6 +368,16 @@ export function MarcodeRightPanelEmptyState(props: {
       badgeCount: 0,
     },
     {
+      label: "Linked Pull Requests",
+      description: "Open the pull requests linked to this thread.",
+      icon: GitPullRequestArrow,
+      shortcut: "L",
+      available: props.pullRequestsAvailable,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.pullRequests,
+      onClick: props.onAddPullRequests,
+      badgeCount: 0,
+    },
+    {
       label: "Agents",
       description: "Follow subagents and workflows.",
       icon: Bot,
@@ -346,6 +386,16 @@ export function MarcodeRightPanelEmptyState(props: {
       disabledReason: SURFACE_UNAVAILABLE_HINTS.agents,
       onClick: props.onAddAgents,
       badgeCount: props.liveAgentCount,
+    },
+    {
+      label: "Device",
+      description: "Drive a connected simulator or emulator.",
+      icon: Smartphone,
+      shortcut: "M",
+      available: props.deviceAvailable,
+      disabledReason: SURFACE_UNAVAILABLE_HINTS.device,
+      onClick: props.onAddDevice,
+      badgeCount: 0,
     },
   ] as const;
   type SurfaceAction = (typeof actions)[number];

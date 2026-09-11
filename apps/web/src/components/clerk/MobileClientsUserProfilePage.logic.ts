@@ -1,4 +1,5 @@
 import type { RelayClientDeviceRecord } from "@t3tools/contracts/relay";
+import { MARCODE_PRODUCT_NAME } from "@t3tools/shared/forkIdentity";
 
 const mobileClientUpdatedAtFormatter = new Intl.DateTimeFormat(undefined, {
   dateStyle: "medium",
@@ -15,7 +16,13 @@ const NOTIFICATION_PREFERENCES = [
 >;
 
 export function mobileClientPlatformLabel(device: RelayClientDeviceRecord): string {
-  return `iOS ${device.iosMajorVersion}${device.appVersion ? ` · Marcode ${device.appVersion}` : ""}`;
+  const platform =
+    device.platform === "android"
+      ? "Android"
+      : device.iosMajorVersion === null
+        ? "iOS"
+        : `iOS ${device.iosMajorVersion}`;
+  return `${platform}${device.appVersion ? ` · ${MARCODE_PRODUCT_NAME} ${device.appVersion}` : ""}`;
 }
 
 export function mobileClientNotificationDetail(device: RelayClientDeviceRecord): string {

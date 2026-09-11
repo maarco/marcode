@@ -69,6 +69,9 @@ import Migration0049 from "./Migrations/049_ProjectionThreadBranchPullRequest.ts
 // Upstream 049_ProjectionThreadsActiveOrderKey arrives as Marcode 050 so the
 // already-applied Marcode 049 id remains immutable.
 import Migration0050 from "./Migrations/050_ProjectionThreadsActiveOrderKey.ts";
+// Upstream 050_ProjectionThreadPullRequests arrives as Marcode 051 for the
+// same reason; the file was renamed to match its deployed id.
+import Migration0051 from "./Migrations/051_ProjectionThreadPullRequests.ts";
 import { marcodeMigrationEntries } from "./marcodeMigrations.ts";
 
 /**
@@ -137,13 +140,14 @@ const deployedMigrationEntries = [
   [48, "ProjectionProjectIcon", Migration0048],
   [49, "ProjectionThreadBranchPullRequest", Migration0049],
   [50, "ProjectionThreadsActiveOrderKey", Migration0050],
+  [51, "ProjectionThreadPullRequests", Migration0051],
 ] as const;
 
 export const migrationEntries = [...deployedMigrationEntries, ...marcodeMigrationEntries] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
-export const makeMigrationLoader = (throughId?: number) =>
+const makeMigrationLoader = (throughId?: number) =>
   Migrator.fromRecord(
     Object.fromEntries(
       migrationEntries

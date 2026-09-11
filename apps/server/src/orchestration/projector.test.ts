@@ -1,6 +1,8 @@
 import {
   CommandId,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EventId,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   ProviderDriverKind,
   ThreadId,
@@ -86,6 +88,7 @@ describe("orchestration projector", () => {
         interactionMode: "default",
         branch: null,
         worktreePath: null,
+        pullRequests: [],
         branchPullRequest: null,
         latestTurn: null,
         createdAt: now,
@@ -117,7 +120,34 @@ describe("orchestration projector", () => {
         commandId: null,
       };
       let model = yield* projectEvent(
-        createEmptyReadModel(now),
+        {
+          ...createEmptyReadModel(now),
+          projects: [
+            {
+              id: ProjectId.make("project-1"),
+              title: "T3 Code",
+              workspaceRoot: "/repo",
+              defaultModelSelection: null,
+              scripts: [],
+              // Marcode's unified workspace tree adds these to the project shell.
+              workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+              workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+              createdAt: now,
+              updatedAt: now,
+              deletedAt: null,
+              repositoryIdentity: {
+                canonicalKey: "github.com/pingdotgg/t3code",
+                provider: "github",
+                displayName: "pingdotgg/t3code",
+                locator: {
+                  source: "git-remote",
+                  remoteName: "origin",
+                  remoteUrl: "https://github.com/pingdotgg/t3code.git",
+                },
+              },
+            },
+          ],
+        },
         makeEvent({
           ...eventFields,
           sequence: 1,

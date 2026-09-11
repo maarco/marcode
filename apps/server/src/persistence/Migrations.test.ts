@@ -2,6 +2,7 @@ import { assert, it } from "@effect/vitest";
 
 import { migrationEntries } from "./Migrations.ts";
 import {
+  defineMarcodeMigration,
   MARCODE_MIGRATION_ID_START,
   marcodeMigrationEntries,
   validateMarcodeMigrationEntries,
@@ -16,7 +17,7 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   // deployed range explicitly so future 9000+ Marcode entries do not change
   // what this compatibility assertion covers.
   assert.deepStrictEqual(
-    migrationEntries.filter(([id]) => id >= 33 && id <= 49).map(([id, name]) => [id, name]),
+    migrationEntries.filter(([id]) => id >= 33 && id <= 51).map(([id, name]) => [id, name]),
     [
       [33, "ProjectWorkspaceLayout"],
       [34, "ProjectionThreadsSettled"],
@@ -39,6 +40,11 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
       [48, "ProjectionProjectIcon"],
       // Added by the 223ff449 sync as upstream's 048.
       [49, "ProjectionThreadBranchPullRequest"],
+      // Added by the 52b2bf77 sync as upstream's 049.
+      [50, "ProjectionThreadsActiveOrderKey"],
+      // Added by the 26894dda sync as upstream's 050; the file was renamed to
+      // 051_ProjectionThreadPullRequests.ts so the id and filename agree.
+      [51, "ProjectionThreadPullRequests"],
     ],
   );
 
@@ -57,4 +63,16 @@ it("reserves a separate high-numbered namespace for future Marcode migrations", 
     migrationEntries.slice(0, 49).map(([id]) => id),
     Array.from({ length: 49 }, (_, index) => index + 1),
   );
+});
+
+it("refuses to define a Marcode migration inside the deployed id range", () => {
+  // The registry is empty today, so this is the only exercise of the guard that
+  // keeps a future Marcode migration from colliding with deployed history.
+  const entry = defineMarcodeMigration(MARCODE_MIGRATION_ID_START, "Example", "migration");
+  assert.deepStrictEqual(entry, [MARCODE_MIGRATION_ID_START, "Example", "migration"]);
+  validateMarcodeMigrationEntries([entry]);
+
+  assert.throws(() => defineMarcodeMigration(51, "Collides", "migration"));
+  assert.throws(() => defineMarcodeMigration(MARCODE_MIGRATION_ID_START - 1, "Below", "migration"));
+  assert.throws(() => defineMarcodeMigration(9000.5, "NotAnInteger", "migration"));
 });
