@@ -1,4 +1,6 @@
 import {
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   ProviderInstanceId,
   PullRequestOperationError,
@@ -53,6 +55,9 @@ function makeProject(id: ProjectId = PROJECT_ID): OrchestrationProjectShell {
     workspaceRoot: "/workspace/project",
     defaultModelSelection: null,
     scripts: [],
+    // Marcode's unified workspace tree adds these to the project shell.
+    workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+    workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: NOW,
   };

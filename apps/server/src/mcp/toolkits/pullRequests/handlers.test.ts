@@ -1,5 +1,7 @@
 import {
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EnvironmentId,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   ProviderInstanceId,
   ThreadId,
@@ -66,6 +68,9 @@ function makeProject(
     workspaceRoot: "/workspace/project",
     defaultModelSelection: null,
     scripts: [],
+    // Marcode's unified workspace tree adds these to the project shell.
+    workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+    workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
     repositoryIdentity,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",

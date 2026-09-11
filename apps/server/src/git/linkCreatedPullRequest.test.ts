@@ -1,5 +1,7 @@
 import {
   CommandId,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   ProviderInstanceId,
   ThreadId,
@@ -33,6 +35,9 @@ const project: OrchestrationProjectShell = {
   workspaceRoot: "/workspace/project",
   defaultModelSelection: null,
   scripts: [],
+  // Marcode's unified workspace tree adds these to the project shell.
+  workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+  workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
   repositoryIdentity: {
     canonicalKey: "github.acme.test/platform/api",
     locator: {

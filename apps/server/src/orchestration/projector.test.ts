@@ -1,6 +1,8 @@
 import {
   CommandId,
+  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EventId,
+  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
   ProjectId,
   ProviderDriverKind,
   ThreadId,
@@ -127,6 +129,9 @@ describe("orchestration projector", () => {
               workspaceRoot: "/repo",
               defaultModelSelection: null,
               scripts: [],
+              // Marcode's unified workspace tree adds these to the project shell.
+              workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
+              workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
               createdAt: now,
               updatedAt: now,
               deletedAt: null,
