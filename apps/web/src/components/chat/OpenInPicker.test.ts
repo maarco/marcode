@@ -1,4 +1,4 @@
-import { FolderClosedIcon } from "lucide-react";
+import { FolderOpenFilled } from "@aliimam/icons";
 import { describe, expect, it } from "vite-plus/test";
 
 import { FileExplorerIcon, FinderIcon } from "../Icons";
@@ -8,7 +8,11 @@ describe("resolveOpenInOptions", () => {
   it.each([
     ["MacIntel", "Finder", FinderIcon],
     ["Win32", "File Explorer", FileExplorerIcon],
-    ["Linux x86_64", "Files", FolderClosedIcon],
+    // ── Marcode fork seam ── upstream falls back to lucide's `FolderClosedIcon`
+    // here. The pill popover is @aliimam filled-only, and that outline reads
+    // thinner than every glyph beside it, so the generic fallback stays
+    // `FolderOpenFilled`. Upstream's macOS/Windows brand marks are kept as-is.
+    ["Linux x86_64", "Files", FolderOpenFilled],
   ] as const)("includes the file manager with its icon on %s", (platform, label, Icon) => {
     expect(resolveOpenInOptions(platform, ["cursor", "vscode", "file-manager"])).toEqual([
       expect.objectContaining({ value: "cursor", label: "Cursor" }),
