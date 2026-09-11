@@ -72,7 +72,7 @@ export const UpstreamSyncManifest = Schema.Struct({
 });
 export type UpstreamSyncManifest = typeof UpstreamSyncManifest.Type;
 
-export class UpstreamSyncConfigFileError extends Schema.TaggedErrorClass<UpstreamSyncConfigFileError>()(
+export class UpstreamSyncConfigFileError extends Schema.TaggedError<UpstreamSyncConfigFileError>()(
   "UpstreamSyncConfigFileError",
   {
     operation: Schema.Literals(["read"]),
@@ -85,7 +85,7 @@ export class UpstreamSyncConfigFileError extends Schema.TaggedErrorClass<Upstrea
   }
 }
 
-export class UpstreamSyncConfigParseError extends Schema.TaggedErrorClass<UpstreamSyncConfigParseError>()(
+export class UpstreamSyncConfigParseError extends Schema.TaggedError<UpstreamSyncConfigParseError>()(
   "UpstreamSyncConfigParseError",
   {
     path: Schema.String,
@@ -97,7 +97,7 @@ export class UpstreamSyncConfigParseError extends Schema.TaggedErrorClass<Upstre
   }
 }
 
-export class UpstreamSyncConfigPolicyError extends Schema.TaggedErrorClass<UpstreamSyncConfigPolicyError>()(
+export class UpstreamSyncConfigPolicyError extends Schema.TaggedError<UpstreamSyncConfigPolicyError>()(
   "UpstreamSyncConfigPolicyError",
   {
     path: Schema.String,

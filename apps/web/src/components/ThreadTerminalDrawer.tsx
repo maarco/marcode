@@ -29,6 +29,7 @@ import {
 import { createPortal } from "react-dom";
 import { Popover, PopoverPopup, PopoverTrigger } from "~/components/ui/popover";
 import { Button } from "~/components/ui/button";
+import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
 // Terminal chrome is filled-icon only, one family. Lucide outlines used to be
 // mixed in here; they read thinner than everything else in the pill surfaces.
@@ -888,6 +889,17 @@ export function TerminalViewport({
                   threadRef,
                   openPreview,
                   fallbackToBrowser,
+                  // Upstream behaviour: a modifier click skips the in-app
+                  // preview and hands the link to the external browser.
+                  forceBrowser: event.metaKey || event.ctrlKey,
+                }).catch((error: unknown) => {
+                  toastManager.add(
+                    stackedThreadToast({
+                      type: "error",
+                      title: "Unable to open link",
+                      description: error instanceof Error ? error.message : "An error occurred.",
+                    }),
+                  );
                 });
                 return;
               }

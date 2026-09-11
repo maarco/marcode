@@ -16,7 +16,7 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
   // deployed range explicitly so future 9000+ Marcode entries do not change
   // what this compatibility assertion covers.
   assert.deepStrictEqual(
-    migrationEntries.filter(([id]) => id >= 33 && id <= 49).map(([id, name]) => [id, name]),
+    migrationEntries.filter(([id]) => id >= 33 && id <= 51).map(([id, name]) => [id, name]),
     [
       [33, "ProjectWorkspaceLayout"],
       [34, "ProjectionThreadsSettled"],
@@ -39,6 +39,11 @@ it("keeps Marcode migration 33 and appends upstream thread lifecycle migrations"
       [48, "ProjectionProjectIcon"],
       // Added by the 223ff449 sync as upstream's 048.
       [49, "ProjectionThreadBranchPullRequest"],
+      // Added by the 52b2bf77 sync as upstream's 049.
+      [50, "ProjectionThreadsActiveOrderKey"],
+      // Added by the 26894dda sync as upstream's 050; the file was renamed to
+      // 051_ProjectionThreadPullRequests.ts so the id and filename agree.
+      [51, "ProjectionThreadPullRequests"],
     ],
   );
 

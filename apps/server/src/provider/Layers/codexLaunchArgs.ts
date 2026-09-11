@@ -1,14 +1,15 @@
 import { tokenizeCliArgs } from "@t3tools/shared/cliArgs";
 
-export const MARCODE_CODEX_LAUNCH_ARGS_ENV = "MARCODE_CODEX_LAUNCH_ARGS";
+// ── Marcode fork seam ── the launch-args override is MARCODE_-prefixed; the
+// upstream T3CODE_ spelling is not read here.
+const MARCODE_CODEX_LAUNCH_ARGS_ENV = "MARCODE_CODEX_LAUNCH_ARGS";
 
 export const resolveCodexLaunchArgs = (
   launchArgs?: string,
   environment: NodeJS.ProcessEnv = process.env,
 ) => environment[MARCODE_CODEX_LAUNCH_ARGS_ENV]?.trim() || launchArgs?.trim() || "";
 
-export const codexLaunchArgv = (launchArgs?: string): ReadonlyArray<string> =>
-  tokenizeCliArgs(launchArgs);
+const codexLaunchArgv = (launchArgs?: string): ReadonlyArray<string> => tokenizeCliArgs(launchArgs);
 
 export const codexAppServerArgs = (launchArgs?: string) => [
   "app-server",

@@ -25,6 +25,8 @@ import { PillTooltip, pillIconButtonClass, pillMenuRowClass } from "../FloatingP
 import {
   AntigravityIcon,
   CursorIcon,
+  FileExplorerIcon,
+  FinderIcon,
   KiroIcon,
   TraeIcon,
   VisualStudioCode,
@@ -46,7 +48,7 @@ import {
   RustRoverIcon,
   WebStormIcon,
 } from "../JetBrainsIcons";
-import { cn } from "~/lib/utils";
+import { cn, isMacPlatform, isWindowsPlatform } from "~/lib/utils";
 import { shellEnvironment } from "~/state/shell";
 import { useAtomCommand } from "~/state/use-atom-command";
 
@@ -65,7 +67,10 @@ type OpenInOption = {
   kind: "brand" | "generic";
 };
 
-const resolveOptions = (platform: string, availableEditors: ReadonlyArray<EditorId>) => {
+export const resolveOpenInOptions = (
+  platform: string,
+  availableEditors: ReadonlyArray<EditorId>,
+) => {
   const baseOptions: ReadonlyArray<Omit<OpenInOption, "label">> = [
     {
       Icon: CursorIcon,
@@ -168,13 +173,19 @@ const resolveOptions = (platform: string, availableEditors: ReadonlyArray<Editor
       kind: "brand",
     },
     {
-      // The pill (and its popover) is @aliimam filled-only; the lucide outline
-      // that used to sit here read thinner than every glyph beside it.
-      // `FolderOpenFilled`, not `FolderFilled` — that one is the workspace
-      // Files panel, and these two must not look like the same action.
-      Icon: FolderOpenFilled,
+      // Upstream's platform brand marks on macOS/Windows, but the generic
+      // fallback stays @aliimam filled: the pill (and its popover) is
+      // filled-only, and upstream's lucide `FolderClosedIcon` outline reads
+      // thinner than every glyph beside it. `FolderOpenFilled`, not
+      // `FolderFilled` — that one is the workspace Files panel, and these two
+      // must not look like the same action.
+      Icon: isMacPlatform(platform)
+        ? FinderIcon
+        : isWindowsPlatform(platform)
+          ? FileExplorerIcon
+          : FolderOpenFilled,
       value: "file-manager",
-      kind: "generic",
+      kind: isMacPlatform(platform) || isWindowsPlatform(platform) ? "brand" : "generic",
     },
   ];
   const availableEditorSet = new Set(availableEditors);
@@ -215,7 +226,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   const effectiveEditors = remote.mode === "local-exec" ? availableEditors : remoteCapableEditors;
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(effectiveEditors);
   const options = useMemo(
-    () => resolveOptions(navigator.platform, effectiveEditors),
+    () => resolveOpenInOptions(navigator.platform, effectiveEditors),
     [effectiveEditors],
   );
   const primaryOption = options.find(({ value }) => value === preferredEditor) ?? null;

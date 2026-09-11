@@ -128,6 +128,7 @@ const makeProjectedThread = (input: {
     modelSelection: { instanceId: sourceThread.providerInstanceId, model: "default" },
     runtimeMode: "full-access",
     interactionMode: "default",
+    pullRequests: [],
     branch: null,
     worktreePath: null,
     latestTurn: null,
