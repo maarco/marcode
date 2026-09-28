@@ -53,11 +53,15 @@ for (const prefix of [
     const result = runStep(prefix + json);
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout, "::add-mask::fixture-token\n");
+    // -- Marcode fork seam --
+    // These names must match relayClientConfigEnv in infra/relay/src/clientConfig.ts
+    // and the keys scripts/lib/public-config.ts reads back, which Marcode renamed
+    // from upstream's T3CODE_* to MARCODE_*.
     assert.equal(
       result.envFile,
-      "T3CODE_RELAY_CLIENT_OTLP_TRACES_URL=https://example.invalid/traces\n" +
-        "T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET=fixture-dataset\n" +
-        "T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=fixture-token\n",
+      "MARCODE_RELAY_CLIENT_OTLP_TRACES_URL=https://example.invalid/traces\n" +
+        "MARCODE_RELAY_CLIENT_OTLP_TRACES_DATASET=fixture-dataset\n" +
+        "MARCODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=fixture-token\n",
     );
   });
 }

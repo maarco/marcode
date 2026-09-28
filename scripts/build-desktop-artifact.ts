@@ -2768,7 +2768,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       category: "public.app-category.developer-tools",
       extendInfo: {
         NSScreenCaptureUsageDescription:
-          "T3 Code captures the active window when you use the window capture shortcut.",
+          "Marcode captures the active window when you use the window capture shortcut.",
       },
       protocols: [
         {
@@ -2804,7 +2804,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         { x: 130, y: 220, type: "file" },
         { x: 410, y: 220, type: "link", path: "/Applications" },
       ],
-      iconSize: 120,
+      // Upstream raised this to 120 for their wider background. Marcode's drop
+      // zones are laid out for 80px icons on a 540x380 canvas.
+      iconSize: 80,
       iconTextSize: 12,
     };
   }

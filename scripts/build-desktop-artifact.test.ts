@@ -686,15 +686,20 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         "**/node_modules/.bin/**",
         "**/*.map",
       ]);
+      // -- Marcode fork seam --
+      // Marcode ships its own 540x380 DMG artwork, so the Finder window, drop
+      // zones and icon size are all sized to that canvas. Upstream's numbers
+      // are tuned to their 640x432 background; taking them here stretches the
+      // background and misplaces both icons.
       assert.deepStrictEqual(mac.dmg, {
         title: "Marcode 1.2.3 Installer",
         background: "dmg/dmg-background-latest.png",
-        window: { width: 640, height: 432 },
+        window: { width: 540, height: 412 },
         contents: [
-          { x: 166, y: 214, type: "file" },
-          { x: 474, y: 214, type: "link", path: "/Applications" },
+          { x: 130, y: 220, type: "file" },
+          { x: 410, y: 220, type: "link", path: "/Applications" },
         ],
-        iconSize: 120,
+        iconSize: 80,
         iconTextSize: 12,
       });
       // A Linux AppImage build also emits the .deb from the same run.
@@ -1819,8 +1824,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
               "format",
               "png",
               "-z",
-              "432",
-              "640",
+              "380",
+              "540",
               sourcePath,
               "--out",
               path.join(dmgDir, "dmg-background-nightly.png"),
@@ -1831,8 +1836,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
               "format",
               "png",
               "-z",
-              "864",
-              "1280",
+              "760",
+              "1080",
               sourcePath,
               "--out",
               path.join(dmgDir, "dmg-background-nightly@2x.png"),
