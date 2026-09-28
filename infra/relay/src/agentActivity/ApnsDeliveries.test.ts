@@ -42,6 +42,12 @@ const config = RelayConfiguration.RelayConfiguration.of({
     teamId: "team-id",
     keyId: "key-id",
     privateKey: Redacted.make("not-a-private-key"),
+    // ── Marcode fork seam ──
+    // Marcode's iOS bundle identifiers are com.t3tools.marcode{,.dev,.preview}
+    // (apps/mobile/app.config.ts), not upstream's com.t3tools.t3code.*. The
+    // APNs topic is derived from whichever id a registration carries, so a
+    // fixture keeping upstream's id asserts a topic Marcode never sends. Every
+    // bundle id in this file must stay on one side.
     bundleId: "com.t3tools.marcode.dev",
   },
   apnsDeliveryJobSigningSecret: Redacted.make("job-signing-secret"),
@@ -529,7 +535,7 @@ describe("ApnsDeliveries", () => {
         makeLayer({
           attempts,
           currentTargets: [
-            { ...target, bundle_id: "com.t3tools.t3code.preview", aps_environment: "sandbox" },
+            { ...target, bundle_id: "com.t3tools.marcode.preview", aps_environment: "sandbox" },
           ],
           config: signingConfig,
           execute,
@@ -2031,7 +2037,7 @@ describe("signed APNs registration metadata", () => {
           token: "unchanged-token",
           ...(changed === "legacy"
             ? {}
-            : { bundleId: "com.t3tools.t3code.dev", apsEnvironment: "sandbox" as const }),
+            : { bundleId: "com.t3tools.marcode.dev", apsEnvironment: "sandbox" as const }),
           aggregate: kind === "live_activity_update" ? aggregate : null,
           ...(kind === "push_notification"
             ? {
@@ -2061,7 +2067,7 @@ describe("signed APNs registration metadata", () => {
             `${changed === "environment" ? "https://api.push.apple.com" : "https://api.sandbox.push.apple.com"}/3/device/unchanged-token`,
           );
           expect(requests[0]?.headers["apns-topic"]).toBe(
-            `${changed === "bundle" ? "com.t3tools.t3code.preview" : "com.t3tools.t3code.dev"}${kind === "live_activity_update" ? ".push-type.liveactivity" : ""}`,
+            `${changed === "bundle" ? "com.t3tools.marcode.preview" : "com.t3tools.marcode.dev"}${kind === "live_activity_update" ? ".push-type.liveactivity" : ""}`,
           );
         }).pipe(
           Effect.provide(
@@ -2074,7 +2080,9 @@ describe("signed APNs registration metadata", () => {
                   push_token: "unchanged-token",
                   activity_push_token: "unchanged-token",
                   bundle_id:
-                    changed === "bundle" ? "com.t3tools.t3code.preview" : "com.t3tools.t3code.dev",
+                    changed === "bundle"
+                      ? "com.t3tools.marcode.preview"
+                      : "com.t3tools.marcode.dev",
                   aps_environment: changed === "environment" ? "production" : "sandbox",
                 },
               ],
