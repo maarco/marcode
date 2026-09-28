@@ -229,16 +229,22 @@ jobs:
               `${baseSha}...${resolvedHeadSha}`,
             ];
 
+            // One numstat line per changed file. An upstream sync touches enough
+            // files to exceed execFileSync's 1 MiB default, which fails the job
+            // with ENOBUFS on exactly the pull requests whose size matters most.
+            const numstatBuffer = 64 * 1024 * 1024;
+
             const totalChangedLines = sumNumstat(
               execFileSync(
                 "git",
                 diffArgs,
-                { encoding: "utf8" },
+                { encoding: "utf8", maxBuffer: numstatBuffer },
               ),
             );
             const nonTestChangedLines = sumNumstat(
               execFileSync("git", [...diffArgs, "--", ".", ...testExcludePathspecs], {
                 encoding: "utf8",
+                maxBuffer: numstatBuffer,
               }),
             );
             const testChangedLines = Math.max(0, totalChangedLines - nonTestChangedLines);
