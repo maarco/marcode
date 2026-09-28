@@ -119,7 +119,12 @@ describe("clientPersistenceStorage", () => {
     const { readBrowserClientSettings, writeBrowserClientSettings } =
       await import("./clientPersistenceStorage");
 
-    testWindow.localStorage.setItem("t3code:client-settings:v1", JSON.stringify({}));
+    // ── Marcode fork seam ──
+    // Marcode migrated this one key to `marcode:client-settings:v1`
+    // (clientPersistenceStorage.ts); most other web storage keys stay on
+    // upstream's `t3code:` prefix on purpose. Seeding upstream's key here reads
+    // back nothing and the defaults assertion silently tests an empty store.
+    testWindow.localStorage.setItem("marcode:client-settings:v1", JSON.stringify({}));
     expect(readBrowserClientSettings()?.diffFilesCollapsed).toBe(true);
 
     writeBrowserClientSettings({ ...DEFAULT_CLIENT_SETTINGS, diffFilesCollapsed: true });
