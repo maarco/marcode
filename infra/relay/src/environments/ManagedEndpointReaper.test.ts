@@ -7,13 +7,19 @@ import * as TestClock from "effect/testing/TestClock";
 import * as Tracer from "effect/Tracer";
 
 import * as RelayConfiguration from "../Config.ts";
+import { managedEndpointTunnelNamePrefix } from "../deploymentConfig.ts";
 import * as ManagedEndpointAllocations from "./ManagedEndpointAllocations.ts";
 import * as ManagedEndpointProvider from "./ManagedEndpointProvider.ts";
 import * as ManagedEndpointReaper from "./ManagedEndpointReaper.ts";
 
 const NOW = "2026-08-25T12:00:00.000Z";
 const NOW_MILLIS = DateTime.makeUnsafe(NOW).epochMilliseconds;
-const PREFIX = "t3coderelay-managedendpoint-prod-";
+// -- Marcode fork seam --
+// Derived rather than spelled out: Marcode renames the relay's deployed
+// resources, and upstream's literal `t3coderelay-managedendpoint-prod-` builds
+// fixture tunnels the reaper's own prefix filter never matches, so every sweep
+// silently finds nothing to do.
+const PREFIX = managedEndpointTunnelNamePrefix("prod");
 
 function tunnel(input: {
   readonly id: string;

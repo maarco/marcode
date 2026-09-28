@@ -29,7 +29,14 @@ const sampleDecoded = <S extends Schema.Constraint>(schema: S) =>
   });
 const encodeSnapshot = Schema.encodeEffect(OrchestrationShellSnapshot);
 
-describe("encodeShellSnapshotForCache", () => {
+// ── Marcode fork seam ──
+// 2000 generated shells, encoded and decoded. Marcode's project shell also
+// carries `workspaceLayout`, an array of workspace entries the generator fills
+// at size 30, so this costs measurably more here than upstream: it overran
+// Vitest's 5s default on a loaded CI runner (6.8s) while taking 1.3s on an idle
+// one. The budget is the fix; shrinking `count` would quietly narrow upstream's
+// coverage.
+describe("encodeShellSnapshotForCache", { timeout: 30_000 }, () => {
   it.effect("matches the Schema encoding of a generated snapshot", () =>
     Effect.gen(function* () {
       const threads = yield* sampleDecoded(OrchestrationThreadShell);
