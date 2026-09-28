@@ -22,7 +22,8 @@ import {
   Code1Filled,
   KeySquareFilled,
 } from "@aliimam/icons";
-import { ChartNoAxesColumnIcon, GitPullRequestIcon } from "lucide-react";
+import { ChartNoAxesColumnIcon } from "lucide-react";
+import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import { cn } from "../lib/utils";
 import { useEditorStore } from "../editor/editor-store";
 import { usePillNavPreferences, getPillNavShineGradient } from "../editor/pill-prefs";
@@ -133,7 +134,7 @@ const CATEGORIES: NavCategory[] = [
       {
         href: "/pull-requests",
         label: "Pull Requests",
-        icon: <GitPullRequestIcon className="h-4 w-4" />,
+        icon: <PullRequestGlyph.pullRequest className="h-4 w-4" />,
       },
     ],
   },

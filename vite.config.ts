@@ -2,6 +2,57 @@ import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 
+/** Import restrictions every file keeps, including the one module exempt from the glyph rule. */
+const RESTRICTED_IMPORT_PATHS = [
+  {
+    name: "@t3tools/client-runtime",
+    message:
+      "Import from an explicit @t3tools/client-runtime/* subpath. The package has no root export.",
+  },
+  {
+    name: "@pierre/diffs/react",
+    importNames: ["CodeView"],
+    message: "Use StyledDiffCodeView so web diff surfaces share styling and virtualized geometry.",
+  },
+];
+
+/**
+ * The cva functions behind components/ui exports. They style a foreign element to look
+ * like a Button or Toggle, which bypasses the component's variants; render the component
+ * instead (`render={<Button …/>}`, or `SelectButton` for a picker trigger).
+ */
+const RESTRICTED_UI_VARIANT_PATTERNS = [
+  {
+    group: ["**/components/ui/*", "**/ui/*", "./ui/*"],
+    importNames: ["buttonVariants", "toggleVariants", "badgeVariants", "selectTriggerVariants"],
+    message:
+      "Render the components/ui export instead of borrowing its class recipe (render={<Button …/>}, SelectButton, ToggleGroup).",
+  },
+];
+
+/** Lucide's pull-request glyphs, which only `pullRequestIcons.tsx` may name. */
+const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
+  name: "lucide-react",
+  importNames: [
+    "GitMerge",
+    "GitMergeIcon",
+    "GitPullRequest",
+    "GitPullRequestIcon",
+    "GitPullRequestArrow",
+    "GitPullRequestArrowIcon",
+    "GitPullRequestClosed",
+    "GitPullRequestClosedIcon",
+    "GitPullRequestDraft",
+    "GitPullRequestDraftIcon",
+    "GitPullRequestCreate",
+    "GitPullRequestCreateIcon",
+    "GitPullRequestCreateArrow",
+    "GitPullRequestCreateArrowIcon",
+  ],
+  message:
+    "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
+};
+
 export default defineConfig({
   resolve: {
     alias: {
@@ -32,6 +83,9 @@ export default defineConfig({
   fmt: {
     ignorePatterns: [
       ".repos/**",
+      // Macroscope's glob-per-line ignore grammar, not Markdown: formatting
+      // it rewrites `*` as `_` and joins lines.
+      ".macroscope/ignore.md",
       ".alchemy",
       "dist",
       "dist-electron",
@@ -69,7 +123,12 @@ export default defineConfig({
       "apps/mobile/uniwind-types.d.ts",
     ],
     plugins: ["eslint", "oxc", "react", "unicorn", "typescript"],
-    jsPlugins: ["./oxlint-plugin-marcode/index.ts"],
+    // Marcode fork seam: the local plugin directory is oxlint-plugin-marcode; its
+    // plugin namespace is `marcode/`. Upstream's `@shadcn/lint` plugin is taken as is.
+    jsPlugins: ["./oxlint-plugin-marcode/index.ts", "@shadcn/lint"],
+    settings: {
+      shadcn: { ui: "~/components/ui" },
+    },
     categories: {
       correctness: "warn",
       suspicious: "warn",
@@ -103,21 +162,7 @@ export default defineConfig({
       "typescript/unbound-method": "off",
       "eslint/no-restricted-imports": [
         "error",
-        {
-          paths: [
-            {
-              name: "@t3tools/client-runtime",
-              message:
-                "Import from an explicit @t3tools/client-runtime/* subpath. The package has no root export.",
-            },
-            {
-              name: "@pierre/diffs/react",
-              importNames: ["CodeView"],
-              message:
-                "Use StyledDiffCodeView so web diff surfaces share styling and virtualized geometry.",
-            },
-          ],
-        },
+        { paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS] },
       ],
       "marcode/no-global-process-runtime": "error",
       "marcode/no-inline-schema-compile": "warn",
@@ -138,8 +183,164 @@ export default defineConfig({
         rules: { "marcode/no-global-process-runtime": "off" },
       },
       {
+        files: ["apps/web/src/**"],
+        excludeFiles: ["apps/web/src/components/ui/**"],
+        rules: {
+          "eslint/no-restricted-imports": [
+            "error",
+            {
+              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              patterns: RESTRICTED_UI_VARIANT_PATTERNS,
+            },
+          ],
+        },
+      },
+      {
+        // The one module allowed to name lucide's pull-request glyphs; everything else picks
+        // from its vocabulary. The other import restrictions still apply here.
+        files: ["apps/web/src/components/pullRequest/pullRequestIcons.tsx"],
+        rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
+      },
+      {
         files: ["apps/mobile/src/**"],
         rules: { "marcode/no-mobile-uniwind-theme-escape-hatches": "error" },
+      },
+      {
+        // Every class in web code must be one Tailwind generates: a typo or a class nothing
+        // declares ships silently unstyled. JS hooks use data attributes, not class names.
+        files: ["apps/web/src/**"],
+        rules: { "shadcn/no-unknown-classes": "error" },
+      },
+      {
+        // Colors come from theme tokens so status tones follow custom themes. components/ui
+        // has no findings and stays covered too.
+        files: ["apps/web/src/**"],
+        rules: { "shadcn/no-raw-colors": "error" },
+      },
+      {
+        // Third-party marks (brand logos, the macOS permission panes, Codex's Computer Use
+        // mark) must keep their exact colors, so the files that hold them are exempt.
+        files: ["apps/web/src/components/Icons.tsx", "apps/web/src/components/JetBrainsIcons.tsx"],
+        rules: { "shadcn/no-raw-colors": "off" },
+      },
+      {
+        // components/ui exports own their look. App code picks a variant or size instead
+        // of restyling with className; layout classes (width, flex, margin, position) stay
+        // allowed because placement belongs to the parent. components/ui is for generic
+        // primitives: a look that belongs to one feature stays in that feature's component.
+        files: ["apps/web/src/**"],
+        excludeFiles: ["apps/web/src/components/ui/**"],
+        rules: {
+          // A className built at runtime on a ui component is one no-restyle cannot read.
+          "shadcn/require-static-classes": "error",
+          // Appearance values come from the theme and Tailwind's scales. Layout stays free
+          // (placement belongs to the parent); the other entries are values no scale can hold.
+          "shadcn/no-arbitrary-values": [
+            "error",
+            {
+              allow: [
+                "layout",
+                // Which properties an element animates is per-element behaviour, like layout,
+                // not a design value; timing curves and durations still come from the theme.
+                "transition",
+                // Overlays that follow their frame's corner, which is set at runtime
+                // (floating preview) or by the element they decorate (composer outline).
+                "rounded-[inherit]",
+                // Inline chips size in em so they scale with the text they sit in
+                // (the composer honours the prompt font-size preference).
+                "gap-[0.33em]",
+                "px-[0.5em]",
+                "rounded-[0.5em]",
+                "text-[0.86em]",
+                // Project icons render from 14px to 48px and keep one proportional corner.
+                "rounded-[25%]",
+                // An emoji project icon fills its container, whatever size the parent gives it.
+                "text-[length:80cqh]",
+                // The platform's own selection colour on a selected composer chip.
+                "bg-[Highlight]",
+                // Brand marks keep their brand colours (Cursor, Grok, Claude).
+                "fill-[#26251E]",
+                "fill-[#EDECEC]",
+                "fill-[#0F0F0F]",
+                "fill-[#F5F5F5]",
+                "fill-[#d97757]",
+                "text-[#d97757]",
+              ],
+            },
+          ],
+          "shadcn/no-restyle": [
+            "error",
+            {
+              allow: ["layout"],
+              contracts: [
+                {
+                  // CollapsibleTrigger is a bare button with no styled counterpart
+                  // (a disclosure row is not a Button), so its className is the API.
+                  // Every other trigger has one: style them with render={<Button …/>}.
+                  pattern: "^CollapsibleTrigger$",
+                  allow: ["layout", "color", "typography", "spacing", "shape", "effects", "motion"],
+                },
+              ],
+            },
+          ],
+        },
+      },
+      {
+        // The sign-in masthead is T3 brand artwork: fixed gradients, not theme surfaces.
+        files: ["apps/web/src/components/auth/AuthSurfaceShell.tsx"],
+        rules: { "shadcn/no-arbitrary-values": "off" },
+      },
+      {
+        // Shared client code must not call APIs missing from Hermes. Our ESNext
+        // TypeScript target accepts them even when they would crash mobile at launch.
+        // Tests run on Node and are exempt.
+        files: [
+          "apps/mobile/src/**",
+          "packages/client-runtime/src/**",
+          "packages/contracts/src/**",
+          "packages/shared/src/**",
+        ],
+        excludeFiles: ["**/*.test.ts", "**/*.test.tsx"],
+        rules: { "marcode/no-hermes-unsupported-apis": "error" },
+      },
+      {
+        // ── Marcode fork seam ──
+        // Upstream added @shadcn/lint in the d15210cd sync. Its design contracts
+        // describe upstream's component set; Marcode's own surfaces (the floating
+        // Code editor, the unified workspace tree, the floating pill shell and the
+        // Marcode chrome modules) predate them and would need a deliberate design
+        // pass to adopt. Scope the plugin off for those files rather than either
+        // dropping upstream's rules for everyone or rewriting Marcode's chrome
+        // inside a sync. Adopting the contracts surface by surface is follow-up work.
+        files: [
+          "apps/web/src/editor/**",
+          "apps/web/src/components/unified-workspace/**",
+          "apps/web/src/components/marcodeRightPanelChrome.tsx",
+          "apps/web/src/components/marcodeSidebarLayout.tsx",
+          "apps/web/src/components/FloatingPillNav.tsx",
+          "apps/web/src/components/FloatingTerminalShell.tsx",
+          "apps/web/src/components/PillNavHoverCard.tsx",
+          "apps/web/src/components/MarcodeMark.tsx",
+          "apps/web/src/components/RightPanelTabs.tsx",
+          "apps/web/src/components/ThreadTerminalDrawer.tsx",
+          "apps/web/src/components/ProjectScriptsControl.tsx",
+          "apps/web/src/components/GitActionsControl.tsx",
+          "apps/web/src/components/ChatView.tsx",
+          "apps/web/src/components/Sidebar.tsx",
+          "apps/web/src/components/chat/OpenInPicker.tsx",
+          "apps/web/src/components/chat/chatAmbientEffects.tsx",
+          "apps/web/src/components/clerk/T3ConnectSidebarSignIn.tsx",
+          "apps/web/src/components/sidebar/SidebarChrome.tsx",
+          "apps/web/src/components/sidebar/SidebarUpdatePill.tsx",
+          "apps/web/src/components/pullRequest/PullRequestCodeTab.tsx",
+          "apps/web/src/components/pullRequest/PullRequestTimelineTab.tsx",
+        ],
+        rules: {
+          "shadcn/no-arbitrary-values": "off",
+          "shadcn/no-raw-colors": "off",
+          "shadcn/no-restyle": "off",
+          "shadcn/no-unknown-classes": "off",
+        },
       },
       {
         // Reviewed native and third-party interop boundaries that cannot consume a className.
@@ -148,17 +349,18 @@ export default defineConfig({
           "apps/mobile/src/features/connection/ConnectionsNewRouteScreen.tsx",
           "apps/mobile/src/features/files/FileMarkdownPreview.tsx",
           "apps/mobile/src/features/files/SourceFileSurface.tsx",
+          "apps/mobile/src/features/files/AttachmentFileScreen.tsx",
           "apps/mobile/src/features/files/ThreadFilesRouteScreen.tsx",
           "apps/mobile/src/features/files/thread-file-navigator-pane.tsx",
           "apps/mobile/src/features/home/HomeHeader.tsx",
           "apps/mobile/src/features/review/ReviewSheet.tsx",
           "apps/mobile/src/features/review/useNativeReviewDiffBridge.ts",
           "apps/mobile/src/features/settings/SettingsEnvironmentsRouteScreen.tsx",
-          "apps/mobile/src/features/settings/appearance/components/AppearancePreviews.tsx",
           "apps/mobile/src/features/threads/GitActionProgressOverlay.tsx",
           "apps/mobile/src/features/threads/NewTaskDraftScreen.tsx",
           "apps/mobile/src/features/threads/ThreadComposer.tsx",
           "apps/mobile/src/features/threads/ThreadFeed.tsx",
+          "apps/mobile/src/features/review/ReviewCommentCard.tsx",
           "apps/mobile/src/features/threads/ThreadSettingsSheet.tsx",
           "apps/mobile/src/features/threads/git/GitOverviewSheet.tsx",
           "apps/mobile/src/features/threads/thread-list-items.tsx",
@@ -166,6 +368,7 @@ export default defineConfig({
           "apps/mobile/src/lib/useMobileNavigationTheme.ts",
           "apps/mobile/src/native/T3ComposerEditor.ios.tsx",
           "apps/mobile/src/native/T3ComposerEditor.native.tsx",
+          "apps/mobile/src/native/SelectableMarkdownText.android.tsx",
         ],
         rules: {
           "marcode/no-mobile-uniwind-theme-escape-hatches": ["error", { allowUniwindTheme: true }],

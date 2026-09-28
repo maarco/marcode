@@ -14,6 +14,7 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeOS from "node:os";
 import * as NodeReadlinePromises from "node:readline/promises";
 
+import { MARCODE_HOME_ENV } from "@t3tools/shared/forkIdentity";
 import { HostProcessArchitecture, HostProcessPlatform } from "@t3tools/shared/hostProcess";
 import { isCommandAvailable, resolveSpawnCommand } from "@t3tools/shared/shell";
 import * as Config from "effect/Config";
@@ -27,6 +28,7 @@ import * as Schema from "effect/Schema";
 import { Command, Flag } from "effect/unstable/cli";
 
 import packageJson from "../../package.json" with { type: "json" };
+import * as BootService from "../cloud/bootService.ts";
 import * as ServerConfig from "../config.ts";
 import { resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
@@ -49,7 +51,7 @@ const TRIAGE_AGENTS: ReadonlyArray<TriageAgent> = [
   { id: "codex", command: "codex", label: "Codex" },
 ];
 
-export class TriageAgentUnavailableError extends Schema.TaggedErrorClass<TriageAgentUnavailableError>()(
+export class TriageAgentUnavailableError extends Schema.TaggedError<TriageAgentUnavailableError>()(
   "TriageAgentUnavailableError",
   { agent: Schema.String },
 ) {
@@ -58,7 +60,7 @@ export class TriageAgentUnavailableError extends Schema.TaggedErrorClass<TriageA
   }
 }
 
-export class TriageAgentChoiceRequiredError extends Schema.TaggedErrorClass<TriageAgentChoiceRequiredError>()(
+export class TriageAgentChoiceRequiredError extends Schema.TaggedError<TriageAgentChoiceRequiredError>()(
   "TriageAgentChoiceRequiredError",
   {},
 ) {
@@ -67,7 +69,7 @@ export class TriageAgentChoiceRequiredError extends Schema.TaggedErrorClass<Tria
   }
 }
 
-export class TriageAgentSpawnError extends Schema.TaggedErrorClass<TriageAgentSpawnError>()(
+export class TriageAgentSpawnError extends Schema.TaggedError<TriageAgentSpawnError>()(
   "TriageAgentSpawnError",
   { command: Schema.String, cause: Schema.Defect() },
 ) {
@@ -142,12 +144,12 @@ const runInteractiveSession = (input: {
     child.once("exit", (code, signal) => resume(Effect.succeed(code ?? (signal === null ? 0 : 1))));
   });
 
-const agentFlag = Flag.choice("agent", ["claude", "codex"]).pipe(
+const agentFlag = Flag.Literals("agent", ["claude", "codex"]).pipe(
   Flag.withDescription("Agent CLI to use. Default: ask when both are installed."),
   Flag.optional,
 );
 
-const modelFlag = Flag.string("model").pipe(
+const modelFlag = Flag.String("model").pipe(
   Flag.withDescription("Model passed through to the agent CLI. Default: the agent's default."),
   Flag.optional,
 );
@@ -170,7 +172,7 @@ export const triageCommand = Command.make("triage", {
       // precedence as `t3 pair`). Upstream reads T3CODE_HOME here; Marcode's
       // base-dir variable is MARCODE_HOME everywhere else in this CLI.
       const explicitBaseDir = Option.getOrUndefined(flags.baseDir);
-      const envHome = yield* Config.string("MARCODE_HOME").pipe(Config.option);
+      const envHome = yield* Config.String(MARCODE_HOME_ENV).pipe(Config.option);
       const baseDir = yield* resolveBaseDir(explicitBaseDir ?? Option.getOrUndefined(envHome));
       const paths = yield* ServerConfig.deriveServerPaths(baseDir, undefined, {});
 
@@ -190,8 +192,8 @@ export const triageCommand = Command.make("triage", {
         buildTriageContext({
           generatedAt: DateTime.formatIso(now),
           version,
-          releaseTag: version.includes("-nightly.")
-            ? `v${version} (nightly build; if this tag does not exist, clone main)`
+          releaseTag: /^[^-+]+-(?:nightly|preview)\./.test(version)
+            ? `v${version} (prerelease build; if this tag does not exist, clone main)`
             : `v${version}`,
           os: `${yield* HostProcessPlatform} ${yield* HostProcessArchitecture} (${NodeOS.release()})`,
           nodeVersion: process.version,
@@ -202,7 +204,11 @@ export const triageCommand = Command.make("triage", {
             dbPath: paths.dbPath,
             settingsPath: paths.settingsPath,
             logsDir: paths.logsDir,
-            serverLogPath: paths.serverLogPath,
+            // The server writes no log file of its own. Service installs and the
+            // desktop app capture its output. The glob covers every desktop backend
+            // (such as WSL) and rotated copies; names come from DesktopObservability.ts.
+            serviceLogPath: path.join(paths.logsDir, BootService.BOOT_SERVICE_LOG_FILE),
+            desktopBackendLogGlob: path.join(paths.logsDir, "server-child*.log*"),
             serverTracePath: paths.serverTracePath,
             providerEventLogPath: paths.providerEventLogPath,
             terminalLogsDir: paths.terminalLogsDir,

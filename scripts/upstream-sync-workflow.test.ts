@@ -285,7 +285,9 @@ describe("upstream-sync workflow", () => {
 
   it("keeps production relay deployment disabled until the fork opts in", () => {
     expect(relayDeploy.jobs.deploy_relay).toMatchObject({
-      if: "vars.RELAY_DEPLOY_ENABLED == 'true'",
+      // Marcode's opt-in gate plus upstream's guard against deploying a
+      // manually dispatched branch to production.
+      if: "vars.RELAY_DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main'",
       "runs-on": "ubuntu-24.04",
     });
   });

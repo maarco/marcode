@@ -10,6 +10,7 @@ import {
   useClientSettingsHydrationStatus,
 } from "../../hooks/useSettings";
 import { mountOnboardingTheme } from "../../hooks/useTheme";
+import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { useCompleteOnboarding } from "../../onboarding/firstRun";
 import {
   isFirstRunWorkspaceProvenanceAuthoritative,
@@ -104,13 +105,16 @@ export function FirstRunGate({
   }));
   const { decision, stalled } = gateState;
   const settingsReadFailed = hydrationStatus === "failed" || hydrationStatus === "retrying";
+  // ── Marcode fork seam ──
+  // Upstream made the first-run surface follow the app theme and deleted
+  // mountOnboardingTheme. Marcode keeps the wizard dark, so the gate owns the
+  // document palette while it is showing one of its own screens.
   const ownsOnboardingTheme = settingsReadFailed || stalled || decision === "wizard";
 
   useLayoutEffect(() => {
     if (!ownsOnboardingTheme) return;
     return mountOnboardingTheme();
   }, [ownsOnboardingTheme]);
-
   // A workspace still counts as fresh when its only content is the server's
   // own cwd auto-bootstrap: web mode creates a project + thread from cwd at
   // startup (`autoBootstrapProjectFromCwd` defaults on there), so "no
@@ -134,6 +138,7 @@ export function FirstRunGate({
 
   const { decision: nextDecision, persistCompletion } = hostedStatic
     ? resolveHostedFirstRunDecision({
+        localEnvironmentDisabled: isLocalEnvironmentDisabled(),
         hydrated,
         completed: onboardingCompletedAt !== null,
         catalogReady: environmentCatalogReady,

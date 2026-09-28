@@ -22,7 +22,8 @@ import {
   Setting5Filled,
   SidebarLeftFilled,
 } from "@aliimam/icons";
-import { ChartNoAxesColumnIcon, GitPullRequestIcon } from "lucide-react";
+import { ChartNoAxesColumnIcon } from "lucide-react";
+import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 import type { ComponentType, CSSProperties, ReactElement } from "react";
 
 import { MarcodeMark } from "./MarcodeMark";
@@ -80,14 +81,14 @@ export const PILL_NAV_META = {
     title: "Pull Requests",
     description:
       "Pull requests across every connected project, grouped into authored and reviewing. Filter by state or host, search across all of them, and open one into its own tab.",
-    icon: GitPullRequestIcon,
+    icon: PullRequestGlyph.pullRequest,
     color: HOME_COLOR,
   },
   "git:pull-requests": {
     title: "Pull Requests",
     description:
       "Browse pull requests across every connected project from the thread's Git action cluster.",
-    icon: GitPullRequestIcon,
+    icon: PullRequestGlyph.pullRequest,
     color: WORKSPACE_COLOR,
   },
   "/settings": {

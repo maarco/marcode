@@ -6,8 +6,8 @@ description: Keep .agents/skills/** accurate as upstream T3 Code changes and as 
 # Marcode Skill Upkeep
 
 Marcode forks T3 Code and keeps adding to it. `.agents/skills/**` has two kinds of skill as a result:
-skills that document **upstream T3 behavior** (`test-t3-app`, `test-t3-mobile`, `ios-debugger-agent`,
-`ios-simulator-browser`), and skills that document **Marcode-only additions**
+skills that document **upstream T3 behavior** (`test-t3-app`, `test-t3-mobile`), and skills that
+document **Marcode-only additions**
 (`unified-workspace-sidebar`, `marcode-customizations`, and whatever gets added after them). Upstream
 moves on its own schedule; nothing regenerates a skill when it does. This skill is how you notice and
 fix that without wrecking the next merge. It complements
@@ -128,8 +128,8 @@ Checklist, followed while writing `unified-workspace-sidebar` and this skill:
   — every skill in this repo has one, Marcode-authored or not; it's how Codex-side agents see the same
   skill.
 - Only add a `LICENSE` file if the skill is actually adapted from a third-party source under its own
-  license (see `ios-debugger-agent`/`ios-simulator-browser`, both MIT-adapted from OpenAI's
-  `build-ios-apps` plugin). A Marcode-original skill doesn't get one.
+  license. (The retired `ios-debugger-agent`/`ios-simulator-browser` skills were the example: both
+  MIT-adapted from OpenAI's `build-ios-apps` plugin.) A Marcode-original skill doesn't get one.
 - Prefer a `references/<topic>.md` subfolder for material a reader only needs occasionally (see
   `test-t3-app/references/sqlite-fixtures.md`) over inlining everything — keeps the main `SKILL.md`
   focused on "what do I do," not "everything about this system."
@@ -141,6 +141,6 @@ Checklist, followed while writing `unified-workspace-sidebar` and this skill:
   Marcode behavior.
 - Name it after the feature/subject, not after "Marcode," when the subject itself is unambiguous
   (`unified-workspace-sidebar`, not `marcode-unified-workspace-sidebar`) — mirrors how
-  `ios-debugger-agent` isn't named `marcode-ios-debugger-agent`. Reach for a `marcode-` prefix only
+  `test-t3-app` isn't named `marcode-test-t3-app`. Reach for a `marcode-` prefix only
   when the name would otherwise be ambiguous about which product/fork it's scoped to (this skill is
   about Marcode's own skill set specifically, not skills in general, so it keeps the prefix).

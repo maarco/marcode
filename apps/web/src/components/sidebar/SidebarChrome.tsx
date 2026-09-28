@@ -1,6 +1,7 @@
 import { memo } from "react";
 
 import { SidebarFooter, SidebarHeader, SidebarMenu } from "../ui/sidebar";
+import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 
@@ -30,6 +31,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
 export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   return (
     <SidebarFooter className="p-[var(--sidebar-content-inset)]">
+      <SidebarThreadUndoNotice />
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
       <SidebarMenu className="flex-row items-center">

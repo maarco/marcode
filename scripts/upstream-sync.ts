@@ -18,7 +18,7 @@ import {
   upstreamSyncStatus,
 } from "./lib/upstream-sync-git.ts";
 
-export class UpstreamSyncReportWriteError extends Schema.TaggedErrorClass<UpstreamSyncReportWriteError>()(
+export class UpstreamSyncReportWriteError extends Schema.TaggedError<UpstreamSyncReportWriteError>()(
   "UpstreamSyncReportWriteError",
   {
     path: Schema.String,
@@ -110,11 +110,11 @@ export const runIntegrate = Effect.fn("runIntegrate")(function* (options: {
   return result;
 });
 
-const rootFlag = Flag.string("root").pipe(
+const rootFlag = Flag.String("root").pipe(
   Flag.withDescription("Repository root. Defaults to the current working directory."),
   Flag.optional,
 );
-const jsonOutputFlag = Flag.string("json-output").pipe(
+const jsonOutputFlag = Flag.String("json-output").pipe(
   Flag.withDescription("Write the machine-readable report to this path."),
   Flag.optional,
 );
@@ -147,15 +147,15 @@ const integrateCommand = Command.make(
   {
     root: rootFlag,
     jsonOutput: jsonOutputFlag,
-    push: Flag.boolean("push").pipe(
+    push: Flag.Boolean("push").pipe(
       Flag.withDescription("Push the integration branch to the configured target remote."),
       Flag.withDefault(false),
     ),
-    targetSha: Flag.string("target-sha").pipe(
+    targetSha: Flag.String("target-sha").pipe(
       Flag.withDescription("Integrate from this target base instead of the current branch head."),
       Flag.optional,
     ),
-    worktree: Flag.string("worktree").pipe(
+    worktree: Flag.String("worktree").pipe(
       Flag.withDescription("Use this existing disposable worktree instead of a temporary one."),
       Flag.optional,
     ),

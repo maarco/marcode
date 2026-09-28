@@ -1,3 +1,4 @@
+import { OtlpHeadersFromString, OtlpProtocol } from "@t3tools/shared/observability";
 import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Option from "effect/Option";
@@ -10,10 +11,10 @@ const trimNonEmptyOption = (value: string): Option.Option<string> => {
 };
 
 const trimmedString = (name: string) =>
-  Config.string(name).pipe(Config.option, Config.map(Option.flatMap(trimNonEmptyOption)));
+  Config.String(name).pipe(Config.option, Config.map(Option.flatMap(trimNonEmptyOption)));
 
 const optionalBoolean = (name: string) =>
-  Config.boolean(name).pipe(Config.option, Config.map(Option.getOrElse(() => false)));
+  Config.Boolean(name).pipe(Config.option, Config.map(Option.getOrElse(() => false)));
 
 const commaSeparatedStrings = (name: string) =>
   trimmedString(name).pipe(
@@ -39,21 +40,27 @@ export const DesktopConfig = Config.all({
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
   xdgDataHome: trimmedString("XDG_DATA_HOME"),
   marcodeHome: trimmedString(MARCODE_HOME_ENV),
-  devServerUrl: Config.url("VITE_DEV_SERVER_URL").pipe(Config.option),
+  devServerUrl: Config.URL("VITE_DEV_SERVER_URL").pipe(Config.option),
   appUserModelIdOverride: trimmedString("MARCODE_DESKTOP_APP_USER_MODEL_ID"),
   devRemoteT3ServerEntryPath: trimmedString("MARCODE_DEV_REMOTE_T3_SERVER_ENTRY_PATH"),
-  configuredBackendPort: Config.port("MARCODE_PORT").pipe(Config.option),
+  configuredBackendPort: Config.Port("MARCODE_PORT").pipe(Config.option),
   commitHashOverride: trimmedString("MARCODE_COMMIT_HASH"),
   desktopLanHostOverride: trimmedString("MARCODE_DESKTOP_LAN_HOST"),
   desktopHttpsEndpointUrls: commaSeparatedStrings("MARCODE_DESKTOP_HTTPS_ENDPOINTS"),
   otlpTracesUrl: trimmedString("MARCODE_OTLP_TRACES_URL"),
-  otlpExportIntervalMs: Config.int("MARCODE_OTLP_EXPORT_INTERVAL_MS").pipe(
+  otlpMetricsUrl: trimmedString("MARCODE_OTLP_METRICS_URL"),
+  otlpLogsUrl: trimmedString("MARCODE_OTLP_LOGS_URL"),
+  otlpExportIntervalMs: Config.Int("MARCODE_OTLP_EXPORT_INTERVAL_MS").pipe(
     Config.withDefault(10_000),
+  ),
+  otlpHeaders: Config.schema(OtlpHeadersFromString, "MARCODE_OTLP_HEADERS").pipe(Config.option),
+  otlpProtocol: Config.schema(OtlpProtocol, "MARCODE_OTLP_PROTOCOL").pipe(
+    Config.withDefault("http/json"),
   ),
   appImagePath: trimmedString("APPIMAGE"),
   disableAutoUpdate: optionalBoolean("MARCODE_DISABLE_AUTO_UPDATE"),
   mockUpdates: optionalBoolean("MARCODE_DESKTOP_MOCK_UPDATES"),
-  mockUpdateServerPort: Config.port("MARCODE_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(
+  mockUpdateServerPort: Config.Port("MARCODE_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(
     Config.withDefault(3000),
   ),
 });
