@@ -285,6 +285,29 @@ function buildSnapShotTimelineEntry(previewUrl?: string) {
 }
 
 describe("MessagesTimeline", () => {
+  it("keeps the hidden empty state transparent when the draft hero owns the background", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        hideEmptyPlaceholder
+        emptyPlaceholderClassName="bg-transparent"
+        timelineEntries={[]}
+      />,
+    );
+
+    expect(markup).toContain('data-timeline-loading="true"');
+    expect(markup).toContain('class="h-full min-h-0 bg-transparent"');
+    expect(markup).not.toContain("bg-background");
+  });
+
+  it("keeps the themed empty surface by default", () => {
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline {...buildProps()} hideEmptyPlaceholder timelineEntries={[]} />,
+    );
+
+    expect(markup).toContain('class="h-full min-h-0 bg-background"');
+  });
+
   it("uses the Marcode mark for t3-code timeline tools", () => {
     const markup = renderToStaticMarkup(
       <MessagesTimeline

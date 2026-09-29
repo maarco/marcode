@@ -460,6 +460,8 @@ interface MessagesTimelineProps {
   onManualNavigation: () => void;
   cancelPositionRestoreRef?: React.RefObject<(() => void) | null>;
   hideEmptyPlaceholder?: boolean;
+  /** Optional surface for the hidden empty state, such as the draft hero. */
+  emptyPlaceholderClassName?: string | undefined;
   topFadeEnabled?: boolean;
   /** Non-null when older turns exist beyond the loaded window. */
   loadEarlier?: CitationHistoryPage | null;
@@ -520,6 +522,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   onManualNavigation,
   cancelPositionRestoreRef,
   hideEmptyPlaceholder = false,
+  emptyPlaceholderClassName,
   topFadeEnabled = false,
   loadEarlier = null,
   queuedMessages = EMPTY_QUEUED_MESSAGES,
@@ -1266,7 +1269,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
     if (hideEmptyPlaceholder) {
       // Occupy the pane with the theme surface so a thread switch cannot
       // punch a hole through to the window chrome (white in light mode).
-      return <div className="h-full min-h-0 bg-background" data-timeline-loading="true" />;
+      return (
+        <div
+          className={cn("h-full min-h-0", emptyPlaceholderClassName ?? "bg-background")}
+          data-timeline-loading="true"
+        />
+      );
     }
     return (
       <div className="flex h-full items-center justify-center">

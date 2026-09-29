@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
 import { cn } from "~/lib/utils";
+import { startChatAmbientAnimation } from "../chat/chatAmbientAnimation";
 
 const VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -145,28 +146,33 @@ export default function AnimatedShaderHeroBackground({ className }: AnimatedShad
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       const deviceScale = Math.max(1, 0.5 * window.devicePixelRatio);
-      canvas.width = Math.max(1, Math.floor(rect.width * deviceScale));
-      canvas.height = Math.max(1, Math.floor(rect.height * deviceScale));
+      const width = Math.max(1, Math.floor(rect.width * deviceScale));
+      const height = Math.max(1, Math.floor(rect.height * deviceScale));
+      if (canvas.width === width && canvas.height === height) return;
+      canvas.width = width;
+      canvas.height = height;
       gl.viewport(0, 0, canvas.width, canvas.height);
     };
 
-    let animationFrame = 0;
-    const render = (now: number) => {
+    const render = (elapsed: number) => {
       resize();
       gl.useProgram(program);
       gl.uniform2f(resolution, canvas.width, canvas.height);
-      gl.uniform1f(time, now * 1e-3);
+      gl.uniform1f(time, elapsed);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-      animationFrame = window.requestAnimationFrame(render);
     };
 
-    resize();
-    window.addEventListener("resize", resize);
-    animationFrame = window.requestAnimationFrame(render);
+    const repaint = () => render(performance.now() * 0.001);
+    const resizeObserver =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(repaint);
+    resizeObserver?.observe(canvas);
+    window.addEventListener("resize", repaint);
+    const disposeAnimation = startChatAmbientAnimation({ element: canvas, render });
 
     return () => {
-      window.removeEventListener("resize", resize);
-      window.cancelAnimationFrame(animationFrame);
+      window.removeEventListener("resize", repaint);
+      resizeObserver?.disconnect();
+      disposeAnimation();
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);
       gl.deleteShader(vertexShader);
