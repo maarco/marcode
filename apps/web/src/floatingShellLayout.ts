@@ -41,7 +41,9 @@ export function clampFloatingPillNavOffset(input: {
  * Return the space shared workspace headers must leave below a pill that
  * overlaps the top header band. This is measured from the actual transformed
  * rectangle, so dragging a pill across the header cannot put a title under it.
- * Mobile uses a full-width rail and needs no extra gap.
+ * A pill docked to a side edge is a tall strip beside the header, so its height
+ * must never push the header down. Mobile uses a full-width rail and needs no
+ * extra gap.
  */
 export function resolveFloatingPillNavTopInset(input: {
   readonly edge: FloatingShellEdge;
@@ -52,7 +54,11 @@ export function resolveFloatingPillNavTopInset(input: {
 }): string | null {
   const top = Number.isFinite(input.top) ? input.top : 0;
   const bottom = Number.isFinite(input.bottom) ? input.bottom : 0;
-  if (!input.isMobile && (bottom <= 0 || top >= FLOATING_PILL_NAV_HEADER_HEIGHT_PX)) {
+  const dockedToSide = input.edge === "left" || input.edge === "right";
+  if (
+    !input.isMobile &&
+    (dockedToSide || bottom <= 0 || top >= FLOATING_PILL_NAV_HEADER_HEIGHT_PX)
+  ) {
     return null;
   }
 

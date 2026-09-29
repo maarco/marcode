@@ -90,4 +90,18 @@ describe("resolveFloatingPillNavTopInset", () => {
       }),
     ).toBe(`${44 + FLOATING_PILL_NAV_TOP_GAP_PX}px`);
   });
+
+  it("never pushes the header down for a pill docked to a side edge", () => {
+    for (const edge of ["left", "right"] as const) {
+      expect(
+        resolveFloatingPillNavTopInset({
+          edge,
+          isMobile: false,
+          isDragging: false,
+          top: 20,
+          bottom: 693,
+        }),
+      ).toBeNull();
+    }
+  });
 });
