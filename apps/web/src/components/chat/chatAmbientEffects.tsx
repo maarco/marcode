@@ -20,7 +20,6 @@ import {
 } from "../ui/popover";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { Switch } from "../ui/switch";
-import { HoverCard, HoverCardPopup, HoverCardTrigger } from "../ui/hover-card";
 
 export type ChatAmbientTheme = "light" | "dark";
 
@@ -422,6 +421,11 @@ interface ChatAmbientAppearancePickerProps {
   readonly onValueChange: (value: ChatAmbientAppearance) => void;
 }
 
+const ChatAmbientAppearanceHoverCard = lazy(async () => {
+  const module = await import("./ChatAmbientAppearanceHoverCard");
+  return { default: module.ChatAmbientAppearanceHoverCard };
+});
+
 function ChatAmbientAppearanceSelect({
   label,
   options,
@@ -490,45 +494,26 @@ export function ChatAmbientAppearancePicker({
   value,
   onValueChange,
 }: ChatAmbientAppearancePickerProps) {
+  const appearanceTrigger = (
+    <PopoverTrigger
+      render={
+        <button
+          type="button"
+          aria-label="Customize chat ambient appearance"
+          className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-secondary-label outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+          data-chat-ambient-appearance-picker
+        >
+          <SlidersHorizontalIcon className="size-3.5" />
+        </button>
+      }
+    />
+  );
+
   return (
     <Popover>
-      <HoverCard>
-        <HoverCardTrigger
-          closeDelay={120}
-          delay={220}
-          render={
-            <PopoverTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="Customize chat ambient appearance"
-                  className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-secondary-label outline-none transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-                  data-chat-ambient-appearance-picker
-                >
-                  <SlidersHorizontalIcon className="size-3.5" />
-                </button>
-              }
-            />
-          }
-        />
-        <HoverCardPopup align="center" side="bottom">
-          <div className="relative">
-            <SlidersHorizontalIcon
-              aria-hidden="true"
-              className="-right-10 -bottom-10 pointer-events-none absolute size-40 text-cyan-400/10"
-            />
-            <div className="relative">
-              <div className="mb-1.5 flex items-center gap-2">
-                <SlidersHorizontalIcon className="size-4 shrink-0 text-cyan-400" />
-                <p className="font-bold text-sm tracking-tight">Ambient Styling</p>
-              </div>
-              <p className="text-muted-foreground text-xs leading-relaxed">
-                Tune this chat&apos;s colors, gradient, blur, dimming, and frosted-glass haze.
-              </p>
-            </div>
-          </div>
-        </HoverCardPopup>
-      </HoverCard>
+      <Suspense fallback={appearanceTrigger}>
+        <ChatAmbientAppearanceHoverCard trigger={appearanceTrigger} />
+      </Suspense>
       <PopoverPopup
         align="end"
         className="w-72"
