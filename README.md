@@ -23,12 +23,18 @@ The easiest way to test Marcode is to run the server in your terminal (requires 
 The CLI keeps the upstream-compatible `t3` package name:
 
 ```bash
-npx t3@latest
+curl -fsSL https://t3.codes/install.sh | sh
 ```
 
-This launches the backend and local web app to control your agents.
+On Windows, in PowerShell:
 
-Tip: Use `npx t3@latest --help` for the full CLI reference.
+```powershell
+irm https://t3.codes/install.ps1 | iex
+```
+
+Then run `t3` to start the server and open the local web app. `t3 service install` keeps it running in the background, `t3 update` moves to a newer release, and `t3 --help` has the full reference.
+
+To try it once without installing, run `npx t3@latest` instead.
 
 ### Run from source
 

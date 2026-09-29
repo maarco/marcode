@@ -69,10 +69,14 @@ import {
   MenuGroup,
   MenuGroupLabel,
   MenuItem,
+  MenuItemLabel,
   MenuPopup,
   MenuSeparator,
   MenuShortcut,
   MenuTrigger,
+  MenuSub,
+  MenuSubTrigger,
+  MenuSubPopup,
 } from "./ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
@@ -113,6 +117,12 @@ export interface NewProjectScriptInput {
   command: string;
   icon: ProjectScriptIcon;
   runOnWorktreeCreate: boolean;
+  /**
+   * Upstream added a synchronous setup mode: a `runOnWorktreeCreate` action the
+   * worktree waits for. Marcode's editor does not expose the toggle yet, so a new
+   * action keeps the asynchronous default.
+   */
+  waitForSetup: boolean;
   keybinding: string | null;
   /** Optional URL to open in the in-app preview when this script runs. */
   previewUrl: string | null;
@@ -125,6 +135,8 @@ export type ProjectScriptActionResult = AtomCommandResult<void, unknown>;
 const NO_FILE_SCRIPTS: ReadonlyArray<T3ProjectFileScript> = [];
 
 interface ProjectScriptsControlProps {
+  presentation?: "toolbar" | "menu";
+  onRequestMenuClose?: () => void;
   scripts: ReadonlyArray<ProjectScript>;
   /** Scripts declared in the project's checked-in t3.json, offered for import. */
   fileScripts?: ReadonlyArray<T3ProjectFileScript>;
@@ -179,6 +191,8 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
       flat = false,
       placement = null,
       onPlaceScript,
+      presentation = "toolbar",
+      onRequestMenuClose,
     },
     ref,
   ) {
@@ -268,6 +282,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
           command: trimmedCommand,
           icon,
           runOnWorktreeCreate,
+          waitForSetup: false,
           keybinding: keybindingRule?.key ?? null,
           previewUrl: trimmedPreviewUrl.length > 0 ? trimmedPreviewUrl : null,
           autoOpenPreview: trimmedPreviewUrl.length > 0 ? autoOpenPreview : false,
@@ -327,6 +342,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
     useImperativeHandle(ref, () => ({ openAddDialog }), [openAddDialog]);
 
     const openEditDialog = (script: ProjectScript) => {
+      onRequestMenuClose?.();
       setActionsMenuOpen({ scripts: false, imports: false });
       setEditingScriptId(script.id);
       setName(script.name);
@@ -356,6 +372,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
         command: fileScript.command,
         icon: fileScript.icon ?? "play",
         runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
+        waitForSetup: fileScript.runOnWorktreeCreate === true && fileScript.async === false,
         keybinding: null,
         previewUrl: fileScript.previewUrl ?? null,
         autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,
@@ -444,7 +461,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
           />
           <MenuPopup align="end">
             {importMenuItems}
-            <MenuItem className={dropdownItemClassName} onClick={openAddDialog}>
+            <MenuItem onClick={openAddDialog}>
               <PlusIcon className="size-4" />
               Add action
             </MenuItem>
@@ -468,7 +485,27 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
 
     return (
       <>
-        {flat && primaryScript ? (
+        {presentation === "menu" ? (
+          // ── Marcode fork seam ──
+          // Upstream's ThreadActionsCluster renders this control inside its own
+          // menu popup, so a nested trigger would be wrong here. The dialogs
+          // below stay mounted, which is what keeps "Add action" working.
+          <>
+            {scripts.map((script) => (
+              <MenuItem density="touch" key={script.id} onClick={() => onRunScript(script)}>
+                <ScriptIcon icon={script.icon} className="size-4" />
+                <MenuItemLabel>
+                  {script.runOnWorktreeCreate ? `${script.name} (setup)` : script.name}
+                </MenuItemLabel>
+              </MenuItem>
+            ))}
+            {importMenuItems}
+            <MenuItem density="touch" onClick={openAddDialog}>
+              <PlusIcon className="size-4" />
+              <MenuItemLabel>Add action</MenuItemLabel>
+            </MenuItem>
+          </>
+        ) : flat && primaryScript ? (
           // `max-w-full flex-wrap` below: inert in the normal horizontal/mobile row
           // (nothing constrains this div's width there), but once the pill is
           // docked vertically it's squeezed to one icon column — this lets the

@@ -44,6 +44,7 @@ Claude Code, Cursor, Grok, OpenCode, Antigravity) and serves web, desktop, and m
 - A behavior may have web, desktop, mobile, command-palette, settings, keybinding, local, remote, and relay entry points. Sweep the applicable siblings before claiming completion.
 - Provider-shaped changes require a decision for Codex, Claude, Cursor, Grok, OpenCode, and Antigravity, even when a provider is intentionally unsupported.
 - Anything crossing the wire belongs in `packages/contracts`; update the server and every affected client together.
+- Reverse states count as siblings. If you add a way in, add the way out and the way to see it: snooze needs unsnooze, close needs reopen. A one-way door is a bug.
 - Never kill processes by broad name/path matching. Kill only a PID captured at spawn, or a confirmed owner of the exact port and worktree.
 - Never start a server against or write to the installed user's live `~/.marcode/userdata` database. Use the worktree's isolated `.marcode` state.
 - Do not set `VITE_HTTP_URL` or `VITE_WS_URL` for dev; Vite's single-origin proxy is required for local and remote browser behavior.
@@ -198,6 +199,7 @@ Full glossary with file links: `docs/internals/glossary.md`
 ## Taste
 
 - Complexity belongs at the adapter boundary. Orchestration stays pure, UI stays dumb.
+- `apps/web/src/components/ui` exports own their look. Pick a `variant` or `size`; do not restyle one with `className`. If none fits and the look is a generic concept, add a variant to the component; a look that belongs to one feature stays in that feature's own component, not in `components/ui`. Layout classes (width, flex, margin, position) belong on the parent. `shadcn/no-restyle` fails lint on violations.
 - Inferred types over annotations. `any` is the enemy.
 - Comments describe how a thing is used, and move when the code moves.
 - Our users drive agents all day and notice a dropped frame, a lying spinner, and a stale label. No continuously repainting animations; they peg the GPU on high-refresh displays.

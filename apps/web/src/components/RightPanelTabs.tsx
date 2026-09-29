@@ -1,3 +1,10 @@
+import { pullRequestHostOf, type SourceControlProviderKind } from "@t3tools/contracts";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
+import { useProjects, useServerConfigs, useThreadShells } from "~/state/entities";
+import {
+  threadPullRequestKeysEqual,
+  visibleThreadPullRequests,
+} from "@t3tools/shared/threadPullRequests";
 import type {
   ContextMenuItem,
   EnvironmentId,
@@ -9,10 +16,11 @@ import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import {
   Bot,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileDiff,
-  GitPullRequest,
+  Smartphone,
   Globe2,
   MoreHorizontal,
   TerminalSquare,
@@ -29,6 +37,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -39,12 +48,19 @@ import type { RightPanelSurface } from "~/rightPanelStore";
 import { cn } from "~/lib/utils";
 import { readLocalApi } from "~/localApi";
 import { Button } from "~/components/ui/button";
+import { AndroidIcon, AppleIcon } from "~/components/Icons";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "~/components/ui/tooltip";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuTrigger } from "~/components/ui/menu";
 import { useBrowserDefaults } from "~/browser/browserDefaults";
 import { ScrollArea } from "~/components/ui/scroll-area";
 import { faviconUrlForOrigin } from "~/lib/favicon";
-import { pullRequestEnvironment } from "~/state/pullRequests";
+import { useTheme } from "~/hooks/useTheme";
+import { useDeviceState } from "~/state/device";
+import {
+  newestPullRequestSummary,
+  pullRequestEnvironment,
+  useSharedPullRequestSummary,
+} from "~/state/pullRequests";
 import { useEnvironmentQuery } from "~/state/query";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import {
@@ -65,6 +81,7 @@ import { FaviconImage } from "./preview/PreviewFaviconIcon";
 import { resolveSurfaceShelfLayout, type SurfaceShelfLayout } from "./surfaceShelfLayout";
 import { previewBridge } from "./preview/previewBridge";
 import { resolvePullRequestState } from "./pullRequest/pullRequestPresentation";
+import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
 
 interface RightPanelTabsProps {
   mode: PreviewPanelMode;
@@ -89,6 +106,7 @@ interface RightPanelTabsProps {
   previewRuntimeTabId?: ((tabId: string) => string) | undefined;
   terminalLabelsById: ReadonlyMap<string, string>;
   onActivate: (surface: RightPanelSurface) => void;
+  onRenameDevice?: (surfaceId: string, title: string) => void;
   onCloseSurface: (surface: RightPanelSurface) => void;
   onCloseOtherSurfaces: (surface: RightPanelSurface) => void;
   onCloseSurfacesToRight: (surface: RightPanelSurface) => void;
@@ -103,12 +121,16 @@ interface RightPanelTabsProps {
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
+  onAddDevice: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
+  deviceAvailable: boolean;
   pullRequestStatusSeeds?: Readonly<Record<string, PullRequestTabStatusSeed>>;
   /** Running + waiting subagents; badges the Agents card in the empty state. */
   liveAgentCount: number;
@@ -128,6 +150,7 @@ export type PullRequestTabStatusSeed = Pick<PullRequestTabStatus, "state" | "isD
 // No `copy-path`: that action exists upstream for right-panel file tabs, which
 // Marcode does not have.
 type TabContextMenuAction =
+  | "rename"
   | "toggle-mute"
   | "close"
   | "close-others"
@@ -195,8 +218,12 @@ function surfaceTitle(
       );
     case "pull-request":
       return `#${surface.number}`;
+    case "pull-requests":
+      return "Pull requests";
     case "agents":
       return "Agents";
+    case "device":
+      return surface.title ?? surface.target?.name ?? "Device";
     case "preview": {
       const snapshot = surface.resourceId ? sessions[surface.resourceId] : null;
       if (!snapshot || snapshot.navStatus._tag === "Idle") return "Browser";
@@ -212,6 +239,10 @@ function surfaceTitle(
 
 function surfaceTypeLabel(surface: RightPanelSurface): string {
   switch (surface.kind) {
+    case "device":
+      return "Device";
+    case "pull-requests":
+      return "Pull Requests";
     case "preview":
       return "Browser";
     case "terminal":
@@ -294,9 +325,48 @@ function SurfaceIcon({
           seed={pullRequestStatusSeeds?.[surface.id]}
         />
       );
+    case "pull-requests":
+      return <PullRequestGlyph.link className="size-3 shrink-0" />;
     case "agents":
       return <Bot className="size-3 shrink-0" />;
+    case "device":
+      return surface.target?.platform === "ios" ? (
+        <AppleIcon className="size-3 shrink-0" />
+      ) : surface.target?.platform === "android" ? (
+        <AndroidIcon className="size-3 shrink-0" />
+      ) : (
+        <Smartphone className="size-3 shrink-0" />
+      );
   }
+}
+
+export function resolvePullRequestTabLink(
+  threads: readonly Pick<EnvironmentThreadShell, "environmentId" | "pullRequests">[],
+  environmentId: EnvironmentId | null,
+  host: string | null,
+  reference: { repository: string; number: number },
+) {
+  if (environmentId === null || host === null) return undefined;
+  let newest: EnvironmentThreadShell["pullRequests"][number] | undefined;
+  for (const thread of threads) {
+    if (thread.environmentId !== environmentId) continue;
+    for (const link of visibleThreadPullRequests(thread.pullRequests)) {
+      if (
+        !threadPullRequestKeysEqual(link, {
+          host,
+          repository: reference.repository,
+          number: reference.number,
+        })
+      )
+        continue;
+      if (
+        newest === undefined ||
+        (link.snapshot?.syncedAt ?? "") > (newest.snapshot?.syncedAt ?? "")
+      )
+        newest = link;
+    }
+  }
+  return newest;
 }
 
 function PullRequestSurfaceIcon({
@@ -310,26 +380,61 @@ function PullRequestSurfaceIcon({
 }) {
   const resolvedEnvironmentId =
     (surface.environmentId as EnvironmentId | undefined) ?? environmentId;
-  const detail = useEnvironmentQuery(
+  const projects = useProjects();
+  const threads = useThreadShells();
+  const project = projects.find(
+    (entry) => entry.environmentId === resolvedEnvironmentId && entry.id === surface.projectId,
+  );
+  const identity = project?.repositoryIdentity;
+  const host =
+    surface.host ??
+    (identity?.provider
+      ? pullRequestHostOf(identity, identity.provider as SourceControlProviderKind)
+      : null);
+  const configs = useServerConfigs();
+  const capabilities =
     resolvedEnvironmentId === null
+      ? undefined
+      : configs.get(resolvedEnvironmentId)?.environment.capabilities;
+  const linkedSnapshot =
+    capabilities?.threadPullRequests === true
+      ? (resolvePullRequestTabLink(threads, resolvedEnvironmentId, host, surface)?.snapshot ?? null)
+      : null;
+  const detail = useEnvironmentQuery(
+    resolvedEnvironmentId === null || capabilities?.pullRequests !== true || linkedSnapshot !== null
       ? null
       : pullRequestEnvironment.detail({
           environmentId: resolvedEnvironmentId,
           input: {
             projectId: surface.projectId as ProjectId,
+            ...(capabilities?.threadPullRequests === true && surface.host !== undefined
+              ? { host: surface.host }
+              : {}),
             repository: surface.repository,
             number: surface.number,
           },
         }),
   ).data;
-  // Only state and draft reach the tab. A list seed cannot know mergeability, so feeding the
-  // full detail would flip an open tab to the conflict glyph the moment its read lands.
-  const status =
-    detail === null ? (seed ?? null) : { state: detail.state, isDraft: detail.isDraft };
+  const reference = useMemo(
+    () => ({
+      projectId: surface.projectId as ProjectId,
+      repository: surface.repository,
+      number: surface.number,
+    }),
+    [surface.projectId, surface.repository, surface.number],
+  );
+  const sharedSummary = useSharedPullRequestSummary(resolvedEnvironmentId, reference, null);
+  // The compact tab intentionally shows lifecycle and draft state only. Conflict warnings have
+  // their own presentation on surfaces that have mergeability, while this tab stays stable as
+  // detail data arrives.
+  const status = linkedSnapshot ?? newestPullRequestSummary(detail, sharedSummary) ?? seed ?? null;
   if (status === null) {
-    return <GitPullRequest className="size-3 shrink-0 text-muted-foreground" />;
+    return <PullRequestGlyph.pullRequest className="size-3 shrink-0 text-muted-foreground" />;
   }
-  const presentation = resolvePullRequestState(status);
+  const presentation = resolvePullRequestState({
+    state: status.state,
+    isDraft: status.isDraft ?? detail?.isDraft ?? seed?.isDraft ?? false,
+  });
   return <presentation.Icon className={cn("size-3 shrink-0", presentation.toneClassName)} />;
 }
 
@@ -349,6 +454,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
     collides: false,
   });
   const [tabOverflow, setTabOverflow] = useState(false);
+  const [renamingDevice, setRenamingDevice] = useState<string | null>(null);
   const [tabScrollState, setTabScrollState] = useState({
     hasOverflow: false,
     canScrollLeft: false,
@@ -398,6 +504,8 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
       if (surfaceIndex < 0) return;
 
       const items: ContextMenuItem<TabContextMenuAction>[] = [];
+      if (surface.kind === "device" && props.onRenameDevice)
+        items.push({ id: "rename", label: "Rename" });
       const menuPreviewTabId = previewTabIdOf(surface, props.previewSessions);
       // Desktop overlay state only arrives once the preview manager has created
       // the tab. A server session id alone can still be ahead of that, and
@@ -438,6 +546,9 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
 
       const action = await api.contextMenu.show(items, { x: event.clientX, y: event.clientY });
       switch (action) {
+        case "rename":
+          setRenamingDevice(surface.id);
+          break;
         case "toggle-mute": {
           // menuOverlay repeats the disabled gate above: the desktop tab must
           // exist before it can be addressed, however the menu was dismissed.
@@ -651,10 +762,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           // controls a few pixels higher and the cluster jumps on open.
           props.mode === "inline" && !props.layoutControls ? "pr-28" : "pr-3",
           ownsDesktopTitleBar && "drag-region",
-          ownsDesktopTitleBar &&
-            (props.layoutControls
-              ? "wco:pr-[var(--workspace-native-controls-inset)]"
-              : "wco:pr-[calc(var(--workspace-native-controls-inset)+6rem)]"),
+          ownsDesktopTitleBar && "wco:pr-(--workspace-native-controls-inset)",
           props.mode === "inline" && props.maximized && COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
         )}
         data-right-panel-tabbar
@@ -664,6 +772,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         data-surface-shelf-collision={shelfLayout.collides ? "true" : "false"}
       >
         <ScrollArea
+          radius="none"
           ref={tabListRef}
           hideScrollbars
           scrollFade
@@ -765,34 +874,74 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                       <TooltipPopup>{audio === "muted" ? "Unmute tab" : "Mute tab"}</TooltipPopup>
                     </Tooltip>
                   )}
-                  <Tooltip>
-                    <TooltipTrigger
-                      render={
-                        <button
-                          type="button"
-                          id={tabId}
-                          role="tab"
-                          aria-selected={active}
-                          aria-controls={panelId}
-                          aria-label={`${surfaceTypeLabel(surface)}: ${title}`}
-                          tabIndex={active ? 0 : -1}
-                          className="flex min-w-0 cursor-pointer items-center outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-                          onClick={() => props.onActivate(surface)}
-                          onKeyDown={(event) => handleTabKeyDown(event, surface)}
-                        >
-                          <span
-                            className={cn(
-                              "truncate transition-[max-width,opacity] duration-[140ms] ease-out motion-reduce:transition-none",
-                              compactShelf && !active ? "max-w-0 opacity-0" : "max-w-36",
-                            )}
-                          >
-                            {title}
-                          </span>
-                        </button>
-                      }
+                  {renamingDevice === surface.id ? (
+                    <input
+                      aria-label="Device tab name"
+                      className="w-24 min-w-0 rounded-sm bg-background px-1 outline-none ring-1 ring-ring"
+                      defaultValue={title}
+                      ref={(element) => {
+                        element?.focus();
+                        element?.select();
+                      }}
+                      onBlur={(event) => {
+                        props.onRenameDevice?.(surface.id, event.currentTarget.value);
+                        setRenamingDevice(null);
+                      }}
+                      onKeyDown={(event) => {
+                        event.stopPropagation();
+                        if (event.key === "Enter") event.currentTarget.blur();
+                        if (event.key === "Escape") {
+                          event.currentTarget.value = title;
+                          event.currentTarget.blur();
+                        }
+                      }}
                     />
-                    <TooltipPopup>{title}</TooltipPopup>
-                  </Tooltip>
+                  ) : (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            id={tabId}
+                            role="tab"
+                            aria-selected={active}
+                            aria-controls={panelId}
+                            aria-label={`${surfaceTypeLabel(surface)}: ${title}`}
+                            tabIndex={active ? 0 : -1}
+                            onDoubleClick={() => {
+                              if (surface.kind === "device" && props.onRenameDevice)
+                                setRenamingDevice(surface.id);
+                            }}
+                            className="flex min-w-0 cursor-pointer items-center outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                            onClick={() => props.onActivate(surface)}
+                            onKeyDown={(event) => handleTabKeyDown(event, surface)}
+                          >
+                            {/* Marcode's shelf collapses inactive titles instead of
+                                wrapping the strip. */}
+                            <span
+                              className={cn(
+                                "truncate transition-[max-width,opacity] duration-[140ms] ease-out motion-reduce:transition-none",
+                                compactShelf && !active ? "max-w-0 opacity-0" : "max-w-36",
+                              )}
+                            >
+                              {title}
+                            </span>
+                          </button>
+                        }
+                      />
+                      <TooltipPopup>
+                        {surface.kind === "device" ? (
+                          <DeviceTabTooltip
+                            surface={surface}
+                            environmentId={props.environmentId}
+                            title={title}
+                          />
+                        ) : (
+                          title
+                        )}
+                      </TooltipPopup>
+                    </Tooltip>
+                  )}
                 </div>
               );
             })}
@@ -874,12 +1023,16 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           onAddTerminal={props.onAddTerminal}
           onAddDiff={props.onAddDiff}
           onAddPullRequest={props.onAddPullRequest}
+          onAddPullRequests={props.onAddPullRequests}
           onAddAgents={props.onAddAgents}
+          onAddDevice={props.onAddDevice}
           browserAvailable={props.browserAvailable}
           terminalAvailable={props.terminalAvailable}
           diffAvailable={props.diffAvailable}
           pullRequestAvailable={props.pullRequestAvailable}
+          pullRequestsAvailable={props.pullRequestsAvailable}
           agentsAvailable={props.agentsAvailable}
+          deviceAvailable={props.deviceAvailable}
         />
         {tabScrollState.hasOverflow ? (
           <div
@@ -926,6 +1079,10 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
           </div>
         ) : null}
         {props.layoutControls}
+        {ownsDesktopTitleBar && !props.layoutControls ? (
+          // Keeps the tabs clear of the window controls when the layout toggles live elsewhere.
+          <span aria-hidden className="hidden w-24 shrink-0 wco:block" />
+        ) : null}
         {ownsDesktopTitleBar ? (
           <span
             aria-hidden
@@ -953,12 +1110,16 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
             onAddTerminal={props.onAddTerminal}
             onAddDiff={props.onAddDiff}
             onAddPullRequest={props.onAddPullRequest}
+            onAddPullRequests={props.onAddPullRequests}
             onAddAgents={props.onAddAgents}
+            onAddDevice={props.onAddDevice}
             browserAvailable={props.browserAvailable}
             terminalAvailable={props.terminalAvailable}
             diffAvailable={props.diffAvailable}
             pullRequestAvailable={props.pullRequestAvailable}
+            pullRequestsAvailable={props.pullRequestsAvailable}
             agentsAvailable={props.agentsAvailable}
+            deviceAvailable={props.deviceAvailable}
             liveAgentCount={props.liveAgentCount}
           />
         ) : (
@@ -966,5 +1127,29 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
         )}
       </div>
     </PreviewPanelShell>
+  );
+}
+
+function DeviceTabTooltip(props: {
+  surface: Extract<RightPanelSurface, { kind: "device" }>;
+  environmentId: EnvironmentId | null;
+  title: string;
+}) {
+  const target = props.surface.target;
+  const { state } = useDeviceState(target ? props.environmentId : null);
+  const device = target
+    ? state.devices.find((entry) => entry.hostId === target.hostId && entry.id === target.deviceId)
+    : undefined;
+  const host = target ? state.hosts.find((entry) => entry.id === target.hostId) : undefined;
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span>{props.title}</span>
+      {target ? (
+        <span className="text-muted-foreground">
+          {host?.label ?? "Device host"} ·{" "}
+          {device?.version ?? (target.platform === "ios" ? "iOS" : "Android")}
+        </span>
+      ) : null}
+    </div>
   );
 }

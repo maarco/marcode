@@ -25,9 +25,18 @@ interface EarlyDesktopSettingsInput {
 type EarlyLinuxElectronOptionsInput = EarlyDesktopSettingsInput;
 
 export interface EarlyLinuxElectronOptions {
+  readonly isDevelopment: boolean;
   readonly linuxWmClass: string;
+  readonly linuxDesktopEntryName: string;
   readonly passwordStore: LinuxPasswordStoreSwitch | null;
 }
+
+// ── Marcode fork seam ──
+// Upstream names these entries com.t3tools.T3Code[.Development].desktop and its WM
+// class t3code. Marcode ships its own desktop entry and WM class so a Marcode install
+// and an upstream T3 Code install stay distinct to the shell and to xdg-mime.
+export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
+  isDevelopment ? "marcode-dev.desktop" : "marcode.desktop";
 
 const trimNonEmpty = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
@@ -80,8 +89,11 @@ export function resolveEarlyLinuxElectronOptions(
   input: EarlyLinuxElectronOptionsInput,
 ): EarlyLinuxElectronOptions {
   const preference = resolveEarlyLinuxPasswordStorePreference(input);
+  const isDevelopment = isDevelopmentEnvironment(input.env);
   return {
-    linuxWmClass: isDevelopmentEnvironment(input.env) ? "t3code-dev" : "t3code",
+    isDevelopment,
+    linuxWmClass: isDevelopment ? "marcode-dev" : "marcode",
+    linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     passwordStore: resolveLinuxPasswordStoreSwitch({
       preference,
       env: input.env,

@@ -271,8 +271,8 @@ function terminalThemeFromApp(mountElement?: HTMLElement | null): ITheme {
   const fallbackBackground = isDark ? "rgb(14, 18, 24)" : "rgb(255, 255, 255)";
   const fallbackForeground = isDark ? "rgb(237, 241, 247)" : "rgb(28, 33, 41)";
   const drawerSurface =
-    mountElement?.closest(".thread-terminal-drawer") ??
-    document.querySelector(".thread-terminal-drawer") ??
+    mountElement?.closest("[data-thread-terminal-drawer]") ??
+    document.querySelector("[data-thread-terminal-drawer]") ??
     document.body;
   const drawerStyles = getComputedStyle(drawerSurface);
   const bodyStyles = getComputedStyle(document.body);
@@ -888,6 +888,8 @@ export function TerminalViewport({
                   threadRef,
                   openPreview,
                   fallbackToBrowser,
+                  // Upstream added an explicit escape to the system browser.
+                  forceBrowser: event.metaKey || event.ctrlKey,
                 });
                 return;
               }
@@ -1097,6 +1099,7 @@ export function TerminalViewport({
   return (
     <div
       ref={containerRef}
+      tabIndex={-1}
       // p-2 keeps the xterm rows off the panel edge; FitAddon measures this element,
       // so the padding correctly shrinks the usable grid instead of clipping it.
       className="relative h-full w-full overflow-hidden rounded-[4px] bg-background p-2"
@@ -2010,9 +2013,10 @@ export default function ThreadTerminalDrawer({
   if (normalizedTerminalIds.length === 0) {
     return (
       <aside
+        data-thread-terminal-drawer
         data-terminal-owner={terminalOwner}
         className={cn(
-          "thread-terminal-drawer relative flex min-w-0 flex-col overflow-hidden bg-background",
+          "relative flex min-w-0 flex-col overflow-hidden bg-background",
           isPanel ? "h-full flex-1" : "shrink-0 border-t border-border/80",
         )}
         style={isPanel ? undefined : { height: `${drawerHeight}px` }}
@@ -2052,9 +2056,10 @@ export default function ThreadTerminalDrawer({
 
   return (
     <aside
+      data-thread-terminal-drawer
       data-terminal-owner={terminalOwner}
       className={cn(
-        "thread-terminal-drawer relative flex min-w-0 flex-col overflow-hidden bg-background",
+        "relative flex min-w-0 flex-col overflow-hidden bg-background",
         isPanel ? "h-full flex-1" : "shrink-0 border-t border-border/80",
       )}
       style={isPanel ? undefined : { height: `${drawerHeight}px` }}
@@ -2108,7 +2113,7 @@ export default function ThreadTerminalDrawer({
       <div className="min-h-0 w-full flex-1">
         <div
           className={cn(
-            "flex h-full min-h-0 bg-[var(--terminal-background)]",
+            "flex h-full min-h-0 bg-(--terminal-background)",
             hasTerminalSidebar && "gap-1.5",
           )}
         >

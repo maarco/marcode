@@ -67,8 +67,14 @@ import Migration0048 from "./Migrations/048_ProjectionProjectIcon.ts";
 // Historical upstream 048_ProjectionThreadBranchPullRequest was recorded as 049.
 import Migration0049 from "./Migrations/049_ProjectionThreadBranchPullRequest.ts";
 // Upstream 049_ProjectionThreadsActiveOrderKey arrives as Marcode 050 so the
-// already-applied Marcode 049 id remains immutable.
+// already-applied Marcode 049 id remains immutable. Upstream 050-054 follow at
+// the same +1 offset.
 import Migration0050 from "./Migrations/050_ProjectionThreadsActiveOrderKey.ts";
+import Migration0051 from "./Migrations/051_ProjectionThreadPullRequests.ts";
+import Migration0052 from "./Migrations/052_ProjectionThreadMessageContext.ts";
+import Migration0053 from "./Migrations/053_ProjectionThreadTitleState.ts";
+import Migration0054 from "./Migrations/054_PullRequestFilesViewed.ts";
+import Migration0055 from "./Migrations/055_ProjectionThreadsAutoSettleDisabledAt.ts";
 import { marcodeMigrationEntries } from "./marcodeMigrations.ts";
 
 /**
@@ -81,11 +87,11 @@ import { marcodeMigrationEntries } from "./marcodeMigrations.ts";
  * Uses Migrator.fromRecord which parses the key format and
  * returns migrations sorted by ID.
  */
-// IDs 1-49 are frozen deployed history. They include the old Marcode 033
+// IDs 1-50 are frozen deployed history. They include the old Marcode 033
 // collision and must never be renumbered. Upstream additions after that
-// boundary append as deployed migrations; new Marcode entries use the
-// high-numbered registry in marcodeMigrations.ts instead of being interleaved
-// into this list.
+// boundary append as deployed migrations at Marcode's offset; new Marcode
+// entries use the high-numbered registry in marcodeMigrations.ts instead of
+// being interleaved into this list.
 const deployedMigrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
   [2, "OrchestrationCommandReceipts", Migration0002],
@@ -137,13 +143,18 @@ const deployedMigrationEntries = [
   [48, "ProjectionProjectIcon", Migration0048],
   [49, "ProjectionThreadBranchPullRequest", Migration0049],
   [50, "ProjectionThreadsActiveOrderKey", Migration0050],
+  [51, "ProjectionThreadPullRequests", Migration0051],
+  [52, "ProjectionThreadMessageContext", Migration0052],
+  [53, "ProjectionThreadTitleState", Migration0053],
+  [54, "PullRequestFilesViewed", Migration0054],
+  [55, "ProjectionThreadsAutoSettleDisabledAt", Migration0055],
 ] as const;
 
 export const migrationEntries = [...deployedMigrationEntries, ...marcodeMigrationEntries] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
 
-export const makeMigrationLoader = (throughId?: number) =>
+const makeMigrationLoader = (throughId?: number) =>
   Migrator.fromRecord(
     Object.fromEntries(
       migrationEntries

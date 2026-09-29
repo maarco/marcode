@@ -226,9 +226,9 @@ Decision history:
 - Skill drift and upstream re-verification: `.agents/skills/marcode-skill-upkeep`
 - Unified sidebar behavior and testing: `.agents/skills/unified-workspace-sidebar`
 - Web runtime verification: `.agents/skills/test-t3-app`
-- Mobile runtime verification: `.agents/skills/test-t3-mobile`
-- Native iOS verification: `.agents/skills/ios-debugger-agent` and
-  `.agents/skills/ios-simulator-browser`
+- Mobile runtime verification: `.agents/skills/test-t3-mobile`. The d15210cd sync retired the
+  `ios-debugger-agent` and `ios-simulator-browser` skills with the `.mcp.json` XcodeBuild MCP
+  wiring; upstream drives simulators through the Device panel and the `agent-device` CLI now.
 
 When a new Marcode-only subsystem lands:
 

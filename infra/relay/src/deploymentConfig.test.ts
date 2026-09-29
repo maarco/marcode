@@ -7,6 +7,7 @@ import {
   managedEndpointHostname,
   isManagedEndpointHostname,
   managedEndpointTunnelName,
+  managedEndpointTunnelNamePrefix,
   relayOwnsManagedEndpointZone,
   RelayPublicDomainLabelTooLongError,
   relayPublicDomainForStage,
@@ -83,6 +84,14 @@ describe("managed endpoint names", () => {
     );
     expect(managedEndpointTunnelName("dev_julius", hash)).toBe(
       "marcoderelay-managedendpoint-dev-julius-abcdef0123456789",
+    );
+    // -- Marcode fork seam --
+    // Marcode deploys the relay under its own name, so every managed endpoint
+    // tunnel is `marcoderelay-managedendpoint-*`. Upstream's literal is
+    // `t3coderelay-*`; taking it here would assert a prefix that
+    // MANAGED_ENDPOINT_TUNNEL_PREFIX no longer produces.
+    expect(managedEndpointTunnelNamePrefix("dev_julius")).toBe(
+      "marcoderelay-managedendpoint-dev-julius-",
     );
   });
 

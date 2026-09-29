@@ -18,8 +18,8 @@ const resolveMockUpdateServerConfig = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const config = yield* Config.all({
-    port: Config.port("MARCODE_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(Config.withDefault(3000)),
-    root: Config.string("MARCODE_DESKTOP_MOCK_UPDATE_SERVER_ROOT").pipe(
+    port: Config.Port("MARCODE_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(Config.withDefault(3000)),
+    root: Config.String("MARCODE_DESKTOP_MOCK_UPDATE_SERVER_ROOT").pipe(
       Config.withDefault("../release-mock"),
     ),
   });

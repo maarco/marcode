@@ -1,12 +1,5 @@
-import {
-  Bot,
-  ChevronDown,
-  FileDiff,
-  GitPullRequest,
-  Globe2,
-  Plus,
-  TerminalSquare,
-} from "lucide-react";
+import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
+import { Bot, Smartphone, ChevronDown, FileDiff, Globe2, Plus, TerminalSquare } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -38,6 +31,8 @@ const SURFACE_DISABLED_REASONS = {
   terminal: "Terminal surfaces are only available from a project thread.",
   diff: "Diff is only available for server threads in Git repositories.",
   pullRequest: "This thread's branch has no pull request yet.",
+  pullRequests: "No linked pull requests are available for this thread.",
+  device: "Devices are only available from a thread.",
   agents: "Agents are only available from a thread.",
 } as const;
 
@@ -58,6 +53,8 @@ const SURFACE_UNAVAILABLE_HINTS = {
   terminal: "Available when a project is open.",
   diff: "Available for Git repositories.",
   pullRequest: "No pull request on this branch yet.",
+  pullRequests: "No linked pull requests available.",
+  device: "Available from a thread.",
   agents: "Available from a thread.",
 } as const;
 
@@ -130,16 +127,24 @@ export function MarcodeRightPanelAddMenu(props: {
   surfacesCount: number;
   onAddBrowser: () => void;
   onAddBrowserInProfile: (profileId: string) => void;
-  browserProfiles: ReadonlyArray<{ readonly id: string; readonly name: string }>;
+  browserProfiles: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+    readonly kind?: "incognito" | "persistent";
+  }>;
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
+  onAddDevice: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
+  deviceAvailable: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const actions = [
@@ -169,11 +174,27 @@ export function MarcodeRightPanelAddMenu(props: {
     },
     {
       label: "Pull request",
-      icon: GitPullRequest,
+      icon: PullRequestGlyph.pullRequest,
       shortcut: "P",
       available: props.pullRequestAvailable,
       disabledReason: SURFACE_DISABLED_REASONS.pullRequest,
       onClick: props.onAddPullRequest,
+    },
+    {
+      label: "Linked pull requests",
+      icon: PullRequestGlyph.pullRequest,
+      shortcut: "L",
+      available: props.pullRequestsAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.pullRequests,
+      onClick: props.onAddPullRequests,
+    },
+    {
+      label: "Device",
+      icon: Smartphone,
+      shortcut: "V",
+      available: props.deviceAvailable,
+      disabledReason: SURFACE_DISABLED_REASONS.device,
+      onClick: props.onAddDevice,
     },
     {
       label: "Agents",
@@ -283,16 +304,24 @@ export function MarcodeRightPanelAddMenu(props: {
 export function MarcodeRightPanelEmptyState(props: {
   onAddBrowser: () => void;
   onAddBrowserInProfile: (profileId: string) => void;
-  browserProfiles: ReadonlyArray<{ readonly id: string; readonly name: string }>;
+  browserProfiles: ReadonlyArray<{
+    readonly id: string;
+    readonly name: string;
+    readonly kind?: "incognito" | "persistent";
+  }>;
   onAddTerminal: () => void;
   onAddDiff: () => void;
   onAddPullRequest: () => void;
+  onAddPullRequests: () => void;
   onAddAgents: () => void;
+  onAddDevice: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
+  pullRequestsAvailable: boolean;
   agentsAvailable: boolean;
+  deviceAvailable: boolean;
   liveAgentCount: number;
 }) {
   const [highlight, setHighlight] = useState(-1);
@@ -330,7 +359,7 @@ export function MarcodeRightPanelEmptyState(props: {
     {
       label: "Pull Request",
       description: "Open this branch's pull request.",
-      icon: GitPullRequest,
+      icon: PullRequestGlyph.pullRequest,
       shortcut: "P",
       available: props.pullRequestAvailable,
       disabledReason: SURFACE_UNAVAILABLE_HINTS.pullRequest,

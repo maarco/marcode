@@ -99,6 +99,10 @@ function themeHalvesSignature(halves: ThemeHalves | null): string {
   return `${halves?.light ?? ""}|${halves?.dark ?? ""}`;
 }
 
+// ── Marcode fork seam ──
+// Marcode keeps the first-run wizard on a true-black canvas; upstream made it
+// follow the app theme and removed this guard. FirstRunGate/WelcomeWizard mount
+// `mountOnboardingTheme`, which sets the dataset flag this reads.
 function isOnboardingThemeActive(): boolean {
   return (
     typeof document !== "undefined" &&
@@ -109,7 +113,7 @@ function isOnboardingThemeActive(): boolean {
 const THEME_COLOR_META_NAME = "theme-color";
 const DYNAMIC_THEME_COLOR_SELECTOR = `meta[name="${THEME_COLOR_META_NAME}"][data-dynamic-theme-color="true"]`;
 
-export class ThemeStorageError extends Schema.TaggedErrorClass<ThemeStorageError>()(
+export class ThemeStorageError extends Schema.TaggedError<ThemeStorageError>()(
   "ThemeStorageError",
   {
     operation: Schema.Literals(["read", "write"]),
@@ -125,7 +129,7 @@ export class ThemeStorageError extends Schema.TaggedErrorClass<ThemeStorageError
 
 export const isThemeStorageError = Schema.is(ThemeStorageError);
 
-export class DesktopThemeSyncError extends Schema.TaggedErrorClass<DesktopThemeSyncError>()(
+export class DesktopThemeSyncError extends Schema.TaggedError<DesktopThemeSyncError>()(
   "DesktopThemeSyncError",
   {
     theme: ThemePreference,
