@@ -46,6 +46,8 @@ import {
   scheduleFloatingShellGeometry,
 } from "../floatingShellGeometry";
 import {
+  clampFloatingPillNavOffset,
+  FLOATING_PILL_NAV_EDGE_MARGIN_PX,
   FLOATING_PILL_NAV_TOP_INSET_ATTRIBUTE,
   FLOATING_PILL_NAV_TOP_INSET_VARIABLE,
   resolveFloatingPillNavTopInset,
@@ -575,32 +577,23 @@ function getDockedStyle(pos: PillPosition): React.CSSProperties {
   };
 }
 
-// How far (px) the pill keeps from the nearest screen edge along its main
-// axis — enough that a wide pill never touches the window boundary, and a
-// top-docked one never reaches under the macOS traffic lights.
-const EDGE_MARGIN_PX = 20;
-
 /**
  * The most the pill's main axis (width when docked top/bottom, height when
- * docked left/right) can grow before either end would cross `EDGE_MARGIN_PX`
- * short of the screen edge. Anchored to `offset` — the pill's own percentage
- * along that axis, from `PillPosition` — rather than a flat viewport
- * fraction: a pill dragged near one edge has less room on that side than a
- * centred one does, and a flat cap would let it overrun the edge it sits
- * closest to.
+ * docked left/right) can grow before either end would cross the viewport
+ * margin. This is a viewport-safe cap rather than an offset-dependent cap:
+ * the measured offset is clamped separately after the transformed rectangle
+ * is available, so the border always encloses the full scroll viewport.
  *
  * Expressed in `vw`/`vh` rather than a `window.inner*` read so it tracks a
  * live resize for free (no listener, no re-render) — the browser recomputes
  * viewport units on its own. Dividing by `scale` undoes `pillScale`'s visual
  * stretch (a CSS `transform`, which does not affect layout size) so the cap
- * holds at any zoom level, not just 1x — both edges scale from the pill's
- * own centre on this axis (see `scaleOrigin`), so the correction is uniform.
+ * holds at any zoom level, not just 1x.
  */
-function dockedMainAxisMaxExtent(offset: number, scale: number, unit: "vw" | "vh"): string {
-  const nearest = Math.min(offset, 100 - offset);
-  const factor = (2 * nearest) / scale;
-  const margin = (EDGE_MARGIN_PX * 2) / scale;
-  return `calc(${factor}${unit} - ${margin}px)`;
+function dockedMainAxisMaxExtent(scale: number, unit: "vw" | "vh"): string {
+  const safeScale = Math.max(scale, 0.01);
+  const margin = (FLOATING_PILL_NAV_EDGE_MARGIN_PX * 2) / safeScale;
+  return `calc(${100 / safeScale}${unit} - ${margin}px)`;
 }
 
 // ─── component ──────────────────────────────────────────────
@@ -707,12 +700,14 @@ export function FloatingPillNav() {
   const [pillScale, setPillScale] = useState(1);
   const geometryMeta = useRef({
     edge: "top" as SnapEdge,
+    offset: 50,
     scale: 1,
     isMobile: false,
     isDragging: false,
   });
   geometryMeta.current = {
     edge: isDragging ? edgeProximity.edge : position.edge,
+    offset: position.offset,
     scale: pillScale,
     isMobile,
     isDragging,
@@ -724,6 +719,7 @@ export function FloatingPillNav() {
     const root = document.documentElement;
     const topInset = resolveFloatingPillNavTopInset({
       ...geometryMeta.current,
+      top: rect.top,
       bottom: rect.bottom,
     });
     if (topInset !== null) {
@@ -733,6 +729,29 @@ export function FloatingPillNav() {
       root.style.removeProperty(FLOATING_PILL_NAV_TOP_INSET_VARIABLE);
       root.removeAttribute(FLOATING_PILL_NAV_TOP_INSET_ATTRIBUTE);
     }
+
+    if (!geometryMeta.current.isMobile && !geometryMeta.current.isDragging) {
+      const visualExtent =
+        geometryMeta.current.edge === "top" || geometryMeta.current.edge === "bottom"
+          ? rect.width
+          : rect.height;
+      const nextOffset = clampFloatingPillNavOffset({
+        edge: geometryMeta.current.edge,
+        offset: geometryMeta.current.offset,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        visualExtent,
+      });
+      if (Math.abs(nextOffset - geometryMeta.current.offset) > 0.01) {
+        setPosition((current) => {
+          if (current.edge !== geometryMeta.current.edge) return current;
+          const next = { ...current, offset: nextOffset };
+          savePosition(next);
+          return next;
+        });
+      }
+    }
+
     scheduleFloatingShellGeometry({
       rect: {
         top: rect.top,
@@ -1120,17 +1139,23 @@ export function FloatingPillNav() {
     dragStart.current = null;
   }, [dragPos]);
 
-  // mouse drag: on the whole pill body (not links/buttons)
+  const suppressGripClick = useRef(false);
+
+  // mouse drag: on the whole pill body, including the grip once unlocked.
+  // A moved grip gesture suppresses the button click so dragging cannot also
+  // toggle the lock state; a stationary grip click still toggles it.
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (isLocked) return;
       if (e.pointerType === "touch") return;
-      if ((e.target as HTMLElement).closest("a, button")) return;
-      e.preventDefault();
+      const target = e.target as HTMLElement;
+      const startedOnGrip = target.closest("[data-pill-nav-grip]") !== null;
+      if (!startedOnGrip && target.closest("a, button")) return;
+      if (!startedOnGrip) e.preventDefault();
       isTouchDrag.current = false;
       beginDrag(e.clientX, e.clientY);
       try {
-        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+        target.setPointerCapture(e.pointerId);
       } catch {}
     },
     [isLocked, beginDrag],
@@ -1147,6 +1172,13 @@ export function FloatingPillNav() {
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
       if (!isDragging || e.pointerType === "touch") return;
+      const endedOnGrip = (e.target as HTMLElement).closest("[data-pill-nav-grip]") !== null;
+      if (endedOnGrip && hasMoved.current) {
+        suppressGripClick.current = true;
+        window.setTimeout(() => {
+          suppressGripClick.current = false;
+        }, 0);
+      }
       endDrag();
       try {
         (e.target as HTMLElement).releasePointerCapture(e.pointerId);
@@ -1163,14 +1195,22 @@ export function FloatingPillNav() {
   }, [isDragging]);
 
   // lock toggle: click grip handle to lock/unlock position
-  const toggleLock = useCallback(() => {
-    if (isMobile) return;
-    setIsLocked((prev) => {
-      const next = !prev;
-      saveLocked(next);
-      return next;
-    });
-  }, [isMobile]);
+  const toggleLock = useCallback(
+    (event?: React.MouseEvent<HTMLButtonElement>) => {
+      if (suppressGripClick.current) {
+        suppressGripClick.current = false;
+        event?.preventDefault();
+        return;
+      }
+      if (isMobile) return;
+      setIsLocked((prev) => {
+        const next = !prev;
+        saveLocked(next);
+        return next;
+      });
+    },
+    [isMobile],
+  );
 
   // touch drag: on the grip handle only (so taps on nav items aren't hijacked)
   const gripRef = useRef<HTMLButtonElement>(null);
@@ -1207,6 +1247,12 @@ export function FloatingPillNav() {
     const onTouchEnd = () => {
       if (!touchActive.current) return;
       touchActive.current = false;
+      if (hasMoved.current) {
+        suppressGripClick.current = true;
+        window.setTimeout(() => {
+          suppressGripClick.current = false;
+        }, 0);
+      }
       endDragRef.current();
     };
 
@@ -1288,6 +1334,15 @@ export function FloatingPillNav() {
       zIndex: FLOATING_SURFACE_Z.pillNav,
       transition: "none",
       borderRadius: "24px",
+      ...(summonTarget.edge === "left" || summonTarget.edge === "right"
+        ? {
+            height: "max-content",
+            maxHeight: dockedMainAxisMaxExtent(pillScale, "vh"),
+          }
+        : {
+            width: "max-content",
+            maxWidth: dockedMainAxisMaxExtent(pillScale, "vw"),
+          }),
     };
   }
 
@@ -1336,6 +1391,15 @@ export function FloatingPillNav() {
                   : edgeProximity.edge === "left"
                     ? "left center"
                     : "right center",
+            ...(edgeProximity.edge === "left" || edgeProximity.edge === "right"
+              ? {
+                  height: "max-content",
+                  maxHeight: dockedMainAxisMaxExtent(pillScale, "vh"),
+                }
+              : {
+                  width: "max-content",
+                  maxWidth: dockedMainAxisMaxExtent(pillScale, "vw"),
+                }),
           }
         : summonStyle
           ? {
@@ -1356,8 +1420,14 @@ export function FloatingPillNav() {
                   ? "all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)"
                   : "all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
                 ...(isVertical
-                  ? { maxHeight: dockedMainAxisMaxExtent(position.offset, pillScale, "vh") }
-                  : { maxWidth: dockedMainAxisMaxExtent(position.offset, pillScale, "vw") }),
+                  ? {
+                      height: "max-content",
+                      maxHeight: dockedMainAxisMaxExtent(pillScale, "vh"),
+                    }
+                  : {
+                      width: "max-content",
+                      maxWidth: dockedMainAxisMaxExtent(pillScale, "vw"),
+                    }),
               };
             })();
 
@@ -1438,14 +1508,14 @@ export function FloatingPillNav() {
                 // staying icon-width. Cap to one icon column (w-8 + the pill's own
                 // px-2) and let lines wrap inside it instead of stretching it; no
                 // horizontal scroll in a vertical dock. The main axis is height:
-                // `dockedMainAxisMaxExtent` sets the precise offset-aware cap
+                // `dockedMainAxisMaxExtent` sets the precise viewport-safe cap
                 // inline while resting; this flat one is the floor for drag/summon,
                 // when that inline style is not in play — and `overflow-y-auto` is
                 // what makes a column taller than the screen reachable at all,
                 // rather than just spilling past the window edge unseen.
                 "max-w-12 overflow-x-hidden max-h-[calc(100vh-2.5rem)] overflow-y-auto no-scrollbar"
               : // Horizontal dock: `dockedMainAxisMaxExtent` sets the precise
-                // offset-aware width cap inline while resting (see the style
+                // viewport-safe width cap inline while resting (see the style
                 // computation above); this flat one is the floor for drag/summon,
                 // and keeps even those transient states off the window edge
                 // instead of flush against — or past — it.
@@ -1644,6 +1714,7 @@ export function FloatingPillNav() {
               )}
               aria-pressed={isLocked}
               aria-label={isLocked ? "Unlock position" : "Lock position"}
+              data-pill-nav-grip=""
             >
               {isLocked ? (
                 <LockFilled className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
