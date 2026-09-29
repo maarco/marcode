@@ -329,6 +329,7 @@ export default defineConfig({
           "apps/web/src/components/Sidebar.tsx",
           "apps/web/src/components/chat/OpenInPicker.tsx",
           "apps/web/src/components/chat/chatAmbientEffects.tsx",
+          "apps/web/src/components/chat/ChatAmbientAppearanceHoverCard.tsx",
           "apps/web/src/components/clerk/T3ConnectSidebarSignIn.tsx",
           "apps/web/src/components/sidebar/SidebarChrome.tsx",
           "apps/web/src/components/sidebar/SidebarUpdatePill.tsx",
