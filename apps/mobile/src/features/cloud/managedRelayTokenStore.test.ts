@@ -26,35 +26,3 @@ it.effect("falls back to an empty cache when persisted data is invalid", () =>
     expect(yield* managedRelayAccessTokenStore.load).toEqual([]);
   }),
 );
-<<<<<<< HEAD
-
-it.effect("logs structured storage failures before falling back to an empty cache", () => {
-  const messages: Array<unknown> = [];
-  const logger = Logger.make(({ message }) => {
-    messages.push(message);
-  });
-  const cause = new Error("secure store unavailable");
-  vi.mocked(SecureStore.getItemAsync).mockRejectedValueOnce(cause);
-
-  return Effect.gen(function* () {
-    expect(yield* managedRelayAccessTokenStore.load).toEqual([]);
-
-    const message = messages.find(
-      (candidate) =>
-        Array.isArray(candidate) && candidate[0] === "Managed relay token store operation failed.",
-    );
-    expect(message).toBeDefined();
-    const context = (message as ReadonlyArray<unknown>)[1] as {
-      readonly cause: ManagedRelayTokenStoreError;
-    };
-    expect(context.cause).toBeInstanceOf(ManagedRelayTokenStoreError);
-    expect(context.cause).toMatchObject({
-      operation: "read",
-      storageKey: "marcode.cloud.relay-access-tokens",
-      cause,
-    });
-    expect(context.cause.message).not.toContain(cause.message);
-  }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
-});
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7

@@ -380,27 +380,11 @@ function expectedManagedEndpointHash(environmentId: string, userId: string): str
 }
 
 function expectedManagedHostname(environmentId: string, userId = "user_ABC"): string {
-<<<<<<< HEAD
-  const hash = NodeCrypto.createHash("sha256")
-    .update(`dev_julius:${userId}:${environmentId}`)
-    .digest("hex")
-    .slice(0, 16);
-  return `dev-julius-${hash}.marcode.test`;
-}
-
-function expectedManagedTunnelName(environmentId: string, userId = "user_ABC"): string {
-  const hash = NodeCrypto.createHash("sha256")
-    .update(`dev_julius:${userId}:${environmentId}`)
-    .digest("hex")
-    .slice(0, 16);
-  return `marcoderelay-managedendpoint-dev-julius-${hash}`;
-=======
   return `dev-julius-${expectedManagedEndpointHash(environmentId, userId)}.t3code.test`;
 }
 
 function expectedManagedTunnelName(environmentId: string, userId = "user_ABC"): string {
   return `t3coderelay-managedendpoint-dev-julius-${expectedManagedEndpointHash(environmentId, userId)}`;
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }
 
 describe("ManagedEndpointProvider", () => {

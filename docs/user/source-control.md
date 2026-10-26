@@ -1,14 +1,5 @@
 # Source control
 
-<<<<<<< HEAD
-Marcode integrates with GitHub, GitLab, Forgejo, Gitea, Bitbucket, and Azure DevOps to clone and publish
-repositories, create pull requests, and review changes.
-
-## Connect an account
-
-Install Git and configure authentication on the machine running your Marcode server. For a remote
-environment, do this on the remote machine. After signing in, open **Settings → Source Control**
-=======
 T3 Code integrates with GitHub, GitLab, Forgejo, Gitea, Bitbucket, Azure DevOps, and GitCafe to clone
 and publish repositories, create pull requests, and review changes.
 
@@ -23,7 +14,6 @@ against your base branch. Restore still returns the complete saved workspace.
 
 Install Git and configure authentication on the machine running your T3 Code server. For a remote
 environment, do this on the remote machine. After signing in, open **Settings → Source control**
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 and choose **Rescan**.
 
 ### GitHub
@@ -91,22 +81,10 @@ If no credentials are saved, T3 Code falls back to these variables in the server
 Restart the server after changing them:
 
 ```bash
-<<<<<<< HEAD
 export MARCODE_BITBUCKET_ACCESS_TOKEN="your-access-token"
-```
-
-Or use an Atlassian account email and API token with read/write access to repositories and pull
-requests, plus user read access (`read:user:bitbucket`):
-
-```bash
+# or
 export MARCODE_BITBUCKET_EMAIL="you@example.com"
 export MARCODE_BITBUCKET_API_TOKEN="your-token"
-=======
-export T3CODE_BITBUCKET_ACCESS_TOKEN="your-access-token"
-# or
-export T3CODE_BITBUCKET_EMAIL="you@example.com"
-export T3CODE_BITBUCKET_API_TOKEN="your-token"
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 ```
 
 For a background service, put these `KEY=VALUE` entries in
@@ -166,14 +144,9 @@ make your first commit before pushing.
 
 ## Create a pull request
 
-<<<<<<< HEAD
-Use a thread's Git actions to commit, push, and create a pull request. Marcode can generate commit
-messages, review titles, and descriptions from your changes.
-=======
 Use a thread's Git actions to commit, push, and create a pull request. T3 Code can generate commit
 messages, review titles, and descriptions from your changes. Descriptions also draw on the work in
 the thread, including the checks it ran.
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
 An existing fork PR can appear beside the branch even if you pushed without setting an upstream.
 If its badge is missing because several remotes hold that branch, set the branch's upstream to

@@ -129,21 +129,11 @@ const serviceInstallCommand = Command.make("install", serviceReconcileFlags).pip
         const result = yield* reconcileService({ allowDowngrade: flags.allowDowngrade });
         if (!result.changed) {
           yield* Console.log(
-<<<<<<< HEAD
-            `Marcode service is already installed with t3@${packageJson.version}.`,
-          );
-          return;
-        }
-        yield* Console.log(
-          `${result.previouslyInstalled ? "Updated" : "Installed"} Marcode service with t3@${packageJson.version}.\nLogs: ${result.plan.logPath}`,
-        );
-=======
             `T3 Code service is already installed with t3@${packageJson.version} (${yield* resolveEntryPath}).`,
           );
           return;
         }
         yield* Console.log(formatServiceChange(result));
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       }),
     ),
   ),
@@ -161,21 +151,12 @@ const serviceUpdateCommand = Command.make("update", serviceReconcileFlags).pipe(
         );
         const result = yield* reconcileService({ allowDowngrade: flags.allowDowngrade });
         if (!result.changed) {
-<<<<<<< HEAD
-          yield* Console.log(`Marcode service is already using t3@${packageJson.version}.`);
-          return;
-        }
-        yield* Console.log(
-          `${result.previouslyInstalled ? "Updated" : "Installed"} Marcode service with t3@${packageJson.version}.\nLogs: ${result.plan.logPath}`,
-        );
-=======
           yield* Console.log(
             `T3 Code service is already using t3@${packageJson.version} (${yield* resolveEntryPath}).`,
           );
           return;
         }
         yield* Console.log(formatServiceChange(result));
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       }),
     ),
   ),
@@ -195,17 +176,11 @@ const serviceRestartCommand = Command.make("restart", projectLocationFlags).pipe
         const onVersion =
           status.installedVersion === undefined ? "" : ` on t3@${status.installedVersion}`;
         yield* Console.log(
-<<<<<<< HEAD
-          restarted
-            ? `Restarted the Marcode service${status.installedVersion === undefined ? "" : ` on t3@${status.installedVersion}`}.`
-            : "Marcode service is not installed.",
-=======
           outcome === "restarted"
             ? `Restarted the T3 Code service${onVersion}.`
             : outcome === "queued"
               ? `Queued a restart of the T3 Code service${onVersion}. This session runs inside the service and disconnects when it goes down.\nLogs: ${status.logPath}`
               : "T3 Code service is not installed.",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
         );
       }),
     ),
@@ -251,13 +226,8 @@ export const offerServiceDuringOnboarding = Effect.gen(function* () {
     return "skipped" as const;
   }
   if (installed && current) {
-<<<<<<< HEAD
-    yield* Console.log("Marcode is already set up to run in the background on this machine.");
-    return true;
-=======
     yield* Console.log("T3 Code is already set up to run in the background on this machine.");
     return "ready" as const;
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   }
   for (const problem of status.problems ?? []) {
     yield* Console.warn(`[${problem}] ${BootService.formatBootServiceProblem(problem)}`);

@@ -264,11 +264,7 @@ export const ListThreadPullRequestsResult = Schema.Struct({
 export type ListThreadPullRequestsResult = typeof ListThreadPullRequestsResult.Type;
 
 const LinkPullRequestTool = Tool.make("link_pull_request", {
-<<<<<<< HEAD
-  description: `${REGISTER_EVERY_PR} Links a pull request to this thread so Marcode tracks it, shows its status beside the thread, and settles the thread when it merges. Pass the URL, or repository plus number. Linking an already-linked pull request succeeds with alreadyLinked=true.`,
-=======
   description: "Link a PR to this thread. T3 shows its status and settles the thread on merge.",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   parameters: PullRequestTargetInput,
   success: LinkPullRequestResult,
   failure: PullRequestToolError,

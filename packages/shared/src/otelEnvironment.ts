@@ -1,16 +1,3 @@
-<<<<<<< HEAD
-/**
- * otelEnvironment: the OpenTelemetry kill switch, exporter, and endpoint variables,
- * shared by the server and the desktop main process so both agree on what
- * turns export off and where it goes.
- *
- * `MARCODE_OTEL_SDK_DISABLED` is read first, so a machine that sets
- * `OTEL_SDK_DISABLED` for everything else can still opt T3 Code back in.
- *
- * @module otelEnvironment
- */
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Data from "effect/Data";
@@ -354,15 +341,6 @@ export interface SignalEndpoint {
   readonly variable?: string;
 }
 
-<<<<<<< HEAD
-/**
- * Where one signal exports and how. `MARCODE_OTLP_*_URL` wins outright with
- * T3 Code's own export, then an OTEL endpoint with its own headers and
- * protocol, since `MARCODE_OTLP_HEADERS` was written for a different
- * collector, then the first of `fallbackUrls` with T3 Code's own export.
- */
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 export const resolveSignalEndpoint = (
   otel: OtelEnvironment,
   signal: SignalName,

@@ -79,30 +79,6 @@ describe("projectScripts helpers", () => {
       runOnSettle: true,
     };
 
-<<<<<<< HEAD
-    expect(env).toMatchObject({
-      MARCODE_PROJECT_ROOT: "/repo",
-      MARCODE_WORKTREE_PATH: "/repo/worktree-a",
-    });
-  });
-
-  it("allows overriding runtime env values", () => {
-    const env = projectScriptRuntimeEnv({
-      project: { cwd: "/repo" },
-      extraEnv: {
-        MARCODE_PROJECT_ROOT: "/custom-root",
-        CUSTOM_FLAG: "1",
-      },
-    });
-
-    expect(env.MARCODE_PROJECT_ROOT).toBe("/custom-root");
-    expect(env.CUSTOM_FLAG).toBe("1");
-    expect(env.MARCODE_WORKTREE_PATH).toBeUndefined();
-  });
-
-  it("prefers the worktree path for script cwd resolution", () => {
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     expect(
       releaseClaimedRoles(holder, { ...input, runOnWorktreeCreate: false, runOnSettle: true }),
     ).toMatchObject({ runOnWorktreeCreate: true, runOnSettle: false });

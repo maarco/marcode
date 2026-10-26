@@ -34,12 +34,8 @@ import {
   RECORDING_CONTROLLER_CHANNEL,
   START_PICK_CHANNEL,
 } from "./GuestProtocol.ts";
-<<<<<<< HEAD
 const OVERLAY_ATTRIBUTE = "data-marcode-annotation-ui";
-=======
-const OVERLAY_ATTRIBUTE = "data-t3code-annotation-ui";
 const INPUT_LAYER_ATTRIBUTE = "data-t3code-annotation-input";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 const Z_INDEX_OVERLAY = 2147483646;
 const PRIMARY = "var(--t3-primary)";
 const PRIMARY_FILL = "color-mix(in srgb, var(--t3-primary) 10%, transparent)";

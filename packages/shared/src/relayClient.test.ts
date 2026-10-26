@@ -84,32 +84,6 @@ const writeExecutable = (filePath: string, contents = "cloudflared") =>
     yield* fileSystem.chmod(filePath, 0o755);
   });
 
-<<<<<<< HEAD
-        expect(
-          yield* manager.resolve.pipe(
-            Effect.provideService(
-              ConfigProvider.ConfigProvider,
-              ConfigProvider.fromEnv({
-                env: { PATH: "", MARCODE_CLOUDFLARED_PATH: overridePath },
-              }),
-            ),
-          ),
-        ).toEqual({
-          status: "available",
-          executablePath: overridePath,
-          source: "override",
-          version: CLOUDFLARED_VERSION,
-        });
-      }).pipe(
-        Effect.scoped,
-        Effect.provide(
-          Layer.mergeAll(
-            NodeServices.layer,
-            makeHttpClientLayer(new Uint8Array()),
-            makeSpawnerLayer([]),
-            hostRuntimeLayer(),
-          ),
-=======
 type RelayClientTestServices =
   | Layer.Success<ReturnType<typeof layerHostRuntime> | typeof NodeServices.layer>
   | HttpClient.HttpClient
@@ -204,7 +178,6 @@ describe("RelayClient", () => {
           layerHttpClient(new Uint8Array()),
           layerSpawner([]),
           layerHostRuntime({ PATH: "" }),
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
         ),
       ),
     ),

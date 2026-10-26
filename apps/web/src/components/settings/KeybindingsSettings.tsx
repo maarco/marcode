@@ -1265,19 +1265,6 @@ function BrowserKeybindingNotice() {
   );
 }
 
-<<<<<<< HEAD
-/** Shown in the browser build only; the desktop app receives every shortcut. */
-function BrowserKeybindingNotice() {
-  return (
-    <div className="flex items-center gap-2 px-3 py-2.5 text-xs leading-normal text-muted-foreground sm:px-4">
-      <TriangleAlertIcon className="size-3.5 shrink-0 text-warning" aria-hidden />
-      <span>
-        Some shortcuts may be claimed by the browser before Marcode sees them. Use the desktop app
-        for better keybinding support.
-      </span>
-    </div>
-  );
-=======
 function keybindingAnchorIds(rows: ReturnType<typeof buildKeybindingRows>) {
   const ids = new Map<string, string>();
   const seen = new Set<KeybindingCommand>();
@@ -1297,7 +1284,6 @@ function useKeybindingCatalog() {
     commandOptions: buildKeybindingCommandOptions(merged),
     allRows: buildKeybindingRows(merged),
   };
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }
 
 export function KeybindingsSettingsPanel() {

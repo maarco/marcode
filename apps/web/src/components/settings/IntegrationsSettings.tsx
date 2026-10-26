@@ -3,18 +3,7 @@ import { DeviceToolVersions } from "../device/DeviceToolVersions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { ScopedSwitch } from "./ScopedSwitch";
 import { DeviceHostsSettings } from "./DeviceHostsSettings";
-<<<<<<< HEAD
-/**
- * Integrations settings - preferences for surfaces Marcode embeds rather than
- * owns. Browser is the first section: the defaults a preview tab opens at,
- * applied to both hand-opened tabs and agent `preview_open` calls that don't
- * state their own size.
- *
- * @module IntegrationsSettings
- */
-=======
 import { EasDeviceHostsSettings } from "./EasDeviceHostsSettings";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 import {
   AuthSettingsWriteScope,
   BrowserImportFailureReason,

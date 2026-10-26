@@ -62,13 +62,7 @@ export type DesktopBackendBootstrapDelivery = "fd3" | "stdin";
 export interface DesktopBackendStartConfig extends BackendProcessContext {
   readonly args: ReadonlyArray<string>;
   readonly env: Record<string, string | undefined>;
-<<<<<<< HEAD
-  // When true the spawner merges the desktop process.env on top of `env`;
-  // when false `env` is passed verbatim. WSL mode opts out so a leaking
-  // MARCODE_HOME can't pin the WSL backend to /mnt/c/...\.t3.
-=======
-  /** False passes env verbatim, preventing the Windows T3CODE_HOME from leaking into WSL. */
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+  /** False passes env verbatim, preventing the Windows MARCODE_HOME from leaking into WSL. */
   readonly extendEnv: boolean;
   readonly bootstrap: DesktopBackendBootstrapValue;
   readonly bootstrapDelivery: DesktopBackendBootstrapDelivery;

@@ -108,26 +108,6 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
       return yield* failWith("The desktop app stopped reporting its update.");
     }
 
-<<<<<<< HEAD
-      const report = terminal.value;
-      if (report.outcome === "ready-to-install") {
-        yield* emitStage("installing");
-        const targetVersion =
-          report.state.downloadedVersion ??
-          report.state.availableVersion ??
-          report.state.currentVersion;
-        yield* Effect.logInfo("Desktop app update prepared for install.", {
-          targetVersion,
-        });
-        yield* Ref.set(inFlight, false);
-        return { targetVersion, method: "desktop-app" as const, desktopUpdateToken: requestId };
-      }
-      if (report.outcome === "up-to-date") {
-        return yield* failWith(
-          `The Marcode desktop app on this machine is already up to date on ${report.state.currentVersion}.`,
-        );
-      }
-=======
     const report = terminal.value;
     if (report.outcome === "ready-to-install") {
       yield* emitStage("installing");
@@ -142,7 +122,6 @@ export const make = Effect.fn("desktopUpdate.desktopAppUpdate.make")(function* (
       return { targetVersion, method: "desktop-app" as const, desktopUpdateToken: requestId };
     }
     if (report.outcome === "up-to-date") {
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       return yield* failWith(
         `The T3 Code desktop app on this machine is already up to date on ${report.state.currentVersion}.`,
       );

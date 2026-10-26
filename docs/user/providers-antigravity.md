@@ -8,15 +8,9 @@ which models and account access are available through this agent.
 
 On web or desktop, open **Settings > Providers**, choose the environment that runs
 your project, and enable Antigravity. Install its runtime there, then choose
-<<<<<<< HEAD
-**Sign in with Google** and complete the browser sign-in. Wait for Marcode to confirm
-account access and load models before starting a thread. Provider setup is not
-available in the mobile app.
-=======
 **Sign in** and complete the browser sign-in. Wait for T3 Code to confirm
 account access and load models before starting a thread. Once the runtime is installed,
 you can also sign in from **Settings > Provider accounts** in the mobile app.
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
 Installation continues if you leave settings or reconnect. Setup requires
 permission to operate the environment; update an older server if it does not offer

@@ -330,16 +330,10 @@ function layerTest(input: {
         }),
         Layer.mock(PreviewManager.PreviewManager)({
           getBrowserSession: () => Effect.succeed({} as Electron.Session),
-<<<<<<< HEAD
-          setMainWindow: () => Effect.void,
-          isBrowserPartition: (partition) => partition.startsWith("persist:marcode-preview-"),
-          getBrowserPartition: () => Effect.succeed("persist:marcode-preview-test"),
-=======
           setMainWindow: input.setPreviewMainWindow ?? (() => Effect.void),
           prepareWebview: () => Effect.void,
-          isBrowserPartition: (partition) => partition.startsWith("persist:t3code-preview-"),
-          getBrowserPartition: () => Effect.succeed("persist:t3code-preview-test"),
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+          isBrowserPartition: (partition) => partition.startsWith("persist:marcode-preview-"),
+          getBrowserPartition: () => Effect.succeed("persist:marcode-preview-test"),
           reapplyZoom: () =>
             Effect.sync(() => {
               input.previewZoomReapplies?.push(input.window.webContents.getZoomLevel());
@@ -478,63 +472,6 @@ describe("DesktopWindow", () => {
     );
   });
 
-<<<<<<< HEAD
-  it("recognizes only same-origin renderer navigations", () => {
-    assert.isTrue(
-      DesktopWindow.isSameOriginRendererNavigation({
-        applicationUrl: "marcode://app/",
-        navigationUrl: "marcode://app/settings/connections",
-      }),
-    );
-    assert.isFalse(
-      DesktopWindow.isSameOriginRendererNavigation({
-        applicationUrl: "marcode://app/",
-        navigationUrl: "https://accounts.microsoft.com/oauth",
-      }),
-    );
-    assert.isFalse(
-      DesktopWindow.isSameOriginRendererNavigation({
-        applicationUrl: "marcode://app/",
-        navigationUrl: "not a url",
-      }),
-    );
-  });
-
-  it.effect("does not open a development window until the backend is ready", () =>
-    Effect.gen(function* () {
-      const fakeWindow = makeFakeBrowserWindow();
-      const createCount = yield* Ref.make(0);
-      const mainWindow = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
-      const createdWindowOptions: Electron.BrowserWindowConstructorOptions[] = [];
-      const layer = makeTestLayer({
-        window: fakeWindow.window,
-        createCount,
-        mainWindow,
-        createdWindowOptions,
-      });
-
-      yield* Effect.gen(function* () {
-        const desktopWindow = yield* DesktopWindow.DesktopWindow;
-        yield* desktopWindow.activate;
-        assert.equal(yield* Ref.get(createCount), 0);
-
-        yield* desktopWindow.handleBackendReady(new URL("http://127.0.0.1:3773"));
-        assert.equal(yield* Ref.get(createCount), 1);
-        assert.equal(createdWindowOptions[0]?.width, 1100);
-        assert.equal(createdWindowOptions[0]?.height, 780);
-        assert.isUndefined(createdWindowOptions[0]?.x);
-        assert.isUndefined(createdWindowOptions[0]?.y);
-        assert.isTrue(createdWindowOptions[0]?.disableAutoHideCursor);
-        assert.isFalse(createdWindowOptions[0]?.webPreferences?.backgroundThrottling);
-        assert.deepEqual(fakeWindow.setAutoHideCursor.mock.calls, [[false]]);
-        assert.deepEqual(fakeWindow.loadURL.mock.calls[0], ["marcode-dev://app/"]);
-        assert.equal(fakeWindow.openDevTools.mock.calls.length, 1);
-      }).pipe(Effect.provide(layer));
-    }),
-  );
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect(
     "opens and reopens the window without backend readiness when local execution is disabled",
     () =>
@@ -1015,107 +952,6 @@ describe("DesktopWindow", () => {
     }),
   );
 
-<<<<<<< HEAD
-  it.effect("publishes native macOS fullscreen changes to the renderer", () =>
-    Effect.gen(function* () {
-      const fakeWindow = makeFakeBrowserWindow();
-      const createCount = yield* Ref.make(0);
-      const mainWindow = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
-      const layer = makeTestLayer({
-        window: fakeWindow.window,
-        createCount,
-        mainWindow,
-      });
-
-      yield* Effect.gen(function* () {
-        const desktopWindow = yield* DesktopWindow.DesktopWindow;
-        yield* desktopWindow.handleBackendReady(new URL("http://127.0.0.1:3773"));
-
-        const enterFullscreen = fakeWindow.windowListeners.get("enter-full-screen");
-        const leaveFullscreen = fakeWindow.windowListeners.get("leave-full-screen");
-        if (!enterFullscreen || !leaveFullscreen) {
-          return yield* Effect.die("fullscreen listeners were not registered");
-        }
-
-        enterFullscreen();
-        leaveFullscreen();
-        assert.deepEqual(fakeWindow.send.mock.calls, [
-          [WINDOW_FULLSCREEN_STATE_CHANNEL, true],
-          [WINDOW_FULLSCREEN_STATE_CHANNEL, false],
-        ]);
-      }).pipe(Effect.provide(layer));
-    }),
-  );
-
-  it.effect("recovers when the development renderer is temporarily unreachable", () =>
-    Effect.gen(function* () {
-      const fakeWindow = makeFakeBrowserWindow();
-      const createCount = yield* Ref.make(0);
-      const mainWindow = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
-      const layer = makeTestLayer({
-        window: fakeWindow.window,
-        createCount,
-        mainWindow,
-      });
-
-      yield* Effect.gen(function* () {
-        const desktopWindow = yield* DesktopWindow.DesktopWindow;
-        yield* desktopWindow.handleBackendReady(new URL("http://127.0.0.1:3773"));
-
-        const didFailLoad = fakeWindow.webContentsListeners.get("did-fail-load");
-        const didFinishLoad = fakeWindow.webContentsListeners.get("did-finish-load");
-        if (!didFailLoad || !didFinishLoad) {
-          return yield* Effect.die("renderer load listeners were not registered");
-        }
-
-        didFailLoad({}, -9, "ERR_UNEXPECTED", "marcode-dev://app/", true);
-        assert.equal(fakeWindow.loadURL.mock.calls.length, 1);
-
-        yield* TestClock.adjust(100);
-        assert.deepEqual(fakeWindow.loadURL.mock.calls, [
-          ["marcode-dev://app/"],
-          ["marcode-dev://app/"],
-        ]);
-        assert.equal(fakeWindow.reload.mock.calls.length, 0);
-
-        didFailLoad({}, -9, "ERR_UNEXPECTED", "marcode-dev://app/", true);
-        didFinishLoad();
-        yield* TestClock.adjust(250);
-        assert.equal(fakeWindow.loadURL.mock.calls.length, 2);
-        assert.equal(fakeWindow.reload.mock.calls.length, 0);
-      }).pipe(Effect.provide(layer));
-    }),
-  );
-
-  it("retries only transient failures for the development renderer", () => {
-    assert.isTrue(
-      DesktopWindow.isRetryableDevelopmentRendererLoadFailure({
-        applicationUrl: "marcode-dev://app/",
-        errorCode: -102,
-        isMainFrame: true,
-        validatedUrl: "marcode-dev://app/",
-      }),
-    );
-    assert.isFalse(
-      DesktopWindow.isRetryableDevelopmentRendererLoadFailure({
-        applicationUrl: "marcode-dev://app/",
-        errorCode: -3,
-        isMainFrame: true,
-        validatedUrl: "marcode-dev://app/",
-      }),
-    );
-    assert.isFalse(
-      DesktopWindow.isRetryableDevelopmentRendererLoadFailure({
-        applicationUrl: "marcode-dev://app/",
-        errorCode: -102,
-        isMainFrame: true,
-        validatedUrl: "https://example.com/",
-      }),
-    );
-  });
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect("opens safe off-origin renderer navigations in the system browser", () =>
     Effect.gen(function* () {
       const fakeWindow = makeFakeBrowserWindow();

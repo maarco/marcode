@@ -122,28 +122,6 @@ describe("parseOriginUrlFromGitConfig", () => {
     ].join("\n");
     expect(parseOriginUrlFromGitConfig(config)).toBe("https://github.com/acme/repo.git");
   });
-<<<<<<< HEAD
-
-  it("returns null when there is no remote section", () => {
-    expect(parseOriginUrlFromGitConfig("[core]\n\tbare = false\n")).toBeNull();
-    expect(parseOriginUrlFromGitConfig("")).toBeNull();
-  });
-});
-
-describe("parseGitHubRepositoryNameWithOwnerFromRemoteUrl", () => {
-  it("extracts the owner and repository from common GitHub remote shapes", () => {
-    expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("git@github.com:T3Tools/Marcode.git"),
-    ).toBe("T3Tools/Marcode");
-    expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("https://github.com/T3Tools/Marcode.git"),
-    ).toBe("T3Tools/Marcode");
-    expect(
-      parseGitHubRepositoryNameWithOwnerFromRemoteUrl("ssh://github.com/T3Tools/Marcode.git"),
-    ).toBe("T3Tools/Marcode");
-  });
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });
 
 describe("isTemporaryWorktreeBranch", () => {

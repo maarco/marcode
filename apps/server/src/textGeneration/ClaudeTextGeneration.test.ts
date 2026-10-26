@@ -24,13 +24,8 @@ import { makeClaudeTextGeneration } from "./ClaudeTextGeneration.ts";
 import { writeFakeCli } from "@t3tools/provider-testing/fakeCli";
 const decodeClaudeSettings = Schema.decodeSync(ClaudeSettings);
 
-<<<<<<< HEAD
-const ClaudeTextGenerationTestLayer = ServerConfig.ServerConfig.layerTest(process.cwd(), {
-  prefix: "marcode-claude-text-generation-test-",
-=======
 const layerClaudeTextGenerationTest = ServerConfig.ServerConfig.layerTest(process.cwd(), {
-  prefix: "t3code-claude-text-generation-test-",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+  prefix: "marcode-claude-text-generation-test-",
 }).pipe(Layer.provideMerge(NodeServices.layer));
 
 // The stub behaviour lives in Node so the same implementation runs on Windows,
@@ -76,15 +71,9 @@ function withFakeClaudeEnv<A, E, R>(
 ) {
   return Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
-<<<<<<< HEAD
     const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "marcode-claude-text-" });
-    const binDir = yield* makeFakeClaudeBinary(tempDir);
-    const pathDelimiter = (yield* isHostWindows) ? ";" : ":";
-=======
-    const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-claude-text-" });
     const binDir = yield* makeFakeClaudeBinary(tempDir, input.lifecyclePort);
     const pathDelimiter = (yield* HostProcess.isWindows) ? ";" : ":";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     const previousPath = process.env.PATH;
     const previousOutput = process.env.T3_FAKE_CLAUDE_OUTPUT;
     const previousExitCode = process.env.T3_FAKE_CLAUDE_EXIT_CODE;

@@ -3,12 +3,7 @@ import type { PullRequestMergeMethod } from "@t3tools/contracts";
 import { create } from "zustand";
 import { normalizeProjectPathForComparison } from "./lib/projectPaths";
 
-<<<<<<< HEAD
 export const PERSISTED_STATE_KEY = "marcode:ui-state:v1";
-// Version 1 stored card visibility, not folder expansion.
-=======
-export const PERSISTED_STATE_KEY = "t3code:ui-state:v1";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 const THREAD_CHANGED_FILES_EXPANSION_VERSION = 2;
 const LEGACY_PERSISTED_STATE_KEYS = [
   "marcode:renderer-state:v8",

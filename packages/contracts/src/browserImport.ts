@@ -1,20 +1,3 @@
-<<<<<<< HEAD
-/**
- * Browser import - pulling cookies from a browser already installed on the
- * machine into a Marcode browser profile.
- *
- * Only cookies are imported. They carry the logged-in sessions, which is what
- * makes an imported profile useful; saved passwords are deliberately out of
- * scope because Electron exposes no password store to put them in.
- *
- * Availability is per source and per platform, and the reasons are modelled
- * explicitly: some are a permission the user can grant, one is a limitation
- * no amount of consent works around. The UI needs to tell those apart.
- *
- * @module BrowserImport
- */
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 import * as Schema from "effect/Schema";
 import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { BrowserProfileId } from "./browserProfile.ts";
@@ -75,10 +58,6 @@ export type BrowserImportSource = typeof BrowserImportSource.Type;
 export const BrowserImportInput = Schema.Struct({
   sourceId: BrowserImportSourceId,
   sourceProfileDirectory: TrimmedNonEmptyString,
-<<<<<<< HEAD
-  /** Marcode profile the cookies are written into. */
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   targetProfileId: BrowserProfileId,
 });
 export type BrowserImportInput = typeof BrowserImportInput.Type;

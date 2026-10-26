@@ -104,38 +104,6 @@ function layer(input: {
 const lookupFailingWith = (cause: unknown, detail: string) =>
   Effect.gen(function* () {
     const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
-<<<<<<< HEAD
-    const result = yield* service.lookupRepository({
-      provider: "github",
-      repository: "octocat/marcode",
-      cwd: "/workspace",
-    });
-
-    assert.deepStrictEqual(result, { provider: "github", ...CLONE_URLS });
-    assert.deepStrictEqual(calls, [{ cwd: "/workspace", repository: "octocat/marcode" }]);
-  }).pipe(Effect.provide(makeLayer({ provider })));
-});
-
-it.effect("preserves provider failures without deriving the repository message from them", () => {
-  const providerCause = new SourceControlProviderError({
-    provider: "github",
-    operation: "getRepositoryCloneUrls",
-    cwd: "/workspace",
-    repository: "octocat/marcode",
-    detail: "credential token abc123 was rejected",
-  });
-  const provider = makeProvider({
-    getRepositoryCloneUrls: () => Effect.fail(providerCause),
-  });
-
-  return Effect.gen(function* () {
-    const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
-    const error = yield* Effect.flip(
-      service.lookupRepository({
-        provider: "github",
-        repository: "octocat/marcode",
-        cwd: "/workspace",
-=======
     return yield* service
       .lookupRepository({ provider: SourceControlProviderKind.make("bitbucket"), repository: "x" })
       .pipe(Effect.flip);
@@ -154,7 +122,6 @@ it.effect("preserves provider failures without deriving the repository message f
               }),
             ),
         }),
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       }),
     ),
   );
@@ -186,24 +153,15 @@ it.effect("clones a looked-up repository after creating missing parent directori
     const temporaryDirectory = yield* fs.makeTempDirectoryScoped({
       prefix: "t3-source-control-clone-parent-",
     });
-<<<<<<< HEAD
-    const destinationPath = path.join(parent, "marcode");
-=======
     const parent = path.join(temporaryDirectory, "missing", "nested");
-    const destinationPath = path.join(parent, "t3code");
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+    const destinationPath = path.join(parent, "marcode");
     const cloneCalls: Array<{ cwd: string; args: ReadonlyArray<string> }> = [];
 
     yield* Effect.gen(function* () {
       const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
       const result = yield* service.cloneRepository({
-<<<<<<< HEAD
-        provider: "github",
-        repository: "octocat/marcode",
-=======
         provider: SourceControlProviderKind.make("github"),
-        repository: "octocat/t3code",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+        repository: "octocat/marcode",
         destinationPath,
         protocol: "https",
       });
@@ -216,11 +174,7 @@ it.effect("clones a looked-up repository after creating missing parent directori
       assert.deepStrictEqual(cloneCalls, [
         {
           cwd: parent,
-<<<<<<< HEAD
-          args: ["clone", "--progress", CLONE_URLS.url, "marcode"],
-=======
-          args: ["clone", "--progress", "--", CLONE_URLS.url, "t3code"],
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+          args: ["clone", "--progress", "--", CLONE_URLS.url, "marcode"],
         },
       ]);
     }).pipe(
@@ -544,77 +498,6 @@ it.effect("preserves destination probe failures instead of treating them as miss
   );
 });
 
-<<<<<<< HEAD
-it.effect("publishes by creating the repository, adding a remote, and pushing upstream", () => {
-  const createCalls: Array<{ cwd: string; repository: string; visibility: string }> = [];
-  const remoteCalls: Array<{ cwd: string; preferredName: string; url: string }> = [];
-  const pushCalls: Array<{ cwd: string; remoteName: string | null | undefined }> = [];
-  const provider = makeProvider({
-    createRepository: (input) =>
-      Effect.sync(() => {
-        createCalls.push({
-          cwd: input.cwd,
-          repository: input.repository,
-          visibility: input.visibility,
-        });
-        return CLONE_URLS;
-      }),
-  });
-
-  return Effect.gen(function* () {
-    const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
-    const result = yield* service.publishRepository({
-      cwd: "/workspace",
-      provider: "github",
-      repository: "octocat/marcode",
-      visibility: "private",
-      remoteName: "origin",
-      protocol: "ssh",
-    });
-
-    assert.deepStrictEqual(result, {
-      repository: { provider: "github", ...CLONE_URLS },
-      remoteName: "origin",
-      remoteUrl: CLONE_URLS.sshUrl,
-      branch: "feature/remote-v1",
-      upstreamBranch: "origin/feature/remote-v1",
-      status: "pushed",
-    });
-    assert.deepStrictEqual(createCalls, [
-      { cwd: "/workspace", repository: "octocat/marcode", visibility: "private" },
-    ]);
-    assert.deepStrictEqual(remoteCalls, [
-      { cwd: "/workspace", preferredName: "origin", url: CLONE_URLS.sshUrl },
-    ]);
-    assert.deepStrictEqual(pushCalls, [{ cwd: "/workspace", remoteName: "origin" }]);
-  }).pipe(
-    Effect.provide(
-      makeLayer({
-        provider,
-        git: {
-          ensureRemote: (input) =>
-            Effect.sync(() => {
-              remoteCalls.push(input);
-              return "origin";
-            }),
-          pushCurrentBranch: (cwd, _fallbackBranch, options) =>
-            Effect.sync(() => {
-              pushCalls.push({ cwd, remoteName: options?.remoteName });
-              return {
-                status: "pushed" as const,
-                branch: "feature/remote-v1",
-                upstreamBranch: "origin/feature/remote-v1",
-                setUpstream: true,
-              };
-            }),
-        },
-      }),
-    ),
-  );
-});
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 it.effect("publishes to the remote name returned by ensureRemote", () => {
   const pushCalls: Array<{ cwd: string; remoteName: string | null | undefined }> = [];
 
@@ -622,13 +505,8 @@ it.effect("publishes to the remote name returned by ensureRemote", () => {
     const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
     const result = yield* service.publishRepository({
       cwd: "/workspace",
-<<<<<<< HEAD
-      provider: "github",
-      repository: "octocat/marcode",
-=======
       provider: SourceControlProviderKind.make("github"),
-      repository: "octocat/t3code",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+      repository: "octocat/marcode",
       visibility: "private",
       remoteName: "origin",
       protocol: "ssh",
@@ -721,13 +599,8 @@ it.effect("publish succeeds with status remote_added when the local repo has no 
     const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
     const result = yield* service.publishRepository({
       cwd: "/workspace",
-<<<<<<< HEAD
-      provider: "github",
-      repository: "octocat/marcode",
-=======
       provider: SourceControlProviderKind.make("github"),
-      repository: "octocat/t3code",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+      repository: "octocat/marcode",
       visibility: "private",
       remoteName: "origin",
       protocol: "ssh",

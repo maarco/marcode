@@ -26,56 +26,19 @@ describe("OtelEnvironment", () => {
       disabled: false,
       warnings: [specIgnored("1")],
     },
-<<<<<<< HEAD
-    {
-      name: "spec padded yes",
-      env: { OTEL_SDK_DISABLED: " yes " },
-      disabled: false,
-      warnings: [specIgnored("yes")],
-    },
-    // MARCODE_OTEL_SDK_DISABLED takes Config.Boolean's values, case-insensitively.
     { name: "t3 1", env: { MARCODE_OTEL_SDK_DISABLED: "1" }, disabled: true, warnings: [T3_OFF] },
     {
-      name: "t3 TRUE",
-      env: { MARCODE_OTEL_SDK_DISABLED: "TRUE" },
-      disabled: true,
-      warnings: [T3_OFF],
-    },
-    { name: "t3 n", env: { MARCODE_OTEL_SDK_DISABLED: "n" }, disabled: false, warnings: [] },
-    {
-=======
-    { name: "t3 1", env: { T3CODE_OTEL_SDK_DISABLED: "1" }, disabled: true, warnings: [T3_OFF] },
-    {
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       name: "t3 false overrides spec true",
       env: { MARCODE_OTEL_SDK_DISABLED: "false", OTEL_SDK_DISABLED: "true" },
       disabled: false,
       warnings: [],
     },
     {
-<<<<<<< HEAD
-      name: "blank t3 falls through",
-      env: { MARCODE_OTEL_SDK_DISABLED: "  ", OTEL_SDK_DISABLED: "true" },
-      disabled: true,
-      warnings: [SPEC_OFF],
-    },
-    {
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       name: "unreadable t3 warns and falls through",
       env: { MARCODE_OTEL_SDK_DISABLED: "maybe", OTEL_SDK_DISABLED: "true" },
       disabled: true,
       warnings: ["MARCODE_OTEL_SDK_DISABLED=maybe is not a yes or a no and was ignored", SPEC_OFF],
     },
-<<<<<<< HEAD
-    {
-      name: "bad spec value still warns when t3 answered",
-      env: { MARCODE_OTEL_SDK_DISABLED: "false", OTEL_SDK_DISABLED: "yes" },
-      disabled: false,
-      warnings: [specIgnored("yes")],
-    },
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   ])("$name", ({ env, disabled, warnings }) =>
     Effect.gen(function* () {
       const resolved = yield* load(env);
@@ -198,65 +161,6 @@ describe("OtelEnvironment", () => {
         logs: "Off",
         warnings: [],
       },
-<<<<<<< HEAD
-      {
-        name: "an exporter of none turns its signal off with no endpoint named",
-        env: { OTEL_METRICS_EXPORTER: " NONE " },
-        traces: "Unset",
-        metrics: "Off",
-        logs: "Unset",
-        warnings: [],
-      },
-      {
-        name: "an exporter of none leaves its signal's endpoint unread",
-        env: { OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "not-a-url", OTEL_TRACES_EXPORTER: "none" },
-        traces: "Off",
-        metrics: "Unset",
-        logs: "Unset",
-        warnings: [],
-      },
-      {
-        name: "an exporter of otlp or blank is the default",
-        env: {
-          OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector:4318",
-          OTEL_TRACES_EXPORTER: "OTLP",
-          OTEL_LOGS_EXPORTER: "  ",
-        },
-        traces: "https://collector:4318/v1/traces",
-        metrics: "https://collector:4318/v1/metrics",
-        logs: "https://collector:4318/v1/logs",
-        warnings: [],
-      },
-      {
-        name: "an exporter Marcode does not have is ignored with a warning",
-        env: {
-          OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector:4318",
-          OTEL_METRICS_EXPORTER: "prometheus",
-        },
-        traces: "https://collector:4318/v1/traces",
-        metrics: "https://collector:4318/v1/metrics",
-        logs: "https://collector:4318/v1/logs",
-        warnings: [
-          "OTEL_METRICS_EXPORTER names prometheus, which Marcode does not export to, so it was ignored",
-        ],
-      },
-      {
-        name: "a list honors none and otlp and names what it ignored",
-        env: {
-          OTEL_EXPORTER_OTLP_ENDPOINT: "https://collector:4318",
-          OTEL_TRACES_EXPORTER: "console,none",
-          OTEL_LOGS_EXPORTER: "otlp,console,otlpp",
-        },
-        traces: "Off",
-        metrics: "https://collector:4318/v1/metrics",
-        logs: "https://collector:4318/v1/logs",
-        warnings: [
-          "OTEL_TRACES_EXPORTER names console, which Marcode does not export to, so it was ignored",
-          "OTEL_LOGS_EXPORTER names console, otlpp, which Marcode does not export to, so they were ignored",
-        ],
-      },
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     ])("$name", ({ env, traces, metrics, logs, warnings }) =>
       Effect.gen(function* () {
         const resolved = yield* load(env);
@@ -353,17 +257,7 @@ describe("OtelEnvironment", () => {
     });
     it.each([
       {
-<<<<<<< HEAD
-        name: "MARCODE_OTLP_*_URL wins over an OTEL endpoint",
-        otel: withLogs(otelExport),
-        t3Url: "http://t3:4318/v1/logs",
-        expected: { url: "http://t3:4318/v1/logs", export: t3Export },
-      },
-      {
         name: "MARCODE_OTLP_*_URL wins over a signal the OTEL variables turned off",
-=======
-        name: "T3CODE_OTLP_*_URL wins over a signal the OTEL variables turned off",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
         otel: withLogs(OtelEnvironment.OtelSignal.Off()),
         t3Url: "http://t3:4318/v1/logs",
         expected: {

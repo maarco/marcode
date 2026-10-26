@@ -69,13 +69,8 @@ export const runDefaultServerCommand = Effect.fn("server.runDefaultServerCommand
 });
 
 export const startCommand = Command.make("start", { ...sharedServerCommandFlags }).pipe(
-<<<<<<< HEAD
-  Command.withDescription("Run the Marcode server."),
-  Command.withHandler((flags) => runServerCommand(flags)),
-=======
   Command.withDescription("Run the T3 Code server."),
   Command.withHandler((flags) => runServerCommand(flags, { rejectRunningServer: true })),
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 );
 
 export const serveCommand = Command.make("serve", { ...sharedServerCommandFlags }).pipe(

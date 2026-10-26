@@ -105,23 +105,6 @@ const makeHarness = Effect.fn("test.make_desktop_app_update_harness")(function* 
 });
 
 it.layer(NodeServices.layer)("desktop app update", (it) => {
-<<<<<<< HEAD
-  it.effect("is unavailable without desktop mode or the control fd", () =>
-    Effect.gen(function* () {
-      const web = yield* makeHarness({ mode: "web" });
-      expect(web.service.available).toBe(false);
-      const noFd = yield* makeHarness({ controlFd: undefined });
-      expect(noFd.service.available).toBe(false);
-      expect((yield* noFd.service.run(() => Effect.void).pipe(Effect.flip)).reason).toContain(
-        "not started by the Marcode desktop app",
-      );
-      const desktop = yield* makeHarness();
-      expect(desktop.service.available).toBe(true);
-    }),
-  );
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect("collapses state reports into progress stages and succeeds on installing", () =>
     Effect.gen(function* () {
       const { service } = yield* makeHarness({
@@ -149,34 +132,6 @@ it.layer(NodeServices.layer)("desktop app update", (it) => {
     }),
   );
 
-<<<<<<< HEAD
-  it.effect("maps up-to-date and failed outcomes to readable errors", () =>
-    Effect.gen(function* () {
-      const upToDate = yield* makeHarness({
-        reports: (requestId) => [
-          report(requestId, makeState({ status: "up-to-date" }), { outcome: "up-to-date" }),
-        ],
-      });
-      expect((yield* upToDate.service.run(() => Effect.void).pipe(Effect.flip)).reason).toBe(
-        "The Marcode desktop app on this machine is already up to date on 1.2.3.",
-      );
-
-      const failed = yield* makeHarness({
-        reports: (requestId) => [
-          report(requestId, makeState({ status: "error", message: "feed unreachable" }), {
-            outcome: "failed",
-            reason: "feed unreachable",
-          }),
-        ],
-      });
-      expect((yield* failed.service.run(() => Effect.void).pipe(Effect.flip)).reason).toBe(
-        "feed unreachable",
-      );
-    }),
-  );
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect("replays a retained commit failure for the preparation token", () =>
     Effect.gen(function* () {
       const { service } = yield* makeHarness({

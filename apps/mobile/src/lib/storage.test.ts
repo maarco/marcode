@@ -131,41 +131,6 @@ describe("mobile connection storage", () => {
     });
   });
 
-<<<<<<< HEAD
-  it("loads relay-managed connection metadata without a cached access token", async () => {
-    await saveConnection(managedConnection);
-
-    await expect(loadSavedConnections()).resolves.toEqual([
-      toStableSavedRemoteConnection(managedConnection),
-    ]);
-  });
-
-  it("preserves secure-storage read failures with operation and key context", async () => {
-    const cause = new Error("keychain unavailable");
-    mocks.getItemAsync.mockRejectedValueOnce(cause);
-
-    await expect(loadSavedConnections()).rejects.toMatchObject({
-      _tag: "MobileSecureStorageError",
-      operation: "read",
-      key: "marcode.connections",
-      cause,
-      message: "Mobile secure storage operation read failed for key marcode.connections.",
-    });
-  });
-
-  it("logs structured decode failures before using the empty fallback", async () => {
-    await mocks.setItemAsync("marcode.connections", "{");
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    await expect(loadSavedConnections()).resolves.toEqual([]);
-    expect(warn).toHaveBeenCalledWith(
-      "[mobile-storage] ignored invalid JSON",
-      expect.objectContaining({
-        _tag: "MobileStorageDecodeError",
-        key: "marcode.connections",
-        cause: expect.any(SyntaxError),
-        message: "Failed to decode mobile storage value for key marcode.connections.",
-=======
   it("persists tab order locally and retains it when another preference changes", async () => {
     const navigationTabOrder = ["usage", "threads", "pullRequests"];
     const hiddenNavigationTabs = ["issues", "home"];
@@ -184,7 +149,6 @@ describe("mobile connection storage", () => {
         navigationTabOrder: ["usage", null, 4, "threads"],
         hiddenNavigationTabs: ["home", null],
         baseFontSize: 18,
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       }),
       1,
     );
@@ -243,24 +207,6 @@ describe("mobile connection storage", () => {
     expect(mocks.getStoredValue("marcode.preferences.fallback")).toBeNull();
   });
 
-<<<<<<< HEAD
-  it("ignores an invalid fallback even when it has a newer timestamp", async () => {
-    mocks.setPreferencesJson(JSON.stringify({ baseFontSize: 21 }), 30);
-    await mocks.setItemAsync(
-      "marcode.preferences.fallback",
-      JSON.stringify({ payload: "{", updatedAt: 40 }),
-    );
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-
-    await expect(loadPreferences()).resolves.toEqual({ baseFontSize: 21 });
-    expect(JSON.parse(mocks.getPreferencesJson() ?? "")).toEqual({ baseFontSize: 21 });
-    expect(mocks.getStoredValue("marcode.preferences.fallback")).toBeNull();
-
-    warn.mockRestore();
-  });
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("keeps SQLite authoritative when stale legacy preferences remain", async () => {
     mocks.setPreferencesJson(JSON.stringify({ baseFontSize: 21 }), 30);
     await mocks.setItemAsync("marcode.preferences", JSON.stringify({ baseFontSize: 19 }));

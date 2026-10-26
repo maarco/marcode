@@ -105,14 +105,10 @@ import {
   type ProviderInstanceEntry,
 } from "../providerInstances";
 
-<<<<<<< HEAD
-export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "marcode:last-invoked-script-by-project";
-=======
 type ThreadProjection = EnvironmentThread["projection"];
 type ThreadStructureRow = ThreadStructure["visibleTurnItems"][number];
 
-export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "t3code:last-invoked-script-by-project";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "marcode:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
 export const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;

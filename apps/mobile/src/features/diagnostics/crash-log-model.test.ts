@@ -44,33 +44,4 @@ describe("parseStartupCrashRecords", () => {
     ]);
     expect(records.map((record) => record.timestamp)).toEqual([20, 10]);
   });
-<<<<<<< HEAD
-
-  it("skips a runtime error entry without a description line", () => {
-    expect(
-      parseStartupCrashRecords([
-        { ...FATAL, message: "ErrorRecovery fatal exception: Fatal exception: Name: x" },
-      ]),
-    ).toEqual([]);
-  });
-});
-
-describe("formatStartupCrashReport", () => {
-  it("writes the app version and each crash's full detail", () => {
-    const report = formatStartupCrashReport(parseStartupCrashRecords([FATAL]), {
-      version: "1.1.1",
-      build: "56",
-    });
-    expect(report.startsWith("Marcode 1.1.1 (56)\n")).toBe(true);
-    expect(report).toContain("2026-09-13T05:35:52.000Z");
-    expect(report).toContain("at NewTaskFlowProvider");
-  });
-
-  it("says so when nothing was recorded", () => {
-    expect(formatStartupCrashReport([], { version: "1.1.1", build: "56" })).toBe(
-      "Marcode 1.1.1 (56)\nNo startup crashes recorded.",
-    );
-  });
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

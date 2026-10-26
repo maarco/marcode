@@ -262,77 +262,6 @@ export const linkPrimaryEnvironmentToCloud: (input: {
 }) => Effect.Effect<
   void,
   CloudEnvironmentLinkError,
-<<<<<<< HEAD
-  EnvironmentRegistry | HttpClient.HttpClient | ManagedRelay.ManagedRelayClient
-> {
-  return Effect.gen(function* () {
-    const configuredRelayUrl = relayUrl();
-    if (!configuredRelayUrl) {
-      return yield* new CloudEnvironmentLinkError({
-        message: "MARCODE_RELAY_URL is not configured.",
-      });
-    }
-    const managedTunnelsEnabled = (input.mode ?? "managed") === "managed";
-    const providerKind = managedTunnelsEnabled
-      ? MANAGED_ENDPOINT_PROVIDER_KIND
-      : PUBLISH_ONLY_PROVIDER_KIND;
-    const relayClient = yield* ManagedRelay.ManagedRelayClient;
-    const environmentClient = yield* makeEnvironmentHttpApiClient(input.target.httpBaseUrl);
-    if (managedTunnelsEnabled) {
-      yield* ensureRelayClientAvailable(EnvironmentId.make(input.target.environmentId));
-    }
-
-    const challenge = yield* relayClient
-      .createEnvironmentLinkChallenge({
-        clerkToken: input.clerkToken,
-        payload: {
-          notificationsEnabled: true,
-          liveActivitiesEnabled: true,
-          managedTunnelsEnabled,
-        },
-      })
-      .pipe(
-        Effect.mapError(
-          decodedRelayClientError(
-            `${configuredRelayUrl}/v1/client/environment-link-challenges failed`,
-          ),
-        ),
-      );
-    const proof = yield* environmentClient.connect
-      .linkProof({
-        headers: {},
-        payload: {
-          challenge: challenge.challenge,
-          relayIssuer: configuredRelayUrl,
-          endpoint: {
-            httpBaseUrl: input.target.httpBaseUrl,
-            wsBaseUrl: input.target.wsBaseUrl,
-            providerKind,
-          },
-          origin: endpointOrigin(input.target.httpBaseUrl),
-        },
-      })
-      .pipe(Effect.mapError(environmentApiError("Could not obtain environment link proof.")));
-    const link = yield* relayClient
-      .linkEnvironment({
-        clerkToken: input.clerkToken,
-        payload: {
-          proof,
-          notificationsEnabled: true,
-          liveActivitiesEnabled: true,
-          managedTunnelsEnabled,
-        },
-      })
-      .pipe(
-        Effect.mapError(
-          decodedRelayClientError(`${configuredRelayUrl}/v1/client/environment-links failed`),
-        ),
-      );
-    yield* ensureLinkedEnvironmentMatches({
-      expectedEnvironmentId: input.target.environmentId,
-      expectedProviderKind: providerKind,
-      link,
-=======
   EnvironmentRegistry.EnvironmentRegistry | HttpClient.HttpClient | ManagedRelay.ManagedRelayClient
 > = Effect.fn("linkEnvironment.linkPrimaryEnvironmentToCloud")(function* (input: {
   readonly target: CloudLinkTarget;
@@ -342,8 +271,7 @@ export const linkPrimaryEnvironmentToCloud: (input: {
   const configuredRelayUrl = relayUrl();
   if (!configuredRelayUrl) {
     return yield* new CloudEnvironmentLinkError({
-      message: "T3CODE_RELAY_URL is not configured.",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+      message: "MARCODE_RELAY_URL is not configured.",
     });
   }
   const managedTunnelsEnabled = (input.mode ?? "managed") === "managed";

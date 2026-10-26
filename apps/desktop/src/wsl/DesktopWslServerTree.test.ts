@@ -225,11 +225,6 @@ describe("DesktopWslServerTree", () => {
         });
         yield* fileSystem.writeFileString(path.join(serverRoot, "apps/server/dist/bin.mjs"), "x");
 
-<<<<<<< HEAD
-        // MARCODE_HOME is set to tempDir, so the desktop state dir resolves to
-        // <tempDir>/userdata (no .t3 segment).
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
         const treeRoot = path.join(tempDir, "userdata", "wsl-server-tree");
         yield* fileSystem.makeDirectory(path.join(treeRoot, "1.0.0"), { recursive: true });
         yield* fileSystem.makeDirectory(path.join(treeRoot, "1.2.3.partial"), { recursive: true });

@@ -465,16 +465,7 @@ it.layer(
 
       const attachEvents = yield* Ref.make<ReadonlyArray<TerminalAttachStreamEvent>>([]);
       const unsubscribe = yield* manager.attachStream(
-<<<<<<< HEAD
-        openInput({
-          env: {
-            MARCODE_WORKTREE_PATH: "/tmp/should-not-restart",
-          },
-          worktreePath: "/tmp/should-not-restart",
-        }),
-=======
         { ...openInput(), restartIfNotRunning: true, resume: true },
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
         (event) => Ref.update(attachEvents, (events) => [...events, event]),
       );
       yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
@@ -482,42 +473,8 @@ it.layer(
       expect(ptyAdapter.spawnInputs).toHaveLength(1);
 
       yield* manager.open(openInput());
-<<<<<<< HEAD
-      const process = ptyAdapter.processes[0];
-      expect(process).toBeDefined();
-      if (!process) return;
-
-      process.emitExit({ exitCode: 0, signal: 0 });
-
-      yield* waitFor(
-        Effect.map(getEvents, (events) => events.some((event) => event.type === "exited")),
-        "1200 millis",
-      );
-
-      const attachEvents = yield* Ref.make<ReadonlyArray<TerminalAttachStreamEvent>>([]);
-      const unsubscribe = yield* manager.attachStream(
-        {
-          ...openInput({
-            env: {
-              MARCODE_WORKTREE_PATH: "/tmp/restart-requested",
-            },
-            worktreePath: "/tmp/restart-requested",
-          }),
-          restartIfNotRunning: true,
-        },
-        (event) => Ref.update(attachEvents, (events) => [...events, event]),
-      );
-      yield* Effect.addFinalizer(() => Effect.sync(unsubscribe));
-
-      const snapshot = (yield* Ref.get(attachEvents)).find((event) => event.type === "snapshot");
-      expect(snapshot).toBeDefined();
-      if (!snapshot || snapshot.type !== "snapshot") return;
-      assert.equal(snapshot.snapshot.status, "running");
-      assert.equal(snapshot.snapshot.worktreePath, "/tmp/restart-requested");
-=======
       const events = yield* Ref.get(attachEvents);
       expect(events.map((event) => event.type)).toEqual(["closed", "snapshot"]);
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       expect(ptyAdapter.spawnInputs).toHaveLength(2);
     }),
   );
@@ -1255,57 +1212,6 @@ it.layer(
     }),
   );
 
-<<<<<<< HEAD
-  it.effect("leaves the environment untouched when not launched from an AppImage", () =>
-    Effect.gen(function* () {
-      const { manager, ptyAdapter } = yield* createManager(5, {
-        env: {
-          PATH: "/usr/local/bin:/usr/bin:/bin",
-          LD_LIBRARY_PATH: "/home/user/.local/lib",
-          // Without APPIMAGE/APPDIR set, OWD is an ordinary variable and must
-          // not be stripped — only an AppImage launch gives it special meaning.
-          OWD: "/home/user/keep-this",
-        },
-      });
-      yield* manager.open(openInput());
-      const spawnInput = ptyAdapter.spawnInputs[0];
-      expect(spawnInput).toBeDefined();
-      if (!spawnInput) return;
-
-      expect(spawnInput.env.PATH).toBe("/usr/local/bin:/usr/bin:/bin");
-      expect(spawnInput.env.LD_LIBRARY_PATH).toBe("/home/user/.local/lib");
-      expect(spawnInput.env.OWD).toBe("/home/user/keep-this");
-    }),
-  );
-
-  it.effect("injects runtime env overrides into spawned terminals", () =>
-    Effect.gen(function* () {
-      const { manager, ptyAdapter } = yield* createManager(5, { env: { FORCE_COLOR: "3" } });
-      yield* manager.open(
-        openInput({
-          env: {
-            MARCODE_PROJECT_ROOT: "/repo",
-            MARCODE_WORKTREE_PATH: "/repo/worktree-a",
-            CUSTOM_FLAG: "1",
-            NO_COLOR: "1",
-            FORCE_COLOR: "0",
-          },
-        }),
-      );
-      const spawnInput = ptyAdapter.spawnInputs[0];
-      expect(spawnInput).toBeDefined();
-      if (!spawnInput) return;
-
-      assert.equal(spawnInput.env.MARCODE_PROJECT_ROOT, "/repo");
-      assert.equal(spawnInput.env.MARCODE_WORKTREE_PATH, "/repo/worktree-a");
-      assert.equal(spawnInput.env.CUSTOM_FLAG, "1");
-      assert.equal(spawnInput.env.NO_COLOR, "1");
-      assert.equal(spawnInput.env.FORCE_COLOR, "0");
-    }),
-  );
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect("resolves a provider instance environment before spawning", () =>
     Effect.gen(function* () {
       const providerInstanceId = ProviderInstanceId.make("codex_work");

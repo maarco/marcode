@@ -1023,10 +1023,6 @@ const layerDeviceStandardToolkitRegistration = toolkitRegistration(
   DeviceHandlers.layerStandard,
 );
 
-<<<<<<< HEAD
-const McpTransportLive = McpServer.layerHttp({
-  name: "Marcode",
-=======
 const layerDeviceScreenshotRegistration = imageToolRegistration(
   registerDeviceScreenshot(),
   DeviceHandlers.layerScreenshot,
@@ -1039,7 +1035,6 @@ export const layerDeviceToolkit = Layer.mergeAll(
 
 export const layerMcpTransport = McpServer.layerHttp({
   name: "T3 Code",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   version: packageJson.version,
   path: "/mcp",
   protocols: [McpProtocol.v2025_06_18],

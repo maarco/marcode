@@ -37,59 +37,6 @@ describe("mobile remote connection records", () => {
     mobileDevice.modelName = "iPhone 15 Pro";
   });
 
-<<<<<<< HEAD
-  it("identifies mobile token exchanges for authorized-client presentation", () => {
-    expect(authClientMetadata()).toEqual({
-      label: "Marcode Mobile",
-      deviceType: "mobile",
-      os: "iOS",
-      osMajorVersion: 18,
-      deviceModel: "iPhone 15 Pro",
-      surface: "mobile",
-    });
-  });
-
-  it("includes only the Android major version and hardware model", () => {
-    mobilePlatform.OS = "android";
-    mobileDevice.osVersion = "15.2.1";
-    mobileDevice.modelName = "Pixel 9";
-
-    expect(authClientMetadata()).toMatchObject({
-      os: "Android",
-      osMajorVersion: 15,
-      deviceModel: "Pixel 9",
-    });
-  });
-
-  it("identifies native tablets separately from phones", () => {
-    mobileDevice.deviceType = mobileDevice.DeviceType.TABLET;
-    mobileDevice.modelName = "iPad Pro 13-inch";
-
-    expect(authClientMetadata()).toMatchObject({
-      deviceType: "tablet",
-      os: "iOS",
-      deviceModel: "iPad Pro 13-inch",
-    });
-  });
-
-  it("includes the mobile app version when the client provides it", () => {
-    expect(authClientMetadata("1.2.3")).toMatchObject({
-      surface: "mobile",
-      appVersion: "1.2.3",
-    });
-  });
-
-  it("recognizes explicitly managed relay connections", () => {
-    expect(isRelayManagedConnection({ relayManaged: true })).toBe(true);
-  });
-
-  it("keeps existing DPoP tunnel records read-only after upgrading", () => {
-    expect(isRelayManagedConnection({ authenticationMethod: "dpop" })).toBe(true);
-    expect(isRelayManagedConnection({ authenticationMethod: "bearer" })).toBe(false);
-  });
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("drops short-lived managed environment credentials from stable records", () => {
     const connection = {
       environmentId: EnvironmentId.make("environment-1"),

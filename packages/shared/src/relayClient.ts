@@ -24,15 +24,10 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import { isWindowsRenameLock } from "./atomicWrite.ts";
 import * as HostProcess from "./HostProcess.ts";
 
-<<<<<<< HEAD
-export const CLOUDFLARED_VERSION = "2026.5.2";
-const CLOUDFLARED_PATH_ENV_NAME = "MARCODE_CLOUDFLARED_PATH";
-=======
 export const CLOUDFLARED_VERSION = "2026.10.4";
 // Minimum for --output support; older connectors exit on that flag.
 export const CLOUDFLARED_MIN_VERSION = "2025.6.1";
-const CLOUDFLARED_PATH_ENV_NAME = "T3CODE_CLOUDFLARED_PATH";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+const CLOUDFLARED_PATH_ENV_NAME = "MARCODE_CLOUDFLARED_PATH";
 
 const CLOUDFLARED_DOWNLOAD_TIMEOUT = "10 minutes";
 

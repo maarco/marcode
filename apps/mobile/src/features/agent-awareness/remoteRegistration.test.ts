@@ -267,67 +267,6 @@ describe("makeRelayDeviceRegistrationRequest", () => {
     environmentConfigsMock.configs.clear();
   });
 
-<<<<<<< HEAD
-  it("preserves disabled Live Activity preferences in relay registrations", () => {
-    expect(
-      makeRelayDeviceRegistrationRequest({
-        deviceId: "device-1",
-        label: "Julius's iPhone",
-        iosMajorVersion: 18,
-        appVersion: "1.0.0",
-        pushToken: "apns-token",
-        pushToStartToken: "push-to-start-token",
-        notificationsEnabled: true,
-        preferences: {
-          liveActivitiesEnabled: false,
-        },
-      }),
-    ).toEqual({
-      deviceId: "device-1",
-      label: "Julius's iPhone",
-      platform: "ios",
-      iosMajorVersion: 18,
-      appVersion: "1.0.0",
-      pushToken: "apns-token",
-      pushToStartToken: "push-to-start-token",
-      preferences: {
-        liveActivitiesEnabled: false,
-        notificationsEnabled: true,
-        notifyOnApproval: true,
-        notifyOnInput: true,
-        notifyOnCompletion: true,
-        notifyOnFailure: true,
-      },
-    });
-  });
-
-  it("registers the app's APNs routing so the relay targets the right bundle", () => {
-    expect(
-      makeRelayDeviceRegistrationRequest({
-        deviceId: "device-1",
-        label: "Julius's iPhone",
-        iosMajorVersion: 18,
-        appVersion: "1.0.0",
-        bundleId: "com.t3tools.marcode.preview",
-        apsEnvironment: resolveApsEnvironment("preview"),
-        notificationsEnabled: true,
-        preferences: {},
-      }),
-    ).toMatchObject({
-      bundleId: "com.t3tools.marcode.preview",
-      apsEnvironment: "production",
-    });
-  });
-
-  it("routes development builds to the APNs sandbox", () => {
-    expect(resolveApsEnvironment("development")).toBe("sandbox");
-    expect(resolveApsEnvironment("preview")).toBe("production");
-    expect(resolveApsEnvironment("production")).toBe("production");
-    expect(resolveApsEnvironment(undefined)).toBe("production");
-  });
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("disables push features in Personal Team relay registrations", () => {
     Constants.expoConfig!.extra = { iosPersonalTeamBuild: true };
 

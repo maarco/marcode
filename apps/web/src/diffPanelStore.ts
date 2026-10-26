@@ -117,13 +117,8 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
         }),
     }),
     {
-<<<<<<< HEAD
       name: "marcode:diff-panel-state:v1",
-      version: 1,
-=======
-      name: "t3code:diff-panel-state:v1",
       version: 2,
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       storage: createJSONStorage(() =>
         resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
       ),

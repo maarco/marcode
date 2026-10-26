@@ -14,15 +14,6 @@ export function orchestrationProtocolCompatibilityError(
   if (serverProtocolVersion === ORCHESTRATION_PROTOCOL_VERSION) {
     return null;
   }
-<<<<<<< HEAD
-  return new ConnectionBlockedError({
-    reason: "unsupported",
-    detail:
-      serverProtocolVersion > ORCHESTRATION_PROTOCOL_VERSION
-        ? `This client is not supported by this server. Update your app or use a compatible release to connect to ${descriptor.label}.`
-        : `This client requires a newer server. Update Marcode on ${descriptor.label} to connect.`,
-  });
-=======
   return serverProtocolVersion > ORCHESTRATION_PROTOCOL_VERSION
     ? new ConnectionBlockedError({
         reason: "unsupported",
@@ -41,7 +32,6 @@ function canSelfUpdate(descriptor: ExecutionEnvironmentDescriptor): boolean {
     serverSelfUpdate !== undefined &&
     (serverSelfUpdate !== "desktop-managed" || desktopAppUpdate === true)
   );
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }
 
 export function appendOrchestrationProtocol(socketUrl: string): string {

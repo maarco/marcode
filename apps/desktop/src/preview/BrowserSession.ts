@@ -9,22 +9,11 @@ import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
-<<<<<<< HEAD
-const PREVIEW_PARTITION_PREFIX = "persist:marcode-preview-";
-/**
- * Incognito partitions deliberately omit the `persist:` prefix, which is what
- * makes Chromium keep them in memory and discard them with the process. They
- * still carry the product prefix so `isPartition` can admit them — the
- * `will-attach-webview` gate rejects anything it does not recognise.
- */
-const PREVIEW_EPHEMERAL_PARTITION_PREFIX = "marcode-preview-ephemeral-";
-=======
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
 
-const PREVIEW_PARTITION_PREFIX = "persist:t3code-preview-";
+const PREVIEW_PARTITION_PREFIX = "persist:marcode-preview-";
 /** Ephemeral partitions omit persist: but retain a product prefix so the webview gate recognizes them. */
-const PREVIEW_EPHEMERAL_PARTITION_PREFIX = "t3code-preview-ephemeral-";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+const PREVIEW_EPHEMERAL_PARTITION_PREFIX = "marcode-preview-ephemeral-";
 const PROFILE_PARTITION_MARKER = "profile-";
 
 export type BrowserSessionPartitionNamespace = "profile";

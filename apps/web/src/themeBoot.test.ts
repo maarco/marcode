@@ -18,13 +18,7 @@ import {
   toCanonicalThemeColor,
 } from "./themePalette";
 
-<<<<<<< HEAD
 const THEME_STORAGE_KEY = "marcode:theme";
-// A custom theme that omits chrome falls back to the runtime default, so the
-// boot copy of that default stays derived from the real palette.
-=======
-const THEME_STORAGE_KEY = "t3code:theme";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 const DEFAULT_DARK_CHROME = getDefaultThemeColors("dark").chrome;
 
 const bootScript = (() => {

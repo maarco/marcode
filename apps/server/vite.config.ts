@@ -104,18 +104,11 @@ export default mergeConfig(
         js: "#!/usr/bin/env node\n",
       },
       define: {
-<<<<<<< HEAD
         __MARCODE_BUILD_CHANNEL__: JSON.stringify(cliBuildChannel),
+        __MARCODE_TELEMETRY_CHANNEL__: JSON.stringify(telemetryChannel),
         __MARCODE_BUILD_RELAY_URL__: JSON.stringify(repoEnv.MARCODE_RELAY_URL?.trim() ?? ""),
         __MARCODE_BUILD_CLERK_PUBLISHABLE_KEY__: JSON.stringify(
           repoEnv.MARCODE_CLERK_PUBLISHABLE_KEY?.trim() ?? "",
-=======
-        __T3CODE_BUILD_CHANNEL__: JSON.stringify(cliBuildChannel),
-        __T3CODE_TELEMETRY_CHANNEL__: JSON.stringify(telemetryChannel),
-        __T3CODE_BUILD_RELAY_URL__: JSON.stringify(repoEnv.T3CODE_RELAY_URL?.trim() ?? ""),
-        __T3CODE_BUILD_CLERK_PUBLISHABLE_KEY__: JSON.stringify(
-          repoEnv.T3CODE_CLERK_PUBLISHABLE_KEY?.trim() ?? "",
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
         ),
         __MARCODE_BUILD_CLERK_CLI_OAUTH_CLIENT_ID__: JSON.stringify(
           repoEnv.MARCODE_CLERK_CLI_OAUTH_CLIENT_ID?.trim() ?? "",

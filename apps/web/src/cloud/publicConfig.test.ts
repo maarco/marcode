@@ -8,25 +8,6 @@ afterEach(() => {
 });
 
 describe("hasCloudPublicConfig", () => {
-<<<<<<< HEAD
-  it("requires both public cloud values", () => {
-    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "");
-    vi.stubEnv("VITE_CLERK_JWT_TEMPLATE", "");
-    vi.stubEnv("VITE_MARCODE_RELAY_URL", "");
-    expect(hasCloudPublicConfig()).toBe(false);
-
-    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_example");
-    expect(hasCloudPublicConfig()).toBe(false);
-
-    vi.stubEnv("VITE_CLERK_JWT_TEMPLATE", "t3-relay");
-    expect(hasCloudPublicConfig()).toBe(false);
-
-    vi.stubEnv("VITE_MARCODE_RELAY_URL", "https://relay.example.test");
-    expect(hasCloudPublicConfig()).toBe(true);
-  });
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("rejects an insecure relay URL", () => {
     vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", "pk_test_example");
     vi.stubEnv("VITE_CLERK_JWT_TEMPLATE", "t3-relay");
@@ -42,10 +23,6 @@ describe("hasCloudPublicConfig", () => {
       vi.stubEnv("VITE_T3CODE_RELAY_URL", "https://relay.example.test");
     });
 
-<<<<<<< HEAD
-    expect(() => resolveRelayClerkTokenOptions()).toThrowError(
-      new CloudPublicConfigMissingError({ key: "MARCODE_CLERK_JWT_TEMPLATE" }),
-=======
     it.each(["https://example.com", "https://nightly.app.example.com:443"])(
       "enables production auth on the configured root and subdomains: %s",
       (origin) => {
@@ -53,7 +30,6 @@ describe("hasCloudPublicConfig", () => {
 
         expect(hasCloudPublicConfig()).toBe(true);
       },
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     );
 
     it.each(["http://localhost:3773", "https://machine.example.ts.net"])(

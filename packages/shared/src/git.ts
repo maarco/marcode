@@ -9,18 +9,10 @@ import type {
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 
-<<<<<<< HEAD
-export const WORKTREE_BRANCH_PREFIX = "marcode";
-// Canonical form is `marcode/<8 hex>`. Older mobile builds generated `marcode/<uuid>`
-// via Crypto.randomUUID() (always RFC 4122 v4), so the matcher also accepts exactly
-// that shape — version nibble `4`, variant nibble `[89ab]` — to keep those threads
-// eligible for branch regeneration without loosening beyond what was ever generated.
-=======
 export const WORKTREE_BRANCH_PREFIX = "t3";
 const TEMP_WORKTREE_HEX_TOKEN = "[0-9a-f]{8}";
 const TEMP_WORKTREE_UUID_V4_TOKEN =
   "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 const TEMP_WORKTREE_BRANCH_PATTERN = new RegExp(
   `^(?:${WORKTREE_BRANCH_PREFIX}[-/]${TEMP_WORKTREE_HEX_TOKEN}|t3code(?:[-/]${TEMP_WORKTREE_HEX_TOKEN}|\\/${TEMP_WORKTREE_UUID_V4_TOKEN}))$`,
 );

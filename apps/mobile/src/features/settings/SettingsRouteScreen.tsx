@@ -221,64 +221,6 @@ function useSettingsIndexSections(): SettingsListSection[] {
           members: scopedProjectMembers,
         })
       : (selectedProject?.label ?? "Unavailable project");
-<<<<<<< HEAD
-  return (
-    <>
-      <SettingsSection title="Interface">
-        <SettingsRow icon="paintbrush" label="Appearance" target="SettingsAppearance" />
-        {Platform.OS === "ios" ? (
-          <SettingsRow icon="keyboard" label="Keyboard" target="SettingsKeyboard" />
-        ) : null}
-      </SettingsSection>
-
-      <SettingsSection title="Projects & threads">
-        {selectedProjectKey !== null ? (
-          <SettingsRow
-            icon="folder"
-            label="Overview"
-            value={projectLabel}
-            target="SettingsProjectOverview"
-          />
-        ) : null}
-        <SettingsRow icon="folder" label="Organization" target="SettingsOrganization" />
-        <SettingsRow icon="text.bubble" label="Thread behavior" target="SettingsThreads" />
-        <SettingsRow icon="archivebox" label="Archived Threads" target="SettingsArchive" />
-      </SettingsSection>
-
-      <SettingsSection title="Server settings">
-        <SettingsRow
-          icon="text.bubble"
-          label="New threads"
-          target="SettingsEnvironmentNewThreads"
-          disabled={noServerTargets}
-        />
-        <SettingsRow
-          icon="arrow.triangle.branch"
-          label="Source control"
-          target="SettingsEnvironmentSourceControl"
-          disabled={noServerTargets}
-        />
-        <SettingsRow
-          icon="text.alignleft"
-          label="Agent behavior"
-          target="SettingsEnvironmentAgentBehavior"
-          disabled={noServerTargets}
-        />
-        <SettingsRow
-          icon="arrow.clockwise"
-          label="Maintenance"
-          target="SettingsEnvironmentMaintenance"
-          disabled={noServerTargets}
-        />
-      </SettingsSection>
-
-      <SettingsSection title="App">
-        <SettingsRow icon="chart.bar.xaxis" label="Usage" target="SettingsUsage" />
-        <SettingsRow icon="info.circle" label="About Marcode" target="SettingsAbout" />
-      </SettingsSection>
-    </>
-  );
-=======
   const page = (
     target: SettingsPageTarget,
     icon: SettingsListRow["icon"],
@@ -349,5 +291,4 @@ function useOverflowRows(): SettingsListRow[] {
     label: WORKSPACE_TAB_LABELS[tab],
     onPress: () => selectTab(tab),
   }));
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }

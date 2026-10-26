@@ -89,13 +89,8 @@ export const makeCodexTextGeneration = Effect.fn("makeCodexTextGeneration")(func
     content: string,
   ): Effect.Effect<string, TextGenerationError> =>
     fileSystem
-<<<<<<< HEAD
-      .makeTempFileScoped({
-        prefix: `marcode-${prefix}-${process.pid}-`,
-=======
       .makeTempFile({
-        prefix: `t3code-${prefix}-${process.pid}-`,
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+        prefix: `marcode-${prefix}-${process.pid}-`,
       })
       .pipe(
         Effect.tap((filePath) =>

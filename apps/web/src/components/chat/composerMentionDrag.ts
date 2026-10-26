@@ -2,16 +2,7 @@ import { PullRequestContextMetadata } from "@t3tools/contracts";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
 import { Option, Schema } from "effect";
 
-<<<<<<< HEAD
-/**
- * Drag payload type carrying a serialized composer mention. Set on drags that
- * start in the workspace file tree so the composer can tell them apart from
- * OS file drags and plain text selections.
- */
 export const COMPOSER_MENTION_DRAG_TYPE = "application/x-marcode-composer-mention";
-=======
-export const COMPOSER_MENTION_DRAG_TYPE = "application/x-t3code-composer-mention";
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
 export const COMPOSER_PULL_REQUEST_DRAG_TYPE = "application/x-t3code-pull-request";
 

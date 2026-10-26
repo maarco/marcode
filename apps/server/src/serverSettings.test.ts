@@ -94,30 +94,6 @@ const recordProviderUsage = (provider: string, instanceId: string | null = provi
   });
 
 it.layer(NodeServices.layer)("server settings", (it) => {
-<<<<<<< HEAD
-  it.effect("preserves context when reading a provider environment secret fails", () => {
-    const platformCause = PlatformError.systemError({
-      _tag: "PermissionDenied",
-      module: "FileSystem",
-      method: "readFile",
-      pathOrDescriptor: "provider environment secret",
-      description: "Secret backend unavailable.",
-    });
-    const cause = new ServerSecretStore.SecretStoreReadError({
-      resource: "provider environment secret",
-      cause: platformCause,
-    });
-    const configLayer = Layer.fresh(
-      ServerConfig.layerTest(process.cwd(), {
-        prefix: "marcode-server-settings-secret-failure-test-",
-      }),
-    );
-    const settingsLayer = ServerSettingsModule.layer.pipe(
-      Layer.provide(makeFailingSecretStoreLayer(cause)),
-      Layer.provideMerge(Layer.fresh(SqlitePersistenceMemory)),
-      Layer.provideMerge(configLayer),
-    );
-=======
   it.effect("serializes concurrent model preference edits without cancelling duplicate adds", () =>
     Effect.gen(function* () {
       const service = yield* ServerSettingsModule.ServerSettingsService;
@@ -193,7 +169,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           shown.providerModelPreferences,
         );
         yield* service.updateSettings({ favorites: [], providerModelPreferences: {} });
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
         const migrated = yield* service.updateSettings({ migrateModelPreferences: patch });
         assert.deepEqual(migrated.favorites, []);

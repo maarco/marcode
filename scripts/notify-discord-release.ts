@@ -175,35 +175,6 @@ function splitDescription(text: string, limit: number) {
 
 export const buildDiscordReleaseAnnouncement = (
   options: DiscordReleaseAnnouncementOptions,
-<<<<<<< HEAD
-): DiscordWebhookPayload => ({
-  content: `<@&${options.roleId}> ${targetLabels[options.target]} published: ${options.releaseName}`,
-  allowed_mentions: {
-    roles: [options.roleId],
-  },
-  embeds: [
-    {
-      title: options.releaseName,
-      url: options.releaseUrl.href,
-      description:
-        options.target === "prerelease"
-          ? "A new Marcode prerelease is available for nightly testers."
-          : "A new Marcode latest release is available.",
-      color: targetColors[options.target],
-      fields: [
-        {
-          name: "Version",
-          value: options.version,
-          inline: true,
-        },
-        {
-          name: "Tag",
-          value: options.tag,
-          inline: true,
-        },
-      ],
-      timestamp: options.timestamp,
-=======
 ): ReadonlyArray<DiscordWebhookPayload> => {
   const releaseName = suppressMentions(options.releaseName);
   const version = suppressMentions(options.version);
@@ -236,7 +207,6 @@ export const buildDiscordReleaseAnnouncement = (
     allowed_mentions: {
       parse: [],
       roles: index === 0 ? [options.roleId] : [],
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     },
     embeds: [
       {

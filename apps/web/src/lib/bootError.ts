@@ -263,11 +263,6 @@ export function showBootError(error: unknown) {
   const environment = readEnvironment(bridge);
   const offline = !bridge && navigator.onLine === false;
 
-<<<<<<< HEAD
-  const message = document.createElement("p");
-  message.textContent = "Marcode could not load.";
-  content.append(message);
-=======
   const status = element("span", { className: "boot-error-sr" });
   status.setAttribute("aria-live", "polite");
   // Clearing first makes screen readers announce a repeated message.
@@ -277,7 +272,6 @@ export function showBootError(error: unknown) {
     status.textContent = "";
     announcement = setTimeout(() => (status.textContent = text), 100);
   };
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
   const message = element("div", {}, [
     element("h1", { textContent: "T3 Code failed to start" }),

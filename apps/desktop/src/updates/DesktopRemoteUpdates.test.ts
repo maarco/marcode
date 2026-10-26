@@ -679,27 +679,4 @@ describe("DesktopRemoteUpdates", () => {
       }),
     );
   });
-<<<<<<< HEAD
-
-  it.effect("fails fast with the disabled reason when updates are off", () => {
-    const harness = makeHarness({ env: { MARCODE_DISABLE_AUTO_UPDATE: "true" } });
-
-    return runRemoteUpdatesTest(harness, ({ reports, requests }) =>
-      Effect.gen(function* () {
-        yield* Queue.offer(requests, request("req-3"));
-        yield* settle;
-
-        const terminals = terminalReports(reports);
-        assert.equal(terminals.length, 1);
-        assert.equal(terminals[0]?.outcome, "failed");
-        assert.equal(
-          terminals[0]?.reason,
-          "Automatic updates are disabled by the MARCODE_DISABLE_AUTO_UPDATE setting.",
-        );
-        assert.equal(harness.quitAndInstalls(), 0);
-      }),
-    );
-  });
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

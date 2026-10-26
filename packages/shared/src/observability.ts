@@ -771,16 +771,6 @@ function parseBigInt(input: string): bigint {
   }
 }
 
-<<<<<<< HEAD
-/**
- * Parses the `OTEL_EXPORTER_OTLP_HEADERS` wire format used by
- * `MARCODE_OTLP_HEADERS`: W3C Baggage `key=value` pairs joined by commas, with
- * percent-encoded values. Each pair splits at its first `=` so an encoded or
- * literal `=` inside a value survives, and whitespace around the separators is
- * ignored.
- */
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 export const OtlpHeadersFromString = Schema.String.pipe(
   Schema.decodeTo(
     Schema.Record(Schema.String, Schema.String),

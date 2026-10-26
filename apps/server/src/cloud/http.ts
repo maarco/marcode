@@ -31,89 +31,9 @@ const appendCloudCredentialResponseHeaders = HttpEffect.appendPreResponseHandler
     Effect.succeed(HttpServerResponse.setHeaders(response, CLOUD_CREDENTIAL_RESPONSE_HEADERS)),
 );
 
-<<<<<<< HEAD
-const failEnvironmentCloudInternalError =
-  (message: string) =>
-  (cause: unknown): Effect.Effect<never, EnvironmentHttpInternalServerError> =>
-    Effect.logError(message, { cause }).pipe(
-      Effect.flatMap(() => Effect.fail(new EnvironmentHttpInternalServerError({ message }))),
-    );
-
-const failCloudCliTokenManagerError = (error: CliTokenManager.CloudCliTokenManagerError) =>
-  failEnvironmentCloudInternalError(error.message)(error);
-
-const requireRelayUrl = relayUrlConfig.pipe(
-  Effect.mapError(
-    () =>
-      new EnvironmentHttpInternalServerError({
-        message: "MARCODE_RELAY_URL must be configured as a secure absolute HTTPS origin.",
-      }),
-  ),
-);
-
-function bytesToString(bytes: Uint8Array): string {
-  return new TextDecoder().decode(bytes);
-}
-
-function stringToBytes(value: string): Uint8Array {
-  return new TextEncoder().encode(value);
-}
-
-export function consumeCloudReplayGuards(input: {
-  readonly secrets: ServerSecretStore.ServerSecretStore["Service"];
-  readonly names: ReadonlyArray<string>;
-  readonly value: Uint8Array;
-}) {
-  return Effect.forEach(
-    input.names,
-    (name) =>
-      input.secrets.create(name, input.value).pipe(
-        Effect.as(true),
-        Effect.catchIf(ServerSecretStore.isSecretStoreError, (error) =>
-          ServerSecretStore.isSecretAlreadyExistsError(error)
-            ? Effect.succeed(false)
-            : Effect.fail(error),
-        ),
-      ),
-    { concurrency: input.names.length },
-  ).pipe(Effect.map((created) => created.every(Boolean)));
-}
-
-function normalizePemForSignedPayload(value: string): string {
-  return value.trim();
-}
-
-function normalizeHostname(hostname: string): string {
-  return hostname
-    .trim()
-    .toLowerCase()
-    .replace(/^\[(.*)\]$/, "$1");
-}
-
-function validateCloudMintPublicKey(
-  publicKey: string,
-): Effect.Effect<void, EnvironmentHttpBadRequestError> {
-  return Effect.try({
-    try: () => NodeCrypto.createPublicKey(publicKey.replace(/\\n/g, "\n")),
-    catch: () =>
-      new EnvironmentHttpBadRequestError({
-        message: "Cloud mint public key must be a valid Ed25519 public key.",
-      }),
-  }).pipe(
-    Effect.flatMap((key) =>
-      key.asymmetricKeyType === "ed25519"
-        ? Effect.void
-        : Effect.fail(
-            new EnvironmentHttpBadRequestError({
-              message: "Cloud mint public key must be a valid Ed25519 public key.",
-            }),
-          ),
-    ),
-=======
 const internalServerError = (error: { readonly message: string }, cause: unknown) =>
   Effect.logError(error.message, { cause }).pipe(
     Effect.andThen(Effect.fail(new EnvironmentHttpInternalServerError({ message: error.message }))),
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   );
 
 const relayFailure = (error: RelayRequestError) => {

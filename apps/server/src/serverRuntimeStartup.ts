@@ -620,28 +620,11 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
             "headless.output",
             Console.log(formatHeadlessServeOutput(accessInfo)),
           );
-<<<<<<< HEAD
-          if (serverConfig.startupPresentation === "headless") {
-            const accessInfo = yield* issueHeadlessServeAccessInfo();
-            yield* runStartupPhase(
-              "headless.output",
-              Console.log(formatHeadlessServeOutput(accessInfo)),
-            );
-          } else {
-            const startupBrowserTarget = yield* resolveStartupBrowserTarget;
-            if (serverConfig.mode !== "desktop") {
-              yield* Effect.logInfo(
-                "Authentication required. Open Marcode using the pairing URL.",
-              ).pipe(Effect.annotateLogs({ pairingUrl: startupBrowserTarget }));
-            }
-            yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));
-=======
         } else {
           yield* Effect.logDebug("startup phase: browser open check");
           const startupBrowserTarget = yield* resolveStartupBrowserTarget;
           if (serverConfig.mode !== "desktop") {
             yield* announceStartupPairingUrl(startupBrowserTarget);
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
           }
           yield* runStartupPhase("browser.open", maybeOpenBrowser(startupBrowserTarget));
         }

@@ -653,24 +653,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     const threadKey = scopedThreadKey(props.environmentId, props.selectedThread.id);
     if (inFlightThreadIdsRef.current.has(threadKey)) return;
     inFlightThreadIdsRef.current.add(threadKey);
-<<<<<<< HEAD
-    try {
-      const messageId = await onSendMessage();
-      if (messageId === null) {
-        return;
-      }
-      // Sending a prompt starts agent work: arm the lock-screen card while the
-      // app is foregrounded and the activity token can be registered. Armed
-      // after the send so its preference read and native Activity start don't
-      // contend with the queued-message feedback on the tap frame.
-      armAgentAwarenessLiveActivityForLocalWork({
-        environmentId: props.environmentId,
-        threadTitle: props.selectedThread.title,
-        projectTitle: props.environmentLabel ?? "Marcode",
-      });
-    } finally {
-      inFlightThreadIdsRef.current.delete(threadKey);
-=======
     const draftAtSend = getComposerDraftSnapshot(composerDraftKey);
     const stillSendable = () => {
       const draft = getComposerDraftSnapshot(composerDraftKey);
@@ -689,7 +671,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     if (AsyncResult.isFailure(sent)) {
       console.error("[composer] send failed", squashAtomCommandFailure(sent));
       return;
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     }
     if (sent.value === null) return;
     // Arm after send so preference reads and native Activity startup do not delay tap-frame feedback.

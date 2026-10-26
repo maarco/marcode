@@ -32,9 +32,6 @@ function isSnapShotEvent(value: unknown): value is DesktopSnapShotEvent {
 
 exposeClerkBridge({ passkeys: true });
 
-<<<<<<< HEAD
-// oxlint-disable-next-line marcode/no-global-process-runtime -- Electron exposes the client platform in its sandboxed preload process.
-=======
 // Runs before any app script reads localStorage. See DesktopLegacyLocalStorage.
 try {
   const legacyItems: unknown = ipcRenderer.sendSync(IpcChannels.TAKE_LEGACY_LOCAL_STORAGE_CHANNEL);
@@ -45,8 +42,7 @@ try {
   }
 } catch {}
 
-// oxlint-disable-next-line t3code/no-global-process-runtime -- Electron exposes the client platform in its sandboxed preload process.
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+// oxlint-disable-next-line marcode/no-global-process-runtime -- Electron exposes the client platform in its sandboxed preload process.
 const clientPlatform = process.platform;
 
 if (clientPlatform === "darwin") {

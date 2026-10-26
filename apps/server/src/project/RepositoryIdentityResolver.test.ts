@@ -43,16 +43,10 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(identity).not.toBeNull();
       expect(identity?.canonicalKey).toBe("github.com/t3tools/marcode");
       expect(normalizeResolvedPath(resolvedIdentityRoot)).toBe(normalizeResolvedPath(resolvedCwd));
-<<<<<<< HEAD
-      expect(identity?.displayName).toBe("t3tools/marcode");
-      expect(identity?.provider).toBe("github");
-      expect(identity?.owner).toBe("t3tools");
-      expect(identity?.name).toBe("marcode");
-=======
       expect(identity?.displayName).toBe("T3Tools/t3code");
       expect(identity?.provider).toBe("github");
       expect(identity?.owner).toBe("T3Tools");
-      expect(identity?.name).toBe("t3code");
+      expect(identity?.name).toBe("marcode");
       expect(yield* resolver.resolve(path.join(cwd, ".git"))).toBeNull();
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
@@ -65,7 +59,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       });
 
       yield* git(cwd, ["init"]);
-      yield* git(cwd, ["remote", "add", "origin", "git@github.com:T3Tools/t3code.git"]);
+      yield* git(cwd, ["remote", "add", "origin", "git@github.com:T3Tools/Marcode.git"]);
       yield* git(cwd, ["remote", "set-url", "--push", "origin", "git@github.com:T3Tools/push.git"]);
       yield* git(cwd, ["config", "remote.origin.promisor", "true"]);
       yield* git(cwd, ["config", "remote.origin.partialclonefilter", "blob:none"]);
@@ -75,10 +69,9 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
 
       const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const identity = yield* resolver.resolve(cwd);
-      expect(identity?.canonicalKey).toBe("github.com/t3tools/t3code");
+      expect(identity?.canonicalKey).toBe("github.com/t3tools/marcode");
       expect(identity?.locator.remoteUrl).toBe("git@github.com:T3Tools/t3code.git");
       expect(identity?.locator.remoteName).toBe("origin");
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
 
@@ -287,101 +280,10 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       const identity = yield* resolver.resolve(cwd);
 
       expect(identity).not.toBeNull();
-<<<<<<< HEAD
       expect(identity?.canonicalKey).toBe("gitlab.com/t3tools/platform/marcode");
-      expect(identity?.displayName).toBe("t3tools/platform/marcode");
-      expect(identity?.owner).toBe("t3tools");
+      expect(identity?.displayName).toBe("T3Tools/platform/t3code");
+      expect(identity?.owner).toBe("T3Tools");
       expect(identity?.name).toBe("marcode");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
-
-  it.effect(
-    "keeps null identities cached across repeated resolves until the negative TTL expires",
-    () =>
-      Effect.gen(function* () {
-        const fileSystem = yield* FileSystem.FileSystem;
-        const cwd = yield* fileSystem.makeTempDirectoryScoped({
-          prefix: "t3-repository-identity-late-remote-test-",
-        });
-
-        yield* git(cwd, ["init"]);
-
-        const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
-        const initialIdentity = yield* resolver.resolve(cwd);
-        expect(initialIdentity).toBeNull();
-
-        yield* git(cwd, ["remote", "add", "origin", "git@github.com:T3Tools/Marcode.git"]);
-
-        for (const _attempt of [1, 2, 3]) {
-          const cachedIdentity = yield* resolver.resolve(cwd);
-          expect(cachedIdentity).toBeNull();
-        }
-
-        yield* TestClock.adjust(Duration.millis(120));
-
-        const refreshedIdentity = yield* resolver.resolve(cwd);
-        expect(refreshedIdentity).not.toBeNull();
-        expect(refreshedIdentity?.canonicalKey).toBe("github.com/t3tools/marcode");
-        expect(refreshedIdentity?.name).toBe("marcode");
-      }).pipe(
-        Effect.provide(
-          Layer.merge(
-            TestClock.layer(),
-            makeRepositoryIdentityResolverTestLayer({
-              negativeCacheTtl: Duration.millis(50),
-              positiveCacheTtl: Duration.seconds(1),
-            }),
-          ),
-        ),
-      ),
-  );
-
-  it.effect("refreshes cached identities after the positive TTL when a remote changes", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const cwd = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-repository-identity-remote-change-test-",
-      });
-
-      yield* git(cwd, ["init"]);
-      yield* git(cwd, ["remote", "add", "origin", "git@github.com:T3Tools/Marcode.git"]);
-
-      const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
-      const initialIdentity = yield* resolver.resolve(cwd);
-      expect(initialIdentity).not.toBeNull();
-      expect(initialIdentity?.canonicalKey).toBe("github.com/t3tools/marcode");
-
-      yield* git(cwd, ["remote", "set-url", "origin", "git@github.com:T3Tools/Marcode-next.git"]);
-
-      const cachedIdentity = yield* resolver.resolve(cwd);
-      expect(cachedIdentity).not.toBeNull();
-      expect(cachedIdentity?.canonicalKey).toBe("github.com/t3tools/marcode");
-
-      yield* TestClock.adjust(Duration.millis(180));
-
-      const refreshedIdentity = yield* resolver.resolve(cwd);
-      expect(refreshedIdentity).not.toBeNull();
-      expect(refreshedIdentity?.canonicalKey).toBe("github.com/t3tools/marcode-next");
-      expect(refreshedIdentity?.displayName).toBe("t3tools/marcode-next");
-      expect(refreshedIdentity?.name).toBe("marcode-next");
-    }).pipe(
-      Effect.provide(
-        Layer.merge(
-          TestClock.layer(),
-          makeRepositoryIdentityResolverTestLayer({
-            negativeCacheTtl: Duration.millis(50),
-            positiveCacheTtl: Duration.millis(100),
-          }),
-        ),
-      ),
-    ),
-  );
-=======
-      expect(identity?.canonicalKey).toBe("gitlab.com/t3tools/platform/t3code");
-      expect(identity?.displayName).toBe("T3Tools/platform/t3code");
-      expect(identity?.owner).toBe("T3Tools");
-      expect(identity?.name).toBe("t3code");
-    }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
-  );
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

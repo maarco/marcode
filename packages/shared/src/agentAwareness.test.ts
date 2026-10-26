@@ -14,13 +14,8 @@ import { projectThreadAwarenessV2 } from "./agentAwareness.ts";
 const NOW = "2026-05-22T12:00:00.000Z";
 
 const project = {
-<<<<<<< HEAD
   title: "marcode",
-} satisfies Pick<OrchestrationProjectShell, "title">;
-=======
-  title: "t3code",
 } satisfies Pick<Project, "title">;
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
 describe("projectThreadAwarenessV2", () => {
   const updatedAt = DateTime.makeUnsafe(NOW);

@@ -14,25 +14,7 @@ const layerTest = VcsProjectConfig.layer.pipe(
 );
 
 describe("VcsProjectConfig", () => {
-<<<<<<< HEAD
-  it.layer(TestLayer)("uses an explicit requested VCS kind before config", (it) => {
-    it.effect("returns the requested kind", () =>
-      Effect.gen(function* () {
-        const config = yield* VcsProjectConfig.VcsProjectConfig;
-        const kind = yield* config.resolveKind({
-          cwd: "/repo",
-          requestedKind: "jj",
-        });
-
-        assert.equal(kind, "jj");
-      }),
-    );
-  });
-
-  it.layer(TestLayer)("discovers .marcode/vcs.json from nested workspaces", (it) => {
-=======
-  it.layer(layerTest)("discovers .t3code/vcs.json from nested workspaces", (it) => {
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
+  it.layer(layerTest)("discovers .marcode/vcs.json from nested workspaces", (it) => {
     it.effect("returns the configured kind", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -136,64 +118,4 @@ describe("VcsProjectConfig", () => {
       }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
     });
   });
-<<<<<<< HEAD
-
-  it.layer(TestLayer)("falls back to auto when the config path cannot be read", (it) => {
-    it.effect("retains the read failure context", () => {
-      const messages: unknown[] = [];
-      const logger = Logger.make<unknown, void>(({ message }) => {
-        messages.push(message);
-      });
-
-      return Effect.gen(function* () {
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const root = yield* fileSystem.makeTempDirectoryScoped({
-          prefix: "t3-vcs-config-test-",
-        });
-        const configPath = path.join(root, ".marcode", "vcs.json");
-        yield* fileSystem.makeDirectory(configPath, { recursive: true });
-
-        const config = yield* VcsProjectConfig.VcsProjectConfig;
-        const kind = yield* config.resolveKind({ cwd: root });
-
-        assert.equal(kind, "auto");
-        const [error] = messages[0] as ReadonlyArray<unknown>;
-        assert.instanceOf(error, VcsProjectConfig.VcsProjectConfigError);
-        assert.equal(error.message, "Failed to read VCS project config at " + configPath + ".");
-        assert.deepInclude(error.cause, { _tag: "PlatformError" });
-        assert.deepInclude(error, {
-          operation: "read",
-          cwd: root,
-          configPath,
-          _tag: "VcsProjectConfigError",
-        });
-      }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
-    });
-  });
-
-  it.layer(TestLayer)("falls back to auto when config kind is invalid", (it) => {
-    it.effect("returns auto", () =>
-      Effect.gen(function* () {
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const root = yield* fileSystem.makeTempDirectoryScoped({
-          prefix: "t3-vcs-config-test-",
-        });
-        const configDir = path.join(root, ".marcode");
-        yield* fileSystem.makeDirectory(configDir, { recursive: true });
-        yield* fileSystem.writeFileString(
-          path.join(configDir, "vcs.json"),
-          `{"vcs":{"kind":"svn"}}`,
-        );
-
-        const config = yield* VcsProjectConfig.VcsProjectConfig;
-        const kind = yield* config.resolveKind({ cwd: root });
-
-        assert.equal(kind, "auto");
-      }),
-    );
-  });
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

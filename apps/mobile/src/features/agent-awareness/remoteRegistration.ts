@@ -487,27 +487,6 @@ function armAgentAwarenessLiveActivityForLocalWorkNow(input: {
       return;
     }
     const nowIso = new Date(Date.now()).toISOString();
-<<<<<<< HEAD
-    const activity = startAgentLiveActivity({
-      title: "Marcode",
-      subtitle: "Agent work in progress",
-      activeCount: 1,
-      updatedAt: nowIso,
-      activities: [
-        {
-          environmentId: "",
-          threadId: "",
-          projectTitle: input.projectTitle,
-          threadTitle: input.threadTitle,
-          modelTitle: "",
-          phase: "starting",
-          status: "Connecting",
-          updatedAt: nowIso,
-          deepLink: "/",
-        },
-      ],
-    });
-=======
     const activity = startAgentLiveActivity(
       {
         title: "T3 Code",
@@ -530,7 +509,6 @@ function armAgentAwarenessLiveActivityForLocalWorkNow(input: {
       },
       liveActivityStaleDate(),
     );
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     if (!activity) {
       return;
     }

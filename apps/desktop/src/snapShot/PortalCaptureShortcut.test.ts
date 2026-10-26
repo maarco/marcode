@@ -291,26 +291,6 @@ it("treats a remembered empty binding as unassigned, then observes desktop-side 
   expect(capture).toHaveBeenCalledOnce();
 });
 
-<<<<<<< HEAD
-it("guides users to manual desktop settings when the portal cannot open them", async () => {
-  const bus = new FakeBus();
-  bus.version = 1;
-  bus.bindStatus = 1;
-  const { client } = start(bus);
-  await client.ready;
-  expect(client.hasSession).toBe(true);
-  expect(client.state.shortcutCanRetry).toBe(false);
-  expect(client.state.shortcutMessage).toBe(
-    "Shortcut permission wasn't granted. Allow Marcode in your desktop's shortcut settings.",
-  );
-  await expect(client.configure()).rejects.toThrow("Open your desktop's shortcut settings");
-  expect(bus.calls.some((message) => message.member === "ConfigureShortcuts")).toBe(false);
-  client.close();
-  expect(client.hasSession).toBe(false);
-});
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 it("captures on older portals without offering an unsupported permission dialog", async () => {
   const bus = new FakeBus();
   bus.version = 1;

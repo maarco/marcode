@@ -61,12 +61,7 @@ void SplashScreen.preventAutoHideAsync().catch(() => {});
 void hydrateWorkspaceSelections();
 
 const appLinking = {
-<<<<<<< HEAD
   prefixes: [Linking.createURL("/"), "marcode://", "marcode-dev://", "marcode-preview://"],
-  // Keep the compact thread list available beneath a directly opened thread.
-=======
-  prefixes: [Linking.createURL("/"), "t3code://", "t3code-dev://", "t3code-preview://"],
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   config: { initialRouteName: "Home" },
   filter: (url: string) => shouldHandleAppLink(url, hasCloudPublicConfig()),
   getInitialURL: async () => (await Linking.getInitialURL()) ?? (await launchWorkspaceURL()),

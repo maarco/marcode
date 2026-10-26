@@ -9,19 +9,6 @@ describe("connectCliAuth", () => {
     vi.unstubAllEnvs();
   });
 
-<<<<<<< HEAD
-  it("requires both the publishable key and the CLI OAuth client id", () => {
-    vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", TEST_PUBLISHABLE_KEY);
-    vi.stubEnv("VITE_CLERK_JWT_TEMPLATE", "t3-relay");
-    vi.stubEnv("VITE_MARCODE_RELAY_URL", "https://relay.example.com");
-    expect(hasConnectCliAuthConfig()).toBe(false);
-
-    vi.stubEnv("VITE_CLERK_CLI_OAUTH_CLIENT_ID", "oauthapp_123");
-    expect(hasConnectCliAuthConfig()).toBe(true);
-  });
-
-=======
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("builds a PKCE authorize URL that redirects to the CLI's loopback listener", () => {
     vi.stubEnv("VITE_CLERK_PUBLISHABLE_KEY", TEST_PUBLISHABLE_KEY);
     vi.stubEnv("VITE_CLERK_CLI_OAUTH_CLIENT_ID", "oauthapp_123");

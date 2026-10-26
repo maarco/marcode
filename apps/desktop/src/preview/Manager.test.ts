@@ -174,15 +174,9 @@ vi.mock("electron", () => ({
 const layerBrowserSession = Layer.succeed(
   BrowserSession.BrowserSession,
   BrowserSession.BrowserSession.of({
-<<<<<<< HEAD
     getPartition: () => Effect.succeed("persist:marcode-preview-test"),
     isPartition: (partition) => partition.startsWith("persist:marcode-preview-"),
-    getSession: () => Effect.die("unexpected getSession"),
-=======
-    getPartition: () => Effect.succeed("persist:t3code-preview-test"),
-    isPartition: (partition) => partition.startsWith("persist:t3code-preview-"),
     getSession: () => Effect.succeed(previewSession as unknown as Electron.Session),
->>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     clearCookies: () => Effect.void,
     clearCache: () => Effect.void,
   }),
