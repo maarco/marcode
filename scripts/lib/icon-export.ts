@@ -27,6 +27,7 @@ export function readPngDimensions(contents: Buffer): {
   };
 }
 
+<<<<<<< HEAD
 /**
  * macOS Finder treats a transparent monochrome app icon as a template mask.
  * Composite the icon onto an opaque white matte before building the ICNS so
@@ -47,6 +48,8 @@ export function makeOpaqueWhitePng(contents: Buffer): Buffer {
 }
 
 /** Encodes PNG renditions directly into a modern, multi-resolution ICO file. */
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 export function encodePngIco(images: ReadonlyArray<PngIconImage>): Buffer {
   if (images.length === 0) {
     throw new Error("An ICO file requires at least one PNG rendition.");

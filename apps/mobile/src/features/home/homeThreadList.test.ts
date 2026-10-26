@@ -5,7 +5,9 @@ import type {
 import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildHomeProjectScopes, sortHomeProjectScopes } from "./homeThreadList";
+import { buildHomeProjectScopes, findHomeProjectScope } from "./homeThreadList";
+import { makeThreadShellFixture } from "../../test-fixtures";
+import { buildThreadListV2Items } from "../threads/threadListV2";
 
 function makeProject(
   input: Partial<EnvironmentProject> & Pick<EnvironmentProject, "environmentId" | "id" | "title">,
@@ -27,29 +29,25 @@ function makeThread(
   input: Partial<EnvironmentThreadShell> &
     Pick<EnvironmentThreadShell, "environmentId" | "id" | "projectId" | "title">,
 ): EnvironmentThreadShell {
-  return {
+  return makeThreadShellFixture({
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
     runtimeMode: "full-access",
     interactionMode: "default",
     branch: null,
     worktreePath: null,
-    pullRequests: [],
-    latestTurn: null,
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-01T00:00:00.000Z",
     archivedAt: null,
-    session: null,
     latestUserMessageAt: null,
     hasPendingApprovals: false,
     hasPendingUserInput: false,
     hasActionableProposedPlan: false,
     ...input,
-    settledOverride: input.settledOverride ?? null,
-    settledAt: input.settledAt ?? null,
-  };
+  });
 }
 
 describe("home project scopes", () => {
+<<<<<<< HEAD
   it("builds one v2 scope for the same repository across environments", () => {
     const localEnvironmentId = EnvironmentId.make("environment-local");
     const remoteEnvironmentId = EnvironmentId.make("environment-remote");
@@ -73,14 +71,46 @@ describe("home project scopes", () => {
         id: ProjectId.make("project-remote"),
         title: "marcode",
         repositoryIdentity,
+=======
+  it("filters threads across both scratch hosts while retaining the selected environment boundary", () => {
+    const localEnvironmentId = EnvironmentId.make("local");
+    const remoteEnvironmentId = EnvironmentId.make("remote");
+    const projects = [
+      makeProject({
+        environmentId: localEnvironmentId,
+        id: ProjectId.make("scratch-local"),
+        title: "No project",
+        workspaceRoot: "/local/scratch",
+        isScratch: true,
+      }),
+      makeProject({
+        environmentId: remoteEnvironmentId,
+        id: ProjectId.make("scratch-remote"),
+        title: "No project",
+        workspaceRoot: "/remote/scratch",
+        isScratch: true,
+      }),
+      makeProject({
+        environmentId: remoteEnvironmentId,
+        id: ProjectId.make("ordinary"),
+        title: "No project",
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       }),
     ];
-
+    const threads = projects.map((project) =>
+      makeThread({
+        environmentId: project.environmentId,
+        projectId: project.id,
+        id: ThreadId.make(`thread-${project.id}`),
+        title: project.id,
+      }),
+    );
     const scopes = buildHomeProjectScopes({
       projects,
       environmentId: null,
-      projectGroupingMode: "repository",
+      projectGroupingMode: "separate",
     });
+<<<<<<< HEAD
 
     expect(scopes).toHaveLength(1);
     expect(scopes[0]?.title).toBe("marcode");
@@ -90,7 +120,42 @@ describe("home project scopes", () => {
         environmentId: project.environmentId,
         projectId: project.id,
       })),
+=======
+    expect(scopes).toHaveLength(2);
+    const scratchScope = scopes.find((scope) => scope.representative.isScratch)!;
+    const filtered = buildThreadListV2Items({
+      threads,
+      environmentId: null,
+      projectRefs: scratchScope.projectRefs,
+      searchQuery: "",
+      now: "2026-06-01T00:00:00.000Z",
+    });
+    expect(filtered.items.map((item) => item.thread.id).sort()).toEqual(
+      threads
+        .slice(0, 2)
+        .map((thread) => thread.id)
+        .sort(),
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     );
+    const remoteScopes = buildHomeProjectScopes({
+      projects,
+      environmentId: remoteEnvironmentId,
+      projectGroupingMode: "separate",
+    });
+    const remoteScratch = remoteScopes.find((scope) => scope.representative.isScratch)!;
+    expect(remoteScratch.key).toBe(scratchScope.key);
+    expect(remoteScratch.projectRefs).toEqual([
+      { environmentId: remoteEnvironmentId, projectId: projects[1]!.id },
+    ]);
+    expect(
+      buildThreadListV2Items({
+        threads,
+        environmentId: remoteEnvironmentId,
+        projectRefs: remoteScratch.projectRefs,
+        searchQuery: "",
+        now: "2026-06-01T00:00:00.000Z",
+      }).items.map((item) => item.thread.id),
+    ).toEqual([threads[1]!.id]);
   });
 
   it("keeps repository identity from an older duplicate when the freshness winner lacks it", () => {
@@ -142,6 +207,7 @@ describe("home project scopes", () => {
     expect(scopes[0]?.projectRefs).toHaveLength(3);
   });
 
+<<<<<<< HEAD
   it("sorts v2 project scopes by their grouped thread activity", () => {
     const environmentId = EnvironmentId.make("environment-1");
     const olderProject = makeProject({
@@ -262,6 +328,8 @@ describe("home project scopes", () => {
     ).toBe(scopes.find((scope) => scope.projects.length === 2)?.key);
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("does not merge unrelated repositories that share a title", () => {
     const environmentId = EnvironmentId.make("environment-1");
     const projects = ["one", "two"].map((name) =>
@@ -287,5 +355,34 @@ describe("home project scopes", () => {
         projectGroupingMode: "repository",
       }),
     ).toHaveLength(2);
+  });
+
+  it("prefers an exact scope key over a project ID that collides with it", () => {
+    const environmentId = EnvironmentId.make("environment-local");
+    const collidingProject = makeProject({
+      environmentId,
+      id: ProjectId.make("/workspaces/target"),
+      title: "Colliding",
+      workspaceRoot: "/workspaces/colliding",
+    });
+    const targetProject = makeProject({
+      environmentId,
+      id: ProjectId.make("project-target"),
+      title: "Target",
+      workspaceRoot: "/workspaces/target",
+    });
+    const scopes = buildHomeProjectScopes({
+      projects: [collidingProject, targetProject],
+      environmentId: null,
+      projectGroupingMode: "separate",
+    });
+    const targetScope = scopes.find((scope) => scope.title === "Target");
+    expect(scopes.map((scope) => scope.title)).toEqual(["Colliding", "Target"]);
+    expect(targetScope?.key).toBe("environment-local:/workspaces/target");
+
+    expect(findHomeProjectScope(scopes, "environment-local:/workspaces/target")).toBe(targetScope);
+    expect(findHomeProjectScope(scopes, "environment-local:project-target")).toBe(targetScope);
+    expect(findHomeProjectScope(scopes, "environment-local:missing")).toBeNull();
+    expect(findHomeProjectScope(scopes, null)).toBeNull();
   });
 });

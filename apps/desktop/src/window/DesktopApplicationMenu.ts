@@ -57,6 +57,13 @@ const zoomMainWindow = Effect.fn("desktop.menu.zoomMainWindow")(function* (
   yield* desktopWindow.zoomMain(direction);
 });
 
+const runMainContentsCommand = Effect.fn("desktop.menu.runMainContentsCommand")(function* (
+  command: DesktopWindow.MainWindowContentsCommand,
+): Effect.fn.Return<void, never, DesktopWindow.DesktopWindow> {
+  const desktopWindow = yield* DesktopWindow.DesktopWindow;
+  yield* desktopWindow.runMainContentsCommand(command);
+});
+
 const checkForUpdatesFromMenu = Effect.gen(function* () {
   const updates = yield* DesktopUpdates.DesktopUpdates;
   const electronDialog = yield* ElectronDialog.ElectronDialog;
@@ -99,19 +106,23 @@ const handleCheckForUpdatesMenuClick = Effect.gen(function* () {
     return;
   }
 
+  // Opening a window before backend confirmation can strand it on failed auth bootstrap.
   const desktopWindow = yield* DesktopWindow.DesktopWindow;
-  yield* desktopWindow.ensureMain;
+  yield* desktopWindow.activate;
   yield* checkForUpdatesFromMenu;
 }).pipe(Effect.withSpan("desktop.menu.handleCheckForUpdatesClick"));
 
-/** @public Service construction is part of the canonical Effect module API. */
+/** @public */
 export const make = Effect.gen(function* () {
   const electronMenu = yield* ElectronMenu.ElectronMenu;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
+<<<<<<< HEAD
   // Electron's app name can still reflect the package/product name while
   // identity configuration is settling. The resolved environment branding is
   // the source of truth for the user-visible application menu label.
   const appName = environment.displayName;
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   const context = yield* Effect.context<DesktopApplicationMenuRuntimeServices>();
   const runPromise = Effect.runPromiseWith(context);
 
@@ -138,11 +149,7 @@ export const make = Effect.gen(function* () {
     const settingsClick = () => {
       runMenuEffect("open-settings", dispatchMenuAction("open-settings"));
     };
-    // Chromium already pastes as plain text for this chord, so the accelerator
-    // needs nothing from the menu: the composer and the terminal each arm
-    // themselves from the same keydown. Routing it through the renderer anyway
-    // lands a second, injected paste and doubles the text. Only a menu click,
-    // which produces no keystroke for them to see, needs that round trip.
+    // Chromium and the renderer already handle this chord; injecting another paste duplicates text.
     const pasteAsTextClick = (
       _item: Electron.MenuItem,
       _window: Electron.BaseWindow | undefined,
@@ -154,13 +161,16 @@ export const make = Effect.gen(function* () {
     const zoomClick = (direction: DesktopWindow.MainWindowZoomDirection) => () => {
       runMenuEffect(`zoom-${direction}`, zoomMainWindow(direction));
     };
+    const mainContentsClick = (command: DesktopWindow.MainWindowContentsCommand) => () => {
+      runMenuEffect(command, runMainContentsCommand(command));
+    };
     const template: Electron.MenuItemConstructorOptions[] = [];
 
     if (environment.platform === "darwin") {
       template.push({
-        label: appName,
+        label: environment.displayName,
         submenu: [
-          { role: "about" },
+          { role: "about", label: `About ${environment.displayName}` },
           {
             label: "Check for Updates...",
             click: checkForUpdatesClick,
@@ -174,11 +184,11 @@ export const make = Effect.gen(function* () {
           { type: "separator" },
           { role: "services" },
           { type: "separator" },
-          { role: "hide" },
+          { role: "hide", label: `Hide ${environment.displayName}` },
           { role: "hideOthers" },
           { role: "unhide" },
           { type: "separator" },
-          { role: "quit" },
+          { role: "quit", label: `Quit ${environment.displayName}` },
         ],
       });
     }
@@ -231,16 +241,19 @@ export const make = Effect.gen(function* () {
       {
         label: "View",
         submenu: [
-          { role: "reload" },
-          { role: "forceReload" },
-          { role: "toggleDevTools" },
+          /* Native reload/DevTools/zoom roles target focused guests; these commands must target the app. */
+          { label: "Reload", accelerator: "CmdOrCtrl+R", click: mainContentsClick("reload") },
+          {
+            label: "Force Reload",
+            accelerator: "Shift+CmdOrCtrl+R",
+            click: mainContentsClick("forceReload"),
+          },
+          {
+            label: "Toggle Developer Tools",
+            accelerator: environment.platform === "darwin" ? "Alt+Command+I" : "Ctrl+Shift+I",
+            click: mainContentsClick("toggleDevTools"),
+          },
           { type: "separator" },
-          /*
-            Not the zoom roles: those act on the focused webContents, so with
-            an embedded preview WebContentsView focused they zoom the guest
-            page and the app UI appears stuck. These always zoom the main
-            window (see DesktopWindow.zoomMain).
-          */
           { label: "Actual Size", accelerator: "CmdOrCtrl+0", click: zoomClick("reset") },
           { label: "Zoom In", accelerator: "CmdOrCtrl+=", click: zoomClick("in") },
           {
@@ -249,7 +262,36 @@ export const make = Effect.gen(function* () {
             visible: false,
             click: zoomClick("in"),
           },
+          ...(environment.platform === "darwin"
+            ? [
+                {
+                  label: "Zoom In",
+                  accelerator: "CmdOrCtrl+Shift+=",
+                  visible: false,
+                  click: zoomClick("in"),
+                },
+              ]
+            : []),
           { label: "Zoom Out", accelerator: "CmdOrCtrl+-", click: zoomClick("out") },
+          // Keypad codes do not match number-row accelerators.
+          {
+            label: "Actual Size",
+            accelerator: "CmdOrCtrl+num0",
+            visible: false,
+            click: zoomClick("reset"),
+          },
+          {
+            label: "Zoom In",
+            accelerator: "CmdOrCtrl+numadd",
+            visible: false,
+            click: zoomClick("in"),
+          },
+          {
+            label: "Zoom Out",
+            accelerator: "CmdOrCtrl+numsub",
+            visible: false,
+            click: zoomClick("out"),
+          },
           { type: "separator" },
           { role: "togglefullscreen" },
         ],

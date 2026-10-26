@@ -3,7 +3,7 @@ import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import { Command, CliError } from "effect/unstable/cli";
+import { Command } from "effect/cli";
 
 import {
   mergePlatformUpdateManifests,
@@ -69,6 +69,7 @@ releaseDate: '2026-03-07T10:36:07.540Z'
     assert.equal((serialized.match(/- url:/g) ?? []).length, 4);
   });
 
+<<<<<<< HEAD
   it("merges arm64 and x64 Windows update manifests into one multi-arch manifest", () => {
     const arm64 = parsePlatformUpdateManifest(
       "win",
@@ -123,6 +124,8 @@ releaseDate: '2026-03-07T10:36:07.540Z'
     assert.equal((serialized.match(/- url:/g) ?? []).length, 4);
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("rejects mismatched manifest versions", () => {
     const primary = parsePlatformUpdateManifest(
       "win",
@@ -245,6 +248,7 @@ releaseDate: '2026-03-07T10:36:07.540Z'
       assert.ok(!merged.includes("path:"));
     }),
   );
+<<<<<<< HEAD
 
   it.effect("writes the merged manifest to an explicit output path", () =>
     Effect.gen(function* () {
@@ -305,4 +309,6 @@ releaseDate: '2026-03-07T10:36:07.540Z'
       assert.equal(platformError.value, "linux");
     }),
   );
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

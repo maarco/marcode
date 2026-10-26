@@ -1,10 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import {
-  buildHostedChannelSelectionUrl,
   buildHostedPairingUrl,
   hasHostedPairingRequest,
-  isHostedStaticApp,
   readHostedPairingRequest,
 } from "./hostedPairing";
 
@@ -42,6 +40,7 @@ describe("hostedPairing", () => {
     expect(url.searchParams.has("token")).toBe(false);
     expect(url.hash).toBe("#token=pairing-token");
   });
+<<<<<<< HEAD
 
   it("builds hosted channel selection URLs through the configured router origin", () => {
     vi.stubEnv("VITE_HOSTED_APP_URL", "https://app.t3.codes");
@@ -91,4 +90,6 @@ describe("hostedPairing", () => {
     vi.stubEnv("VITE_HTTP_URL", "https://backend.example.com");
     expect(isHostedStaticApp(new URL("https://nightly.app.t3.codes/"))).toBe(false);
   });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

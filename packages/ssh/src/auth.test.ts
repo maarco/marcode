@@ -5,13 +5,9 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
-import { HostProcessPlatform } from "@t3tools/shared/hostProcess";
+import * as HostProcess from "@t3tools/shared/HostProcess";
 
-import {
-  buildSshAskpassHelperDescriptor,
-  buildSshChildEnvironment,
-  isSshAuthFailure,
-} from "./auth.ts";
+import { buildSshChildEnvironment, isSshAuthFailure } from "./auth.ts";
 
 describe("ssh auth", () => {
   it.effect("detects ssh auth failures from common permission denied messages", () =>
@@ -50,10 +46,11 @@ describe("ssh auth", () => {
       assert.equal(yield* fs.exists(askpassPath), true);
       assert.include(yield* fs.readFileString(askpassPath), 'printf "%s\\n" "$T3_SSH_AUTH_SECRET"');
     }).pipe(
-      Effect.provide(Layer.merge(NodeServices.layer, Layer.succeed(HostProcessPlatform, "linux"))),
+      Effect.provide(Layer.merge(NodeServices.layer, Layer.succeed(HostProcess.Platform, "linux"))),
       Effect.scoped,
     ),
   );
+<<<<<<< HEAD
 
   it.effect("builds a windows askpass launcher pair", () =>
     Effect.gen(function* () {
@@ -72,4 +69,6 @@ describe("ssh auth", () => {
       );
     }),
   );
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

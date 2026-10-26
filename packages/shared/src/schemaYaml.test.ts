@@ -1,15 +1,10 @@
 import * as Schema from "effect/Schema";
 import { describe, expect, it } from "vite-plus/test";
 
-import { fromYaml, fromYamlString } from "./schemaYaml.ts";
-
-const ProjectConfig = Schema.Struct({
-  name: Schema.String,
-  enabled: Schema.Boolean,
-  tags: Schema.Array(Schema.String),
-});
+import { fromYaml } from "./schemaYaml.ts";
 
 describe("schemaYaml helpers", () => {
+<<<<<<< HEAD
   it("decodes YAML through a schema", () => {
     const decodeConfig = Schema.decodeUnknownSync(fromYaml(ProjectConfig));
 
@@ -50,6 +45,8 @@ tags:
     expect(decodeYaml("answer: 42\n")).toEqual({ answer: 42 });
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("reports malformed YAML with safe structural diagnostics", () => {
     const decodeYaml = Schema.decodeUnknownSync(fromYaml(Schema.Unknown));
     const secret = "credential=secret-value";

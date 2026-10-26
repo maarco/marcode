@@ -1,16 +1,22 @@
-"use client";
-
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
 import type { CSSProperties } from "react";
 import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
+import { ControlledOpenContext, renderRetainedPopup } from "~/components/ui/dialog";
 
-const Sheet = SheetPrimitive.Root;
+function Sheet<Payload>(props: SheetPrimitive.Root.Props<Payload>) {
+  return (
+    <ControlledOpenContext value={props.open}>
+      <SheetPrimitive.Root {...props} />
+    </ControlledOpenContext>
+  );
+}
 
 const SheetPortal = SheetPrimitive.Portal;
 
+<<<<<<< HEAD
 function SheetTrigger(props: SheetPrimitive.Trigger.Props) {
   return <SheetPrimitive.Trigger data-slot="sheet-trigger" {...props} />;
 }
@@ -22,6 +28,9 @@ function SheetClose(props: SheetPrimitive.Close.Props) {
 // Sheets are docked panels, not dialogs: their layer (--z-sheet) sits under dialogs that open
 // from inside them and under anything the app floats above panels.
 function SheetBackdrop({ className, style, ...props }: SheetPrimitive.Backdrop.Props) {
+=======
+function SheetBackdrop({ className, ...props }: SheetPrimitive.Backdrop.Props) {
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   return (
     <SheetPrimitive.Backdrop
       className={cn(
@@ -115,6 +124,7 @@ function SheetPopup({
             className,
           )}
           data-slot="sheet-popup"
+          render={keepMounted ? undefined : renderRetainedPopup}
           style={{ ...transitionStyle, ...style }}
           {...props}
         >

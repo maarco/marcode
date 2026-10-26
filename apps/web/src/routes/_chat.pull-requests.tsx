@@ -1,165 +1,12 @@
-import { RefreshIcon } from "~/components/ui/refresh-icon";
-import { Spinner } from "~/components/ui/spinner";
-import { pullRequestHostOf, resolveEnvironmentMachineKind } from "@t3tools/contracts";
-import type {
-  EnvironmentId,
-  ProjectId,
-  PullRequestAction,
-  PullRequestInvolvement,
-  PullRequestListCursors,
-  PullRequestListFilters,
-  PullRequestListInput,
-  PullRequestListResult,
-  PullRequestListState,
-  SourceControlProviderKind,
-} from "@t3tools/contracts";
-import { useAtomValue } from "@effect/atom-react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import {
-  ArrowDownUpIcon,
-  CalendarArrowDownIcon,
-  CalendarArrowUpIcon,
-  ChevronDownIcon,
-  ClockIcon,
-  EyeIcon,
-  LayersIcon,
-  ListChecksIcon,
-  PenLineIcon,
-  UsersIcon,
-  Plug2Icon,
-  Maximize2Icon,
-  Minimize2Icon,
-  SearchIcon,
-  UserLockIcon,
-  type LucideIcon,
-} from "lucide-react";
-import {
-  useCallback,
-  useEffect,
-  useEffectEvent,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from "react";
+import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import { createFileRoute } from "@tanstack/react-router";
 
-import {
-  filterPullRequestsByInvolvement,
-  findScopedProject,
-  collectPullRequestListFacets,
-  groupPullRequestsByInvolvement,
-  matchesPullRequestFilters,
-  matchesPullRequestQuery,
-  parsePullRequestQuery,
-  narrowPullRequestsToFilters,
-  mergePullRequestDiffStats,
-  partitionPullRequestsWithPriority,
-  pullRequestDiffStatKey,
-  pullRequestEntryKey,
-  pullRequestEntryViewer,
-  rankPullRequestMatches,
-  sortPullRequestGroups,
-  pullRequestEnvironmentSetKey,
-  readPullRequestListSnapshot,
-  resolveProjectScope,
-  resolveQueryEnvironmentIds,
-  resolveSelectedEnvironmentId,
-  withDiffStat,
-  writePullRequestListSnapshot,
-  scorePullRequestMatch,
-  pullRequestStatsRefreshBatches,
-  pullRequestStatsRequestBatches,
-  retainVisiblePullRequestStatsBatches,
-  type EnvironmentPullRequestEntry,
-  type MergedPullRequestList,
-  type PullRequestDiffStats,
-  type PullRequestStatsBatch,
-  type PullRequestStatsPolicy,
-  type PullRequestStatsScope,
-  type PullRequestPartitionsSnapshot,
-  applyPullRequestOverrides,
-  type PullRequestListOverride,
-  pullRequestOverrideAfterAction,
-  reusePullRequestEntries,
-  settlePullRequestOverrides,
-} from "../components/pullRequest/pullRequestList.logic";
-import {
-  pullRequestListPreferences,
-  type PullRequestListPreferencePatch,
-  type PullRequestListPreferences,
-  type PullRequestListSort,
-  writePullRequestListPreferences,
-} from "../components/pullRequest/pullRequestListPreferences";
-import { assignProjectsToEnvironments } from "../components/pullRequest/pullRequestProjectAssignment.logic";
-import { pullRequestFilterProjects } from "../components/pullRequest/pullRequestProjectFilter.logic";
-import { environmentMachineIcon } from "../components/EnvironmentMachineIcon";
-import { PullRequestDetailPanel } from "../components/pullRequest/PullRequestDetailPanel";
-import {
-  PullRequestFiltersMenu,
-  PullRequestFilterOptionIcon,
-  PullRequestSearchInput,
-  pullRequestHostLabel,
-  pullRequestProjectKey,
-  type PullRequestExpectedHost,
-  type PullRequestFilterOption,
-} from "../components/pullRequest/PullRequestListFilters";
-import { PullRequestListEmptyState } from "../components/pullRequest/PullRequestListEmptyState";
-import { PullRequestListGhost } from "../components/pullRequest/PullRequestGhosts";
-import {
-  PullRequestRow,
-  type PullRequestRowTarget,
-} from "../components/pullRequest/PullRequestRow";
-import { PullRequestsUnavailableState } from "../components/pullRequest/PullRequestsUnavailableState";
-import { RightPanelTabs, type PullRequestTabStatusSeed } from "../components/RightPanelTabs";
-import {
-  WorkspaceBreadcrumb,
-  WorkspaceBreadcrumbItem,
-  WorkspaceBreadcrumbSeparator,
-} from "../components/WorkspaceBreadcrumb";
-import { WorkspacePageContainer } from "../components/WorkspacePageContainer";
-import { WorkspacePageHeader } from "../components/WorkspacePageHeader";
-import { isCommandPaletteOpen } from "../commandPaletteBus";
-import { isElectron } from "../env";
-import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
-import { isTerminalFocused } from "../lib/terminalFocus";
-import { PanelLayoutControls } from "../components/chat/PanelLayoutControls";
-import { Button } from "../components/ui/button";
-import { Menu, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "../components/ui/menu";
-import { SidebarInset } from "../components/ui/sidebar";
-import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
-import { useLiveRefresh } from "../hooks/useLiveRefresh";
-import { useOpenPanelPullRequestUrl } from "../hooks/useOpenPanelPullRequestUrl";
-import { writeTextToClipboard } from "../hooks/useCopyToClipboard";
-import { toastManager } from "../components/ui/toast";
-import { useEscapeToGoBack } from "../hooks/useNavigateBack";
-import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations";
-import {
-  PULL_REQUESTS_PANEL_REF,
-  pullRequestSurfaceId,
-  selectActiveRightPanelSurface,
-  selectSelectedRightPanelSurface,
-  selectThreadRightPanelState,
-  useRightPanelStore,
-  type PullRequestSurface,
-} from "../rightPanelStore";
-import { useDebouncedValue } from "../state/queries";
-import { useAllEnvironmentShellsBootstrapped, useProjects } from "../state/entities";
-import { useEnvironments } from "../state/environments";
-import {
-  pullRequestEnvironment,
-  usePullRequestList,
-  usePullRequestListStats,
-  usePullRequestTurnRefreshes,
-  type EnvironmentQueryTarget,
-} from "../state/pullRequests";
-import { useAtomCommand } from "../state/use-atom-command";
-import { cn } from "~/lib/utils";
-import { Separator } from "~/components/ui/separator";
-import { primaryServerKeybindingsAtom } from "~/state/server";
-import { getSourceControlPresentationForKind } from "~/sourceControlPresentation";
-import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
+import { type PullRequestListSort } from "../components/pullRequest/pullRequestListPreferences";
+import { SORT_OPTIONS } from "../components/pullRequest/pullRequestListOptions";
+import { type PullRequestsSearch } from "../components/pullRequest/usePullRequestListView";
+import { PullRequestsPage } from "../components/pullRequest/PullRequestsPage";
 
+<<<<<<< HEAD
 function getShortcutContext() {
   return {
     terminalFocus: isTerminalFocused(),
@@ -267,10 +114,9 @@ const NO_LIST_TARGETS: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput
 const EMPTY_PREVIEW_SESSIONS = {};
 const EMPTY_PREVIEW_DESKTOP_STATE = {};
 const EMPTY_TERMINAL_LABELS = new Map<string, string>();
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 const MAX_SEARCH_LABEL_CANDIDATES = 100;
-
-const pullRequestListEntryId = (target: Parameters<typeof pullRequestSurfaceId>[0]) =>
-  pullRequestSurfaceId({ ...target, repository: target.repository.toLowerCase() });
 
 function pullRequestSearchLabels(raw: unknown): Partial<Pick<PullRequestsSearch, "labels">> {
   const values = (Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : []).slice(
@@ -322,7 +168,8 @@ export const Route = createFileRoute("/_chat/pull-requests")({
     ...(typeof raw.selectedEnvironmentId === "string" && raw.selectedEnvironmentId
       ? { selectedEnvironmentId: raw.selectedEnvironmentId as EnvironmentId }
       : {}),
-    ...(typeof raw.q === "string" && raw.q ? { q: raw.q.slice(0, 200) } : {}),
+    // Always include q to override numeric values in the parent route's unvalidated search.
+    q: typeof raw.q === "string" && raw.q ? raw.q.slice(0, 200) : undefined,
     ...(raw.draft === "only" || raw.draft === "hide" ? { draft: raw.draft } : {}),
     ...(raw.review === "approved" ||
     raw.review === "changes-requested" ||
@@ -336,8 +183,9 @@ export const Route = createFileRoute("/_chat/pull-requests")({
       : {}),
     ...pullRequestSearchLabels(raw.labels),
   }),
-  component: PullRequestsRouteView,
+  component: PullRequestsPage,
 });
+<<<<<<< HEAD
 
 function PullRequestsRouteView() {
   useEscapeToGoBack();
@@ -2596,3 +2444,5 @@ function PullRequestRefreshControl({
     </Button>
   );
 }
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7

@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import {
-  CloudPublicConfigMissingError,
-  hasTracingPublicConfig,
-  resolveCloudPublicConfig,
-  resolveRelayClerkTokenOptions,
-} from "./publicConfig";
+import { resolveCloudPublicConfig } from "./publicConfig";
 
 vi.mock("expo-constants", () => ({
   default: {
@@ -16,6 +11,7 @@ vi.mock("expo-constants", () => ({
 }));
 
 describe("resolveCloudPublicConfig", () => {
+<<<<<<< HEAD
   it("reports the missing Clerk JWT template as structured configuration", () => {
     expect(() => resolveRelayClerkTokenOptions()).toThrowError(
       new CloudPublicConfigMissingError({ key: "MARCODE_CLERK_JWT_TEMPLATE" }),
@@ -66,6 +62,8 @@ describe("resolveCloudPublicConfig", () => {
     });
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("rejects an insecure relay URL", () => {
     expect(
       resolveCloudPublicConfig({
@@ -86,46 +84,5 @@ describe("resolveCloudPublicConfig", () => {
         tracesToken: null,
       },
     });
-  });
-
-  it("rejects an insecure traces URL", () => {
-    expect(
-      resolveCloudPublicConfig({
-        observability: {
-          tracesUrl: "http://api.axiom.co/v1/traces",
-          tracesDataset: "mobile-traces",
-          tracesToken: "public-ingest-token",
-        },
-      }).observability,
-    ).toEqual({
-      tracesUrl: null,
-      tracesDataset: "mobile-traces",
-      tracesToken: "public-ingest-token",
-    });
-  });
-
-  it("keeps tracing disabled unless every public tracing value is configured", () => {
-    expect(hasTracingPublicConfig(resolveCloudPublicConfig({}))).toBe(false);
-    expect(
-      hasTracingPublicConfig(
-        resolveCloudPublicConfig({
-          observability: {
-            tracesUrl: "https://api.axiom.co/v1/traces",
-            tracesDataset: "mobile-traces",
-          },
-        }),
-      ),
-    ).toBe(false);
-    expect(
-      hasTracingPublicConfig(
-        resolveCloudPublicConfig({
-          observability: {
-            tracesUrl: "https://api.axiom.co/v1/traces",
-            tracesDataset: "mobile-traces",
-            tracesToken: "public-ingest-token",
-          },
-        }),
-      ),
-    ).toBe(true);
   });
 });

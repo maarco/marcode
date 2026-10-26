@@ -14,6 +14,7 @@ const descriptor = {
 } as const;
 
 describe("ExecutionEnvironmentDescriptor", () => {
+<<<<<<< HEAD
   it("requires an advertised required-worktree bootstrap capability", () => {
     expect(decodeDescriptor(descriptor).capabilities.requiredWorktreeBootstrap).toBeUndefined();
     expect(
@@ -70,5 +71,25 @@ describe("ExecutionEnvironmentDescriptor", () => {
         },
       }).capabilities.fileAttachments,
     ).toEqual({ maxUploadBytes: 50 * 1024 * 1024 });
+=======
+  it("decodes old, recognized and future manual installation descriptors", () => {
+    expect(decodeDescriptor(descriptor).capabilities.serverInstallation).toBeUndefined();
+    for (const installation of [{ kind: "npx" }, { kind: "npm-global", prefix: "/opt/node" }]) {
+      expect(
+        decodeDescriptor({
+          ...descriptor,
+          capabilities: { ...descriptor.capabilities, serverInstallation: installation },
+        }).capabilities.serverInstallation,
+      ).toEqual(installation);
+    }
+    for (const installation of [{ kind: "future-manager" }, { kind: "npm-global" }]) {
+      expect(
+        decodeDescriptor({
+          ...descriptor,
+          capabilities: { ...descriptor.capabilities, serverInstallation: installation },
+        }).capabilities.serverInstallation,
+      ).toBeUndefined();
+    }
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   });
 });

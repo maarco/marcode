@@ -3,7 +3,6 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 
 import { CodexSettings } from "@t3tools/contracts";
@@ -41,6 +40,7 @@ const writeTextFile = Effect.fn("CodexHomeLayout.test.writeTextFile")(function* 
 
 it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
   describe("resolveCodexHomeLayout", () => {
+<<<<<<< HEAD
     it.effect("uses direct CODEX_HOME when no shadow home is configured", () =>
       Effect.gen(function* () {
         const homePath = yield* makeTempDir("marcode-codex-home-");
@@ -60,6 +60,8 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
       }),
     );
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     it.effect("uses the shared home for continuation and the shadow home for runtime", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
@@ -85,6 +87,45 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
   });
 
   describe("materializeCodexShadowHome", () => {
+    it.effect.skipIf(!symlinksSupported)(
+      "keeps Finder metadata local across repeated shadow home setup",
+      () =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const sharedHome = yield* makeTempDir("t3code-codex-shared-");
+          const shadowHome = yield* makeTempDir("t3code-codex-shadow-");
+          const sharedMetadata = path.join(sharedHome, ".DS_Store");
+          const shadowMetadata = path.join(shadowHome, ".DS_Store");
+
+          yield* writeTextFile(sharedMetadata, "shared Finder metadata");
+          yield* writeTextFile(shadowMetadata, "shadow Finder metadata");
+          yield* writeTextFile(path.join(shadowHome, "auth.json"), '{"shadow":true}\n');
+          const layout = yield* resolveCodexHomeLayout(
+            decodeCodexSettings({ homePath: sharedHome, shadowHomePath: shadowHome }),
+          );
+
+          yield* materializeCodexShadowHome(layout);
+          expect(yield* fileSystem.readFileString(shadowMetadata)).toBe("shadow Finder metadata");
+          yield* fileSystem.remove(shadowMetadata);
+          yield* materializeCodexShadowHome(layout);
+          expect(yield* fileSystem.exists(shadowMetadata)).toBe(false);
+
+          yield* writeTextFile(shadowMetadata, "shadow Finder metadata");
+          yield* materializeCodexShadowHome(layout);
+          yield* materializeCodexShadowHome(layout);
+
+          expect(yield* fileSystem.readFileString(sharedMetadata)).toBe("shared Finder metadata");
+          expect(yield* fileSystem.readFileString(shadowMetadata)).toBe("shadow Finder metadata");
+          expect(yield* fileSystem.readFileString(path.join(shadowHome, "auth.json"))).toBe(
+            '{"shadow":true}\n',
+          );
+          expect(yield* fileSystem.readLink(path.join(shadowHome, "sessions"))).toBe(
+            path.join(sharedHome, "sessions"),
+          );
+        }),
+    );
+
     it.effect.skipIf(!symlinksSupported)(
       "materializes a shadow home with shared state links and private auth",
       () =>
@@ -137,6 +178,34 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
           expect(modelsCacheExists).toBe(false);
           expect(authLinkResult._tag).toBe("Failure");
           expect(authContents).toContain("shadow");
+        }),
+    );
+
+    it.effect.skipIf(!symlinksSupported)(
+      "replaces a Codex-created local sqlite maintenance lock with the shared lock",
+      () =>
+        Effect.gen(function* () {
+          const fileSystem = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const sharedHome = yield* makeTempDir("t3code-codex-shared-");
+          const shadowRoot = yield* makeTempDir("t3code-codex-shadow-root-");
+          const shadowHome = path.join(shadowRoot, "shadow");
+          const sharedLock = path.join(sharedHome, ".sqlite-maintenance.lock");
+          const shadowLock = path.join(shadowHome, ".sqlite-maintenance.lock");
+
+          yield* writeTextFile(sharedLock, "");
+          yield* writeTextFile(shadowLock, "");
+
+          const layout = yield* resolveCodexHomeLayout(
+            decodeCodexSettings({
+              homePath: sharedHome,
+              shadowHomePath: shadowHome,
+            }),
+          );
+
+          yield* materializeCodexShadowHome(layout);
+
+          expect(yield* fileSystem.readLink(shadowLock)).toBe(sharedLock);
         }),
     );
 
@@ -276,6 +345,7 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
           );
         }),
     );
+<<<<<<< HEAD
 
     it.effect("preserves filesystem operation, paths, and cause", () =>
       Effect.gen(function* () {
@@ -311,5 +381,7 @@ it.layer(NodeServices.layer)("CodexHomeLayout", (it) => {
         );
       }),
     );
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   });
 });

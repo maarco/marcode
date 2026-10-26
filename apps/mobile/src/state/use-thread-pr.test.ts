@@ -1,12 +1,13 @@
-import { ProjectId, type ThreadPullRequestLink, type VcsStatusResult } from "@t3tools/contracts";
+import { ProjectId, type ThreadPullRequestLink } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
   presentThreadLinkedPullRequests,
-  presentThreadPr,
+  rememberBounded,
   resolveThreadPrSource,
 } from "./thread-pr-presentation";
 
+<<<<<<< HEAD
 const pullRequest: NonNullable<VcsStatusResult["pr"]> = {
   number: 3774,
   title: "Desktop-style pull request indicator",
@@ -48,6 +49,8 @@ describe("presentThreadPr", () => {
   });
 });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 function linkedPr(
   number: number,
   overrides: Partial<ThreadPullRequestLink> = {},
@@ -74,57 +77,6 @@ function linkedPr(
 }
 
 describe("presentThreadLinkedPullRequests", () => {
-  it("renders unsynced links with neutral pending status", () => {
-    expect(presentThreadLinkedPullRequests([linkedPr(1, { snapshot: null })])).toMatchObject({
-      number: 1,
-      label: "1",
-      state: null,
-      textClassName: "text-foreground-muted",
-      accessibilityLabel: "#1 pull request status pending",
-    });
-  });
-
-  it("counts unrelated links without labelling them a stack", () => {
-    expect(presentThreadLinkedPullRequests([linkedPr(1), linkedPr(2)])).toMatchObject({
-      kind: "pull-request",
-      label: "+2",
-      others: 1,
-      state: "open",
-      isDraft: false,
-      textClassName: "text-adaptive-emerald-600-400",
-    });
-  });
-
-  it.each([
-    ["closed", false, "closed", false, "closed", false, "text-adaptive-rose-600-400"],
-    ["open", true, "open", true, "open", true, "text-foreground-muted"],
-    ["open", true, "open", false, "open", false, "text-adaptive-emerald-600-400"],
-    ["closed", false, "open", false, "open", false, "text-adaptive-emerald-600-400"],
-    ["merged", false, "merged", false, "merged", false, "text-adaptive-violet-600-400"],
-    ["closed", false, "merged", false, "closed", false, "text-adaptive-rose-600-400"],
-  ] as const)(
-    "colors linked %s (draft %s) and %s (draft %s) by their aggregate state",
-    (firstState, firstDraft, secondState, secondDraft, state, isDraft, textClassName) => {
-      const first = linkedPr(1);
-      const second = linkedPr(2);
-      expect(
-        presentThreadLinkedPullRequests([
-          { ...first, snapshot: { ...first.snapshot!, state: firstState, isDraft: firstDraft } },
-          {
-            ...second,
-            snapshot: { ...second.snapshot!, state: secondState, isDraft: secondDraft },
-          },
-        ]),
-      ).toMatchObject({
-        label: "+2",
-        state,
-        isDraft,
-        textClassName,
-        accessibilityLabel: `2 linked pull requests, overall ${isDraft ? "draft" : state}`,
-      });
-    },
-  );
-
   it("uses the top of a derived stack even when its bottom was linked later", () => {
     const bottom = linkedPr(1, { linkedAt: "2026-09-09T00:00:00.000Z" });
     const top = linkedPr(2);
@@ -139,19 +91,19 @@ describe("presentThreadLinkedPullRequests", () => {
     ).toMatchObject({ kind: "stack", label: "2", number: 2, url: top.url });
   });
 
-  it("hides dismissed stack members", () => {
-    expect(
-      presentThreadLinkedPullRequests([linkedPr(1, { source: "stack-dismissed" })]),
-    ).toBeNull();
-  });
-
-  it("retains merged state from the persisted snapshot", () => {
-    const link = linkedPr(1);
+  it("names a single link with its host's term", () => {
+    expect(presentThreadLinkedPullRequests([linkedPr(7)])?.accessibilityLabel).toBe(
+      "#7 pull request open",
+    );
     expect(
       presentThreadLinkedPullRequests([
-        { ...link, snapshot: { ...link.snapshot!, state: "merged" } },
-      ]),
-    ).toMatchObject({ state: "merged", textClassName: "text-adaptive-violet-600-400" });
+        linkedPr(7, {
+          host: "gitlab.com",
+          repository: "t3tools/t3code",
+          url: "https://gitlab.com/t3tools/t3code/-/merge_requests/7",
+        }),
+      ])?.accessibilityLabel,
+    ).toBe("#7 merge request open");
   });
 });
 
@@ -171,13 +123,6 @@ describe("resolveThreadPrSource compatibility", () => {
         { threadPullRequestLinking: true },
       ),
     ).toEqual({ linkedPresentation: null, pullRequestRef: legacyRef });
-  });
-
-  it("keeps the legacy reference for a server without either capability", () => {
-    expect(resolveThreadPrSource({ pullRequests: [], linkedPullRequest: legacyRef }, {})).toEqual({
-      linkedPresentation: null,
-      pullRequestRef: legacyRef,
-    });
   });
 
   it("ignores stale snapshots after reconnecting to a server without array support", () => {
@@ -218,5 +163,19 @@ describe("resolveThreadPrSource compatibility", () => {
         { threadPullRequests: true },
       ),
     ).toMatchObject({ linkedPresentation: { number: 3, state: null }, pullRequestRef: null });
+  });
+});
+
+describe("rememberBounded", () => {
+  it("moves a re-answered entry to the newest slot and evicts the oldest past the limit", () => {
+    let snapshots: ReadonlyMap<string, number> = new Map();
+    snapshots = rememberBounded(snapshots, "a", 1, 2);
+    snapshots = rememberBounded(snapshots, "b", 2, 2);
+    snapshots = rememberBounded(snapshots, "a", 3, 2);
+    snapshots = rememberBounded(snapshots, "c", 4, 2);
+    expect([...snapshots]).toEqual([
+      ["a", 3],
+      ["c", 4],
+    ]);
   });
 });

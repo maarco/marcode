@@ -4,7 +4,7 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { loadRepoEnv, resolvePublicConfig } from "./public-config.ts";
+import { loadRepoEnv } from "./public-config.ts";
 
 const temporaryDirectories: string[] = [];
 
@@ -15,6 +15,7 @@ afterEach(() => {
 });
 
 describe("loadRepoEnv", () => {
+<<<<<<< HEAD
   it("does not project cloud configuration for an unconfigured clone", () => {
     const env = loadRepoEnv({ baseEnv: {}, repoRoot: makeTemporaryDirectory() });
 
@@ -41,6 +42,8 @@ describe("loadRepoEnv", () => {
     expect(env.VITE_RELAY_OTLP_TRACES_TOKEN).toBeUndefined();
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("applies process, root local, and root precedence in that order", () => {
     const repoRoot = makeTemporaryDirectory();
     NodeFS.writeFileSync(
@@ -77,6 +80,7 @@ describe("loadRepoEnv", () => {
       VITE_MARCODE_RELAY_URL: "https://ci.example.test",
     });
   });
+<<<<<<< HEAD
 
   it("accepts legacy framework aliases as root overrides", () => {
     expect(
@@ -145,6 +149,8 @@ describe("loadRepoEnv", () => {
       EXPO_PUBLIC_OTLP_TRACES_TOKEN: "mobile-token",
     });
   });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });
 
 function makeTemporaryDirectory() {

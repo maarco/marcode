@@ -13,6 +13,7 @@ import {
 const provideEnv = (env: Readonly<Record<string, string>>) =>
   Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env })));
 
+<<<<<<< HEAD
 it.effect("uses the statically injected relay URL when no runtime override exists", () =>
   Effect.gen(function* () {
     const relayUrl = yield* makeRelayUrlConfig("https://embedded.example.test///").pipe(
@@ -37,6 +38,8 @@ it.effect("requires a relay URL when the server bundle has no injected value", (
   makeRelayUrlConfig("").pipe(provideEnv({}), Effect.flip),
 );
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 it.effect("rejects an insecure runtime relay URL override", () =>
   makeRelayUrlConfig("https://embedded.example.test").pipe(
     provideEnv({ MARCODE_RELAY_URL: "http://runtime.example.test" }),
@@ -44,6 +47,7 @@ it.effect("rejects an insecure runtime relay URL override", () =>
   ),
 );
 
+<<<<<<< HEAD
 it.effect("rejects an injected relay URL with a non-origin path", () =>
   makeRelayUrlConfig("https://embedded.example.test/path").pipe(provideEnv({}), Effect.flip),
 );
@@ -65,6 +69,8 @@ it.effect("normalizes the hosted app URL to an absolute origin", () =>
   }),
 );
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 it.effect("rejects malformed or insecure hosted app URLs", () =>
   Effect.gen(function* () {
     for (const value of [
@@ -100,6 +106,7 @@ it.effect("derives direct Clerk OAuth endpoints from statically injected public 
   }),
 );
 
+<<<<<<< HEAD
 it.effect("prefers runtime Clerk OAuth config overrides over statically injected values", () =>
   Effect.gen(function* () {
     const config = yield* makeCloudCliOAuthConfig({
@@ -146,12 +153,20 @@ it.effect("reports malformed Clerk publishable keys as typed configuration failu
 );
 
 it("resolves relay client tracing from runtime config with build-time fallback", () => {
+=======
+it("product opt-out disables relay tracing with either built-in or runtime credentials", () => {
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   const fallback = {
     tracesUrl: "https://embedded.example.test/v1/traces",
     tracesDataset: "embedded-dataset",
     tracesToken: "embedded-token",
   };
+  const env = {
+    T3CODE_TELEMETRY_ENABLED: "false",
+    T3CODE_OTEL_SDK_DISABLED: "false",
+  };
 
+<<<<<<< HEAD
   assert.deepEqual(resolveRelayClientTracingConfig({}, fallback), fallback);
   assert.deepEqual(
     resolveRelayClientTracingConfig(
@@ -174,6 +189,16 @@ it("resolves relay client tracing from runtime config with build-time fallback",
         MARCODE_RELAY_CLIENT_OTLP_TRACES_URL: "http://insecure.example.test/v1/traces",
         MARCODE_RELAY_CLIENT_OTLP_TRACES_DATASET: "runtime-dataset",
         MARCODE_RELAY_CLIENT_OTLP_TRACES_TOKEN: "runtime-token",
+=======
+  assert.equal(resolveRelayClientTracingConfig(env, fallback), null);
+  assert.equal(
+    resolveRelayClientTracingConfig(
+      {
+        ...env,
+        T3CODE_RELAY_CLIENT_OTLP_TRACES_URL: "https://runtime.example.test/v1/traces",
+        T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET: "runtime-dataset",
+        T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN: "runtime-token",
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       },
       fallback,
     ),

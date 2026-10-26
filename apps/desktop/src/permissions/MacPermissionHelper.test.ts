@@ -1,8 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import * as Electron from "electron";
-import { MacPermissionHelper, macAppBundlePath } from "./MacPermissionHelper.ts";
+import { afterEach, beforeEach, expect, it, vi } from "vite-plus/test";
+import { MacPermissionHelper } from "./MacPermissionHelper.ts";
 import type { SettingsWindow } from "./MacSettingsWindow.ts";
-import { MAC_PERMISSION_HELPER_CHANNEL } from "../ipc/channels.ts";
 
 const mocks = vi.hoisted(() => ({
   granted: false,
@@ -110,6 +108,7 @@ afterEach(() => {
 const iconPaths = ["/bundle/prod-resources/icon.png"];
 const open = () =>
   helper.show("accessibility", "/bundle/mac-permission-preload.cjs", null, iconPaths);
+<<<<<<< HEAD
 function send(action: string, trusted = true) {
   const window = windows.at(-1)!;
   Electron.ipcMain.emit(
@@ -297,6 +296,8 @@ it("keeps the helper open after a failed access check and retries", async () => 
   expect(windows[0]!.destroyed).toBe(true);
 });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 it("does not reopen a superseded helper when its initial probe completes", async () => {
   const pending = Promise.withResolvers<boolean>();
   const first = helper.show(

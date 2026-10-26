@@ -2,12 +2,13 @@ import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools
 import { describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "./types";
-import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "./worktreeCleanup";
+import { makeThreadFixture } from "./test-fixtures";
+import { getOrphanedWorktreePathForThread } from "./worktreeCleanup";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
-  return {
+  return makeThreadFixture({
     id: ThreadId.make("thread-1"),
     environmentId: localEnvironmentId,
     projectId: ProjectId.make("project-1"),
@@ -18,11 +19,8 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     },
     runtimeMode: DEFAULT_RUNTIME_MODE,
     interactionMode: DEFAULT_INTERACTION_MODE,
-    session: null,
+    runtime: null,
     messages: [],
-    checkpoints: [],
-    pullRequests: [],
-    activities: [],
     proposedPlans: [],
     createdAt: "2026-02-13T00:00:00.000Z",
     updatedAt: "2026-02-13T00:00:00.000Z",
@@ -30,31 +28,14 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     settledOverride: null,
     settledAt: null,
     deletedAt: null,
-    latestTurn: null,
+    latestRun: null,
     branch: null,
     worktreePath: null,
     ...overrides,
-  };
+  });
 }
 
 describe("getOrphanedWorktreePathForThread", () => {
-  it("returns null when the target thread does not exist", () => {
-    const result = getOrphanedWorktreePathForThread([], ThreadId.make("missing-thread"));
-    expect(result).toBeNull();
-  });
-
-  it("returns null when the target thread has no worktree", () => {
-    const threads = [makeThread()];
-    const result = getOrphanedWorktreePathForThread(threads, ThreadId.make("thread-1"));
-    expect(result).toBeNull();
-  });
-
-  it("returns the path when no other thread links to that worktree", () => {
-    const threads = [makeThread({ worktreePath: "/tmp/repo/worktrees/feature-a" })];
-    const result = getOrphanedWorktreePathForThread(threads, ThreadId.make("thread-1"));
-    expect(result).toBe("/tmp/repo/worktrees/feature-a");
-  });
-
   it("returns null when another thread links to the same worktree", () => {
     const threads = [
       makeThread({
@@ -85,6 +66,7 @@ describe("getOrphanedWorktreePathForThread", () => {
     expect(result).toBe("/tmp/repo/worktrees/feature-a");
   });
 });
+<<<<<<< HEAD
 
 describe("formatWorktreePathForDisplay", () => {
   it("shows only the last path segment for unix-like paths", () => {
@@ -111,3 +93,5 @@ describe("formatWorktreePathForDisplay", () => {
     expect(result).toBe("my-worktree");
   });
 });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7

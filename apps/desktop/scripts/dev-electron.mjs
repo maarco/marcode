@@ -134,6 +134,7 @@ function cleanupRecordedDevApp() {
     return;
   }
 
+<<<<<<< HEAD
   const pid = readRecordedDevAppPid();
   if (pid === null) return;
   if (!isRecordedDevApp(pid)) {
@@ -148,6 +149,16 @@ function cleanupRecordedDevApp() {
   }
   killChildTreeByPid(pid, "TERM");
   clearRecordedDevAppPid(pid);
+=======
+  const escapedDesktopDir = desktopDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  NodeChildProcess.spawnSync(
+    "pkill",
+    ["-f", "--", `(^| )--t3code-dev-root=${escapedDesktopDir}( |$)`],
+    {
+      stdio: "ignore",
+    },
+  );
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }
 
 function startApp() {
@@ -278,7 +289,6 @@ function killChildTree(signal) {
     return;
   }
 
-  // Kill direct children as a final fallback in case normal shutdown leaves stragglers.
   NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(process.pid)], {
     stdio: "ignore",
   });

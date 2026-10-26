@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { EnvironmentId } from "@t3tools/contracts";
 
-import { isRelayManagedConnection, toStableSavedRemoteConnection } from "./connection";
-import { authClientMetadata } from "./authClientMetadata";
+import { toStableSavedRemoteConnection } from "./connection";
 
 const mobilePlatform = vi.hoisted(() => ({ OS: "ios" as "ios" | "android" }));
 const mobileDevice = vi.hoisted(() => ({
@@ -38,6 +37,7 @@ describe("mobile remote connection records", () => {
     mobileDevice.modelName = "iPhone 15 Pro";
   });
 
+<<<<<<< HEAD
   it("identifies mobile token exchanges for authorized-client presentation", () => {
     expect(authClientMetadata()).toEqual({
       label: "Marcode Mobile",
@@ -88,6 +88,8 @@ describe("mobile remote connection records", () => {
     expect(isRelayManagedConnection({ authenticationMethod: "bearer" })).toBe(false);
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("drops short-lived managed environment credentials from stable records", () => {
     const connection = {
       environmentId: EnvironmentId.make("environment-1"),

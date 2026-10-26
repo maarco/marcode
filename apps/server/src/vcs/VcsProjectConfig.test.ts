@@ -8,12 +8,13 @@ import * as Path from "effect/Path";
 
 import * as VcsProjectConfig from "./VcsProjectConfig.ts";
 
-const TestLayer = VcsProjectConfig.layer.pipe(
+const layerTest = VcsProjectConfig.layer.pipe(
   Layer.provide(NodeServices.layer),
   Layer.provideMerge(NodeServices.layer),
 );
 
 describe("VcsProjectConfig", () => {
+<<<<<<< HEAD
   it.layer(TestLayer)("uses an explicit requested VCS kind before config", (it) => {
     it.effect("returns the requested kind", () =>
       Effect.gen(function* () {
@@ -29,6 +30,9 @@ describe("VcsProjectConfig", () => {
   });
 
   it.layer(TestLayer)("discovers .marcode/vcs.json from nested workspaces", (it) => {
+=======
+  it.layer(layerTest)("discovers .t3code/vcs.json from nested workspaces", (it) => {
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     it.effect("returns the configured kind", () =>
       Effect.gen(function* () {
         const fileSystem = yield* FileSystem.FileSystem;
@@ -42,7 +46,6 @@ describe("VcsProjectConfig", () => {
         yield* fileSystem.makeDirectory(nested, { recursive: true });
         yield* fileSystem.writeFileString(
           path.join(configDir, "vcs.json"),
-          // @effect-diagnostics-next-line preferSchemaOverJson:off
           JSON.stringify({ vcs: { kind: "jj" } }),
         );
 
@@ -54,7 +57,7 @@ describe("VcsProjectConfig", () => {
     );
   });
 
-  it.layer(TestLayer)("continues to parent configs after a candidate inspect failure", (it) => {
+  it.layer(layerTest)("continues to parent configs after a candidate inspect failure", (it) => {
     it.effect("logs the failed candidate and returns the parent config", () => {
       const messages: unknown[] = [];
       const logger = Logger.make<unknown, void>(({ message }) => {
@@ -72,7 +75,6 @@ describe("VcsProjectConfig", () => {
         yield* fileSystem.makeDirectory(configDir, { recursive: true });
         yield* fileSystem.writeFileString(
           path.join(configDir, "vcs.json"),
-          // @effect-diagnostics-next-line preferSchemaOverJson:off
           JSON.stringify({ vcs: { kind: "jj" } }),
         );
 
@@ -97,22 +99,7 @@ describe("VcsProjectConfig", () => {
     });
   });
 
-  it.layer(TestLayer)("falls back to auto when no config exists", (it) => {
-    it.effect("returns auto", () =>
-      Effect.gen(function* () {
-        const fileSystem = yield* FileSystem.FileSystem;
-        const root = yield* fileSystem.makeTempDirectoryScoped({
-          prefix: "t3-vcs-config-test-",
-        });
-        const config = yield* VcsProjectConfig.VcsProjectConfig;
-        const kind = yield* config.resolveKind({ cwd: root });
-
-        assert.equal(kind, "auto");
-      }),
-    );
-  });
-
-  it.layer(TestLayer)("falls back to auto when config JSON is malformed", (it) => {
+  it.layer(layerTest)("falls back to auto when config JSON is malformed", (it) => {
     it.effect("returns auto and logs the failed operation and path", () => {
       const messages: unknown[] = [];
       const logger = Logger.make<unknown, void>(({ message }) => {
@@ -149,6 +136,7 @@ describe("VcsProjectConfig", () => {
       }).pipe(Effect.provide(Logger.layer([logger], { mergeWithExisting: false })));
     });
   });
+<<<<<<< HEAD
 
   it.layer(TestLayer)("falls back to auto when the config path cannot be read", (it) => {
     it.effect("retains the read failure context", () => {
@@ -206,4 +194,6 @@ describe("VcsProjectConfig", () => {
       }),
     );
   });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

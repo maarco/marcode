@@ -57,6 +57,7 @@ export const DesktopConfig = Config.all({
   otlpProtocol: Config.schema(OtlpProtocol, "MARCODE_OTLP_PROTOCOL").pipe(
     Config.withDefault("http/json"),
   ),
+  desktopLauncherPath: trimmedString("T3CODE_DESKTOP_LAUNCHER_PATH"),
   appImagePath: trimmedString("APPIMAGE"),
   disableAutoUpdate: optionalBoolean("MARCODE_DISABLE_AUTO_UPDATE"),
   mockUpdates: optionalBoolean("MARCODE_DESKTOP_MOCK_UPDATES"),

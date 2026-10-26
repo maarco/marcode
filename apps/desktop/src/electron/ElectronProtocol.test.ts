@@ -1,5 +1,4 @@
 import { assert, describe, it } from "@effect/vitest";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as FileSystem from "effect/FileSystem";
@@ -19,7 +18,7 @@ vi.mock("electron", () => ({
 
 import * as ElectronProtocol from "./ElectronProtocol.ts";
 
-const protocolLayer = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
+const layerProtocol = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
 
 describe("ElectronProtocol", () => {
   beforeEach(() => {
@@ -57,7 +56,6 @@ describe("ElectronProtocol", () => {
       const request = (pathname: string, init?: RequestInit) =>
         Effect.promise(() => handler!(new Request(`t3code://app${pathname}`, init)));
 
-      // SPA routes fall back to index.html, including ones containing dots.
       const page = yield* request("/settings/connections");
       assert.equal(yield* Effect.promise(() => page.text()), "<html>app</html>");
       assert.include(page.headers.get("content-security-policy") ?? "", "default-src 'self'");
@@ -75,7 +73,7 @@ describe("ElectronProtocol", () => {
       assert.equal((yield* request("/%invalid")).status, 400);
       assert.equal((yield* request("/", { method: "POST" })).status, 405);
       assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(Layer.merge(protocolLayer, NodeServices.layer)), Effect.scoped),
+    }).pipe(Effect.provide(Layer.merge(layerProtocol, NodeServices.layer)), Effect.scoped),
   );
 
   it.effect("proxies the stable renderer origin to the current app server", () =>
@@ -138,8 +136,13 @@ describe("ElectronProtocol", () => {
       assert.isNull(forwardedHeaders.get("origin"));
       assert.isNull(forwardedHeaders.get("referer"));
       assert.isNull(forwardedHeaders.get("sec-fetch-site"));
+<<<<<<< HEAD
       assert.deepEqual(unhandleMock.mock.calls, [["marcode-dev"]]);
     }).pipe(Effect.provide(protocolLayer)),
+=======
+      assert.deepEqual(unhandleMock.mock.calls, [["t3code-dev"]]);
+    }).pipe(Effect.provide(layerProtocol)),
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   );
 
   it.effect("rejects custom protocol requests for another host", () =>
@@ -163,8 +166,9 @@ describe("ElectronProtocol", () => {
 
       assert.equal(response.status, 404);
       assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(protocolLayer)),
+    }).pipe(Effect.provide(layerProtocol)),
   );
+<<<<<<< HEAD
 
   it.effect("retries transient renderer target failures", () =>
     Effect.gen(function* () {
@@ -285,4 +289,6 @@ describe("ElectronProtocol", () => {
     assert.deepEqual(directives["frame-src"], ["'self'", "blob:", "http:", "https:"]);
     assert.deepEqual(directives["font-src"], ["'self'", "marcode:", "data:"]);
   });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

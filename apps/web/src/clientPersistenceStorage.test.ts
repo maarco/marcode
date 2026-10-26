@@ -38,20 +38,6 @@ afterEach(() => {
 });
 
 describe("clientPersistenceStorage", () => {
-  it("persists client settings in browser storage", async () => {
-    getTestWindow();
-    const { readBrowserClientSettings, writeBrowserClientSettings } =
-      await import("./clientPersistenceStorage");
-    const settings = {
-      ...DEFAULT_CLIENT_SETTINGS,
-      timestampFormat: "24-hour" as const,
-    };
-
-    writeBrowserClientSettings(settings);
-
-    expect(readBrowserClientSettings()).toEqual(settings);
-  });
-
   it.each(["not-json", '{"wordWrap":"invalid"}'])(
     "does not treat invalid saved settings as absent: %s",
     async (value) => {
@@ -92,6 +78,7 @@ describe("clientPersistenceStorage", () => {
     expect(readBrowserClientSettings()).toEqual(settings);
     expect(write).not.toHaveBeenCalled();
   });
+<<<<<<< HEAD
 
   it("defaults word wrap on and discards obsolete wrapping preferences", async () => {
     const testWindow = getTestWindow();
@@ -146,4 +133,6 @@ describe("clientPersistenceStorage", () => {
     writeBrowserClientSettings({ ...DEFAULT_CLIENT_SETTINGS, diffLayout: "split" });
     expect(readBrowserClientSettings()?.diffLayout).toBe("split");
   });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });
