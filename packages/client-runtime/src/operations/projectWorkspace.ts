@@ -2,9 +2,9 @@ import {
   CommandId,
   makeCommandWorkspaceItemId,
   makeThreadWorkspaceItemId,
-  ORCHESTRATION_WS_METHODS,
   ProjectWorkspaceItemId,
   ThreadId,
+  WS_METHODS,
   type EnvironmentAuthorizationError,
   type EnvironmentId,
   type ProjectId,
@@ -54,15 +54,13 @@ function isProjectWorkspaceLayoutErrorTag(value: unknown): value is ProjectWorks
 
 /**
  * Parses the structured `{tag, message, currentVersion?}` rejection the
- * server embeds (as JSON) inside `OrchestrationDispatchCommandError.message`
- * for `project.workspace-layout.apply` failures — the counterpart to
- * `workspaceLayoutRejectionDetail`/`workspaceLayoutInvariantError` in
- * `apps/server/src/orchestration/commandInvariants.ts`. There is no
- * dedicated typed error channel from the decider through to the WS client
- * (dispatchCommand's wire error is the single generic
- * `OrchestrationDispatchCommandError` with a flat `message` string), so this
- * wire convention is what carries the tag across. Exported so it can be
- * tested directly against the exact string shape the server produces.
+ * server embeds (as JSON) inside `ProjectMutationError.message` for
+ * `project.workspace-layout.apply` failures — the counterpart to
+ * `workspaceLayoutRejectionDetail` in
+ * `apps/server/src/orchestration-v2/ProjectWorkspaceLayout.ts`. The
+ * `projects.mutate` error channel has no typed rejection, so this wire
+ * convention is what carries the tag across. Exported so it can be tested
+ * directly against the exact string shape the server produces.
  *
  * Falls back to a generic `"missing-target"`-tagged rejection carrying the
  * raw message when parsing fails for any reason (message shape from an
@@ -107,7 +105,7 @@ export function parseProjectWorkspaceLayoutRejection(
 }
 
 /**
- * Dispatches `project.workspace-layout.apply` and resolves to a typed
+ * Sends `project.workspace-layout.apply` over `projects.mutate` and resolves to a typed
  * ok/rejection result rather than failing the Effect for expected rejections
  * (stale version, cycle, duplicate path, ...) — callers branch on `.ok`
  * instead of catching. Connection-level failures
@@ -119,7 +117,7 @@ export function parseProjectWorkspaceLayoutRejection(
  * On success, `layoutVersion` is `expectedVersion + 1` — the decider only
  * ever accepts a command when `expectedVersion` matches the current version
  * exactly and always advances the version by exactly 1 on acceptance
- * (`apps/server/src/orchestration/decider.ts`), so the resulting version is
+ * (`apps/server/src/orchestration-v2/ProjectCommands.ts`), so the resulting version is
  * computable client-side without round-tripping it through the RPC success
  * payload (`DispatchResult` only carries an event sequence number).
  */
@@ -140,7 +138,7 @@ export const applyProjectWorkspaceLayout: (
       Effect.map(CommandId.make),
     ));
 
-  return yield* request(ORCHESTRATION_WS_METHODS.dispatchCommand, {
+  return yield* request(WS_METHODS.projectsMutate, {
     type: "project.workspace-layout.apply",
     commandId,
     projectId: input.projectId,
@@ -151,7 +149,7 @@ export const applyProjectWorkspaceLayout: (
       ok: true,
       layoutVersion: input.expectedVersion + 1,
     })),
-    Effect.catchTag("OrchestrationDispatchCommandError", (error) =>
+    Effect.catchTag("ProjectMutationError", (error) =>
       Effect.succeed<ApplyProjectWorkspaceLayoutResult>({
         ok: false,
         rejection: parseProjectWorkspaceLayoutRejection(error.message),

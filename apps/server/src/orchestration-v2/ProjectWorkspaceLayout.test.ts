@@ -2,37 +2,38 @@
  * Focused, in-memory (no SQL) coverage for every
  * `project.workspace-layout.apply` invariant in
  * docs/specs/unified-workspace-tree-sidebar.md §6.4, verifying each
- * rejection maps to the expected `ProjectWorkspaceLayoutErrorTag`. The
- * end-to-end (decider -> event -> SQL projection) happy-path coverage lives
- * in `Layers/ProjectionPipeline.workspaceLayout.test.ts`; this file is the
- * cheap, exhaustive edge-case sweep against `decideOrchestrationCommand`
- * directly.
+ * rejection maps to the expected `ProjectWorkspaceLayoutErrorTag`. Runs
+ * `planProjectCommand` directly, the v2 home of the decision.
  */
 import {
   CommandId,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
-  type OrchestrationCommand,
-  type OrchestrationReadModel,
+  EventId,
   ProjectId,
   ProjectWorkspaceItemId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
 import { expect, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 
-import { decideOrchestrationCommand } from "./decider.ts";
-import { OrchestrationCommandInvariantError } from "./Errors.ts";
+import {
+  ProjectCommandInvariantError,
+  planProjectCommand,
+  type ProjectWorkspaceLayoutApplyCommand,
+} from "./ProjectCommands.ts";
+import type { ProjectRow } from "./ProjectStore.ts";
 
 const now = "2026-01-01T00:00:00.000Z";
 
-const isOrchestrationCommandInvariantError = Schema.is(OrchestrationCommandInvariantError);
+const isInvariantError = Schema.is(ProjectCommandInvariantError);
 
 function rejectionTag(error: unknown): string {
-  expect(error).toBeInstanceOf(OrchestrationCommandInvariantError);
-  const detail = (error as OrchestrationCommandInvariantError).detail;
+  expect(error).toBeInstanceOf(ProjectCommandInvariantError);
+  const detail = (error as ProjectCommandInvariantError).detail;
   return (JSON.parse(detail) as { tag: string }).tag;
 }
 
@@ -41,48 +42,19 @@ const modelSelection = {
   model: "gpt-5-codex",
 };
 
-function baseThread(input: {
-  readonly id: string;
-  readonly projectId: string;
-  readonly deletedAt?: string | null;
-}) {
-  return {
-    id: ThreadId.make(input.id),
-    projectId: ProjectId.make(input.projectId),
-    title: "Thread",
-    modelSelection,
-    runtimeMode: "full-access" as const,
-    interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-    branch: null,
-    worktreePath: null,
-    createdAt: now,
-    updatedAt: now,
-    archivedAt: null,
-    settledOverride: null,
-    settledAt: null,
-    latestTurn: null,
-    messages: [],
-    session: null,
-    activities: [],
-    proposedPlans: [],
-    checkpoints: [],
-    pullRequests: [],
-    deletedAt: input.deletedAt ?? null,
-  };
-}
-
 // project-a: an active project with a populated layout (folder-1 -> file-1
 // -> thread:thread-a, plus url-1 at root and command:script-1 at root) used
 // as the target of most invariant checks below.
-const readModel: OrchestrationReadModel = {
-  snapshotSequence: 10,
-  updatedAt: now,
-  projects: [
+const projectRows: ReadonlyArray<ProjectRow> = [
     {
-      id: ProjectId.make("project-a"),
+      projectId: ProjectId.make("project-a"),
       title: "Project A",
       workspaceRoot: "/tmp/project-a",
       defaultModelSelection: modelSelection,
+      defaultThreadEnvMode: null,
+      autoPull: false,
+      faviconPath: null,
+      projectIcon: null,
       scripts: [
         {
           id: "script-1",
@@ -136,10 +108,14 @@ const readModel: OrchestrationReadModel = {
       deletedAt: null,
     },
     {
-      id: ProjectId.make("project-b"),
+      projectId: ProjectId.make("project-b"),
       title: "Project B",
       workspaceRoot: "/tmp/project-b",
       defaultModelSelection: modelSelection,
+      defaultThreadEnvMode: null,
+      autoPull: false,
+      faviconPath: null,
+      projectIcon: null,
       scripts: [],
       workspaceLayoutVersion: 0,
       workspaceLayout: [
@@ -156,10 +132,14 @@ const readModel: OrchestrationReadModel = {
       deletedAt: null,
     },
     {
-      id: ProjectId.make("project-deleted"),
+      projectId: ProjectId.make("project-deleted"),
       title: "Deleted Project",
       workspaceRoot: "/tmp/project-deleted",
       defaultModelSelection: null,
+      defaultThreadEnvMode: null,
+      autoPull: false,
+      faviconPath: null,
+      projectIcon: null,
       scripts: [],
       workspaceLayoutVersion: 0,
       workspaceLayout: [],
@@ -167,26 +147,46 @@ const readModel: OrchestrationReadModel = {
       updatedAt: now,
       deletedAt: now,
     },
-  ],
-  threads: [
-    baseThread({ id: "thread-a", projectId: "project-a" }),
-    baseThread({ id: "thread-b", projectId: "project-b" }),
-    baseThread({ id: "thread-deleted", projectId: "project-a", deletedAt: now }),
-  ],
-};
+];
+
+const threadProjects = new Map([
+  ["thread-a", { projectId: ProjectId.make("project-a"), deleted: false }],
+  ["thread-b", { projectId: ProjectId.make("project-b"), deleted: false }],
+  ["thread-deleted", { projectId: ProjectId.make("project-a"), deleted: true }],
+]);
 
 function applyCommand(
-  operation: Extract<OrchestrationCommand, { type: "project.workspace-layout.apply" }>["operation"],
+  operation: ProjectWorkspaceLayoutApplyCommand["operation"],
   options?: { readonly projectId?: string; readonly expectedVersion?: number },
 ) {
-  const command: OrchestrationCommand = {
+  const projectId = ProjectId.make(options?.projectId ?? "project-a");
+  const command: ProjectWorkspaceLayoutApplyCommand = {
     type: "project.workspace-layout.apply",
     commandId: CommandId.make("cmd-workspace-layout"),
-    projectId: ProjectId.make(options?.projectId ?? "project-a"),
+    projectId,
     expectedVersion: options?.expectedVersion ?? 5,
     operation,
   };
-  return decideOrchestrationCommand({ command, readModel });
+  const threadId =
+    operation.type === "place-resource" && operation.resource.kind === "thread"
+      ? operation.resource.threadId
+      : undefined;
+  const planned = planProjectCommand({
+    command,
+    state: {
+      project: projectRows.find((row) => row.projectId === projectId),
+      workspaceOwner: undefined,
+      layoutLookups: {
+        thread: threadId === undefined ? undefined : threadProjects.get(threadId),
+        otherProjectLayouts: projectRows
+          .filter((row) => row.projectId !== projectId)
+          .map((row) => ({ projectId: row.projectId, layout: row.workspaceLayout })),
+      },
+    },
+    eventId: EventId.make("event:planned"),
+    now: DateTime.makeUnsafe(now),
+  });
+  return Result.isSuccess(planned) ? Effect.succeed(planned.success) : Effect.fail(planned.failure);
 }
 
 it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
@@ -219,8 +219,8 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
         ),
       );
       expect(rejectionTag(error)).toBe("version-conflict");
-      if (!isOrchestrationCommandInvariantError(error)) {
-        throw new Error("expected an OrchestrationCommandInvariantError");
+      if (!isInvariantError(error)) {
+        throw new Error("expected an ProjectCommandInvariantError");
       }
       // @effect-diagnostics-next-line preferSchemaOverJson:off - Decoding the invariant error's raw detail for assertions.
       const detail = JSON.parse(error.detail);

@@ -353,9 +353,22 @@ const layerBase: Layer.Layer<
     const applyStoredEvents =
       /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
       Effect.fnUntraced(function* (storedEvents: ReadonlyArray<OrchestrationV2StoredEvent>) {
-        yield* Effect.forEach(storedEvents, (stored) => projectionStore.apply(stored.event), {
-          concurrency: 1,
-        });
+        yield* Effect.forEach(
+          storedEvents,
+          (stored) =>
+            projectionStore.apply(stored.event).pipe(
+              // ── Marcode fork seam ── a deleted thread prunes its sidebar workspace-layout entry.
+              Effect.andThen(
+                stored.event.type === "thread.deleted"
+                  ? projectStore.pruneThreadFromLayout({
+                      projectId: stored.event.payload.projectId,
+                      threadId: stored.event.threadId,
+                    })
+                  : Effect.void,
+              ),
+            ),
+          { concurrency: 1 },
+        );
         const sequence = storedEvents.at(-1)?.sequence;
         if (sequence !== undefined) {
           const now = DateTime.formatIso(yield* DateTime.now);

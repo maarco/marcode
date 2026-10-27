@@ -3604,7 +3604,9 @@ export const layerWsRpc = (
                 new ProjectMutationError({
                   commandId: mutation.commandId,
                   message:
-                    cause._tag === "ProjectNotEmptyError"
+                    cause._tag === "ProjectNotEmptyError" ||
+                    // Marcode: the client parses the layout rejection JSON out of this message.
+                    cause._tag === "ProjectWorkspaceLayoutRejectedError"
                       ? cause.message
                       : "Failed to mutate project.",
                   cause,

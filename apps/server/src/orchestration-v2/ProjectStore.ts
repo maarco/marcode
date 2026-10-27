@@ -6,6 +6,9 @@ import {
   StoredProjectIcon,
   ProjectId,
   ProjectScript,
+  ProjectWorkspaceEntry,
+  ProjectWorkspaceLayoutVersion,
+  type ThreadId,
   ThreadEnvMode,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
@@ -16,6 +19,12 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
+
+import {
+  applyWorkspaceLayoutOperation,
+  pruneRemovedScriptEntries,
+  pruneThreadEntry,
+} from "./ProjectWorkspaceLayout.ts";
 
 export class ProjectStoreV2Error extends Schema.TaggedError<ProjectStoreV2Error>()(
   "ProjectStoreV2Error",
@@ -39,6 +48,9 @@ export const ProjectRow = Schema.Struct({
   faviconPath: Schema.NullOr(Schema.String),
   projectIcon: Schema.NullOr(StoredProjectIcon),
   scripts: Schema.Array(ProjectScript),
+  // Marcode: unified workspace tree sidebar layout (projection_projects.workspace_layout_*).
+  workspaceLayoutVersion: ProjectWorkspaceLayoutVersion,
+  workspaceLayout: Schema.Array(ProjectWorkspaceEntry),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   deletedAt: Schema.NullOr(IsoDateTime),
@@ -51,6 +63,7 @@ const ProjectDbRow = Schema.Struct({
   autoPull: Schema.BooleanFromBit,
   projectIcon: Schema.NullOr(Schema.fromJsonString(StoredProjectIcon)),
   scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
+  workspaceLayout: Schema.fromJsonString(Schema.Array(ProjectWorkspaceEntry)),
 });
 
 function toShell(row: ProjectRow): OrchestrationProjectShell {
@@ -65,6 +78,8 @@ function toShell(row: ProjectRow): OrchestrationProjectShell {
     faviconPath: row.faviconPath,
     projectIcon: row.projectIcon,
     scripts: row.scripts,
+    workspaceLayoutVersion: row.workspaceLayoutVersion,
+    workspaceLayout: row.workspaceLayout,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -87,6 +102,14 @@ export class ProjectStoreV2 extends Context.Service<
     readonly findActiveByWorkspaceRoot: (
       workspaceRoot: string,
     ) => Effect.Effect<Option.Option<ProjectRow>, ProjectStoreV2Error>;
+    /**
+     * Marcode: lifecycle pruning. Call inside the commit transaction when a
+     * thread is deleted so its placed sidebar entry does not dangle.
+     */
+    readonly pruneThreadFromLayout: (input: {
+      readonly projectId: ProjectId;
+      readonly threadId: ThreadId;
+    }) => Effect.Effect<void, ProjectStoreV2Error>;
     readonly getShell: (
       projectId: ProjectId,
     ) => Effect.Effect<Option.Option<OrchestrationProjectShell>, ProjectStoreV2Error>;
@@ -120,6 +143,8 @@ export const make = Effect.gen(function* () {
         favicon_path AS "faviconPath",
         project_icon_json AS "projectIcon",
         scripts_json AS "scripts",
+        workspace_layout_version AS "workspaceLayoutVersion",
+        workspace_layout_json AS "workspaceLayout",
         created_at AS "createdAt",
         updated_at AS "updatedAt",
         deleted_at AS "deletedAt"
@@ -150,6 +175,8 @@ export const make = Effect.gen(function* () {
             favicon_path,
             project_icon_json,
             scripts_json,
+            workspace_layout_version,
+            workspace_layout_json,
             created_at,
             updated_at,
             deleted_at
@@ -164,6 +191,8 @@ export const make = Effect.gen(function* () {
             ${encoded.faviconPath},
             ${encoded.projectIcon},
             ${encoded.scripts},
+            ${encoded.workspaceLayoutVersion},
+            ${encoded.workspaceLayout},
             ${encoded.createdAt},
             ${encoded.updatedAt},
             ${encoded.deletedAt}
@@ -178,6 +207,8 @@ export const make = Effect.gen(function* () {
             favicon_path = excluded.favicon_path,
             project_icon_json = excluded.project_icon_json,
             scripts_json = excluded.scripts_json,
+            workspace_layout_version = excluded.workspace_layout_version,
+            workspace_layout_json = excluded.workspace_layout_json,
             created_at = excluded.created_at,
             updated_at = excluded.updated_at,
             deleted_at = excluded.deleted_at
@@ -226,6 +257,8 @@ export const make = Effect.gen(function* () {
           faviconPath: payload.faviconPath ?? null,
           projectIcon: payload.projectIcon ?? null,
           scripts: payload.scripts,
+          workspaceLayoutVersion: 0,
+          workspaceLayout: [],
           createdAt: payload.createdAt,
           updatedAt: payload.updatedAt,
           deletedAt: null,
@@ -239,6 +272,17 @@ export const make = Effect.gen(function* () {
           ...row,
           deletedAt: event.payload.deletedAt,
           updatedAt: event.payload.deletedAt,
+        }).pipe(mapError("apply"));
+      }
+      // ── Marcode fork seam ── layout mutation: same prior layout the decision validated against.
+      if (event.type === "project.workspace-layout-applied") {
+        return yield* upsertRow({
+          ...row,
+          workspaceLayout: applyWorkspaceLayoutOperation(
+            row.workspaceLayout,
+            event.payload.operation,
+          ),
+          workspaceLayoutVersion: event.payload.layoutVersion,
         }).pipe(mapError("apply"));
       }
       const payload = event.payload;
@@ -255,17 +299,38 @@ export const make = Effect.gen(function* () {
         ...(payload.autoPull === undefined ? {} : { autoPull: payload.autoPull }),
         ...(payload.faviconPath === undefined ? {} : { faviconPath: payload.faviconPath }),
         ...(payload.projectIcon === undefined ? {} : { projectIcon: payload.projectIcon }),
-        ...(payload.scripts === undefined ? {} : { scripts: payload.scripts }),
+        ...(payload.scripts === undefined
+          ? {}
+          : {
+              scripts: payload.scripts,
+              // Marcode: a script dropped from the array prunes its layout command entry.
+              workspaceLayout: pruneRemovedScriptEntries({
+                layout: row.workspaceLayout,
+                previousScripts: row.scripts,
+                nextScripts: payload.scripts,
+              }),
+            }),
         updatedAt: payload.updatedAt,
       }).pipe(mapError("apply"));
     },
   );
+
+  const pruneThreadFromLayout: ProjectStoreV2["Service"]["pruneThreadFromLayout"] = Effect.fn(
+    "ProjectStoreV2.pruneThreadFromLayout",
+  )(function* (input) {
+    const existing = yield* get(input.projectId, { includeDeleted: true });
+    if (Option.isNone(existing)) return;
+    const workspaceLayout = pruneThreadEntry(existing.value.workspaceLayout, input.threadId);
+    if (workspaceLayout.length === existing.value.workspaceLayout.length) return;
+    yield* upsertRow({ ...existing.value, workspaceLayout }).pipe(mapError("pruneThreadFromLayout"));
+  });
 
   return ProjectStoreV2.of({
     apply,
     get,
     list,
     findActiveByWorkspaceRoot,
+    pruneThreadFromLayout,
     getShell: Effect.fn("ProjectStoreV2.getShell")(function (projectId) {
       return get(projectId).pipe(Effect.map(Option.map(toShell)));
     }),

@@ -15,6 +15,8 @@ import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import type { OrchestrationV2StoredEvent } from "./orchestrationV2.ts";
 import { ProjectScript, StoredProjectIcon } from "./project.ts";
+// ── Marcode fork seam ── workspace layout event payload lives in the Marcode-owned projectWorkspace.ts.
+import { ProjectWorkspaceLayoutAppliedPayload } from "./projectWorkspace.ts";
 
 export const OrchestrationClientOrigin = Schema.Struct({
   surface: Schema.optional(ClientSurface),
@@ -103,10 +105,20 @@ export const ApplicationProjectDeletedEvent = Schema.Struct({
 });
 export type ApplicationProjectDeletedEvent = typeof ApplicationProjectDeletedEvent.Type;
 
+// ── Marcode fork seam ── unified workspace tree sidebar layout mutation.
+export const ApplicationProjectWorkspaceLayoutAppliedEvent = Schema.Struct({
+  ...ApplicationProjectEventBaseFields,
+  type: Schema.Literal("project.workspace-layout-applied"),
+  payload: ProjectWorkspaceLayoutAppliedPayload,
+});
+export type ApplicationProjectWorkspaceLayoutAppliedEvent =
+  typeof ApplicationProjectWorkspaceLayoutAppliedEvent.Type;
+
 export const ApplicationProjectEvent = Schema.Union([
   ApplicationProjectCreatedEvent,
   ApplicationProjectMetaUpdatedEvent,
   ApplicationProjectDeletedEvent,
+  ApplicationProjectWorkspaceLayoutAppliedEvent,
 ]);
 export type ApplicationProjectEvent = typeof ApplicationProjectEvent.Type;
 

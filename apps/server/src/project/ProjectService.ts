@@ -6,6 +6,7 @@ import {
   type ProjectCreatePayload,
   type ProjectUpdatePayload,
   type ProjectSnapshot,
+  type ProjectWorkspaceLayoutApplyCommand,
   type ThreadId,
 } from "@t3tools/contracts";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
@@ -44,6 +45,10 @@ export interface ProjectUpdateInput extends ProjectUpdatePayload {
   readonly commandId: CommandId;
   readonly projectId: ProjectId;
 }
+
+// ── Marcode fork seam ── unified workspace tree sidebar layout mutation.
+export interface ProjectWorkspaceLayoutApplyInput
+  extends Omit<ProjectWorkspaceLayoutApplyCommand, "type"> {}
 
 export interface ProjectBootstrapInput extends ProjectCreateInput {}
 
@@ -84,6 +89,20 @@ export class ProjectNotEmptyError extends Schema.TaggedError<ProjectNotEmptyErro
   }
 }
 
+/**
+ * Marcode: a `project.workspace-layout.apply` rejection. `message` is the
+ * `{tag, message, currentVersion?}` JSON the client parses back into a typed
+ * rejection (`parseProjectWorkspaceLayoutRejection`), so it must stay JSON.
+ */
+export class ProjectWorkspaceLayoutRejectedError extends Schema.TaggedError<ProjectWorkspaceLayoutRejectedError>()(
+  "ProjectWorkspaceLayoutRejectedError",
+  { projectId: ProjectId, detail: Schema.String },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}
+
 export class ProjectOperationError extends Schema.TaggedError<ProjectOperationError>()(
   "ProjectOperationError",
   {
@@ -109,6 +128,7 @@ export type ProjectServiceError =
   | ProjectNotFoundError
   | ProjectConflictError
   | ProjectNotEmptyError
+  | ProjectWorkspaceLayoutRejectedError
   | ProjectOperationError;
 
 export class ProjectService extends Context.Service<
@@ -123,6 +143,9 @@ export class ProjectService extends Context.Service<
     >;
     readonly update: (input: ProjectUpdateInput) => Effect.Effect<Project, ProjectServiceError>;
     readonly delete: (input: ProjectDeleteInput) => Effect.Effect<Project, ProjectServiceError>;
+    readonly applyWorkspaceLayout: (
+      input: ProjectWorkspaceLayoutApplyInput,
+    ) => Effect.Effect<Project, ProjectServiceError>;
     readonly getById: (
       projectId: ProjectId,
       options?: { readonly includeDeleted?: boolean },
@@ -211,11 +234,42 @@ export const make = Effect.gen(function* () {
         ),
       );
 
+  // Marcode: the only state outside the edited project that a layout decision reads.
+  const readLayoutLookups = (
+    command: Extract<ProjectCommand, { readonly type: "project.workspace-layout.apply" }>,
+  ) =>
+    Effect.gen(function* () {
+      const resource =
+        command.operation.type === "place-resource" ? command.operation.resource : undefined;
+      const threadId = resource?.kind === "thread" ? resource.threadId : undefined;
+      const thread =
+        threadId === undefined
+          ? undefined
+          : yield* threadProjections.getThread(threadId).pipe(
+              Effect.map((found) => ({
+                projectId: found.projectId,
+                deleted: found.deletedAt !== null,
+              })),
+              // A thread that cannot be read does not exist for layout purposes.
+              Effect.catch(() => Effect.succeed(undefined)),
+            );
+      const others = yield* projects.list();
+      return {
+        thread,
+        otherProjectLayouts: others
+          .filter((row) => row.projectId !== command.projectId)
+          .map((row) => ({ projectId: row.projectId, layout: row.workspaceLayout })),
+      };
+    });
+
   const commit = Effect.fn("ProjectService.commit")(function* (command: ProjectCommand) {
     const { projectId } = command;
     const dispatchError = (cause: unknown) =>
       new ProjectOperationError({ operation: "dispatch-project-command", projectId, cause });
-    const workspaceRoot = command.type === "project.delete" ? undefined : command.workspaceRoot;
+    const workspaceRoot =
+      command.type === "project.create" || command.type === "project.meta.update"
+        ? command.workspaceRoot
+        : undefined;
     const planAndCommit = Effect.gen(function* () {
       const project = Option.getOrUndefined(yield* readRow(projectId, { includeDeleted: true }));
       const workspaceOwner =
@@ -226,13 +280,21 @@ export const make = Effect.gen(function* () {
                 .findActiveByWorkspaceRoot(workspaceRoot)
                 .pipe(Effect.mapError(dispatchError)),
             );
+      const layoutLookups =
+        command.type === "project.workspace-layout.apply"
+          ? yield* readLayoutLookups(command).pipe(Effect.mapError(dispatchError))
+          : undefined;
       const now = yield* DateTime.now;
       const eventId = yield* idAllocator.allocate
         .event({ commandId: command.commandId })
         .pipe(Effect.mapError(dispatchError));
       const planned = planProjectCommand({
         command,
-        state: { project, workspaceOwner },
+        state: {
+          project,
+          workspaceOwner,
+          ...(layoutLookups === undefined ? {} : { layoutLookups }),
+        },
         eventId,
         now,
       });
@@ -279,6 +341,14 @@ export const make = Effect.gen(function* () {
         });
       case "ProjectCommandMissingProjectError":
         return yield* new ProjectNotFoundError({ projectId });
+      case "ProjectCommandInvariantError":
+        if (command.type === "project.workspace-layout.apply") {
+          return yield* new ProjectWorkspaceLayoutRejectedError({
+            projectId,
+            detail: rejection.detail,
+          });
+        }
+        return yield* dispatchError(rejection);
       default:
         return yield* dispatchError(
           rejection ?? receipt.error ?? "The command was previously rejected.",
@@ -508,6 +578,13 @@ export const make = Effect.gen(function* () {
     },
   );
 
+  const applyWorkspaceLayout: ProjectService["Service"]["applyWorkspaceLayout"] = Effect.fn(
+    "ProjectService.applyWorkspaceLayout",
+  )(function* (input) {
+    yield* commit({ type: "project.workspace-layout.apply", ...input });
+    return yield* readCommitted(input.projectId);
+  });
+
   const enrichShell = (shell: OrchestrationProjectShell) =>
     projectEnrichment.getAvailable(shell.workspaceRoot).pipe(
       Effect.map((enrichment) => ({
@@ -562,6 +639,7 @@ export const make = Effect.gen(function* () {
     bootstrap,
     update,
     delete: deleteProject,
+    applyWorkspaceLayout,
     getById,
     getByWorkspaceRoot,
     snapshot,

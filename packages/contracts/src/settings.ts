@@ -1603,7 +1603,12 @@ export function requiredScopesForServerSettingsPatch(
 export function requiredScopesForProjectMutation(
   mutation: ProjectMutation,
 ): ReadonlyArray<AuthEnvironmentScope> {
-  if (mutation.type === "project.delete" || mutation.scripts === undefined) {
+  if (
+    mutation.type === "project.delete" ||
+    // Marcode: layout edits never touch host-executed scripts.
+    mutation.type === "project.workspace-layout.apply" ||
+    mutation.scripts === undefined
+  ) {
     return [AuthOrchestrationOperateScope];
   }
   return [

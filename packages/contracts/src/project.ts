@@ -14,6 +14,7 @@ import {
   TrimmedString,
   type UnknownUnionMember,
 } from "./baseSchemas.ts";
+import { ProjectWorkspaceLayoutApplyCommand } from "./projectWorkspace.ts";
 
 const PROJECT_SEARCH_ENTRIES_MAX_LIMIT = 200;
 const PROJECT_SEARCH_CONTENTS_MAX_LIMIT = 500;
@@ -222,6 +223,8 @@ export const ProjectMutation = Schema.Union([
     projectId: ProjectId,
     force: Schema.optional(Schema.Boolean),
   }),
+  // ── Marcode fork seam ── unified workspace tree sidebar layout mutation.
+  ProjectWorkspaceLayoutApplyCommand,
 ]);
 export type ProjectMutation = typeof ProjectMutation.Type;
 

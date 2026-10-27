@@ -3,7 +3,10 @@ import * as Effect from "effect/Effect";
 
 import { type ProjectService } from "./ProjectService.ts";
 
-type ProjectMutations = Pick<ProjectService["Service"], "create" | "delete" | "update">;
+type ProjectMutations = Pick<
+  ProjectService["Service"],
+  "create" | "delete" | "update" | "applyWorkspaceLayout"
+>;
 
 export const projectMutationOperation = Effect.fn("projectMutationOperation")(function* (
   projects: ProjectMutations,
@@ -41,6 +44,15 @@ export const projectMutationOperation = Effect.fn("projectMutationOperation")(fu
           ? {}
           : { defaultThreadEnvMode: mutation.defaultThreadEnvMode }),
         ...(mutation.scripts === undefined ? {} : { scripts: mutation.scripts }),
+      });
+
+    // ── Marcode fork seam ── unified workspace tree sidebar layout mutation.
+    case "project.workspace-layout.apply":
+      return yield* projects.applyWorkspaceLayout({
+        commandId: mutation.commandId,
+        projectId: mutation.projectId,
+        expectedVersion: mutation.expectedVersion,
+        operation: mutation.operation,
       });
 
     case "project.delete":

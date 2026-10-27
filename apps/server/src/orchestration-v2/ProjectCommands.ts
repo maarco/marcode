@@ -6,6 +6,8 @@ import {
   type ProjectIconOverride,
   ProjectId,
   type ProjectScript,
+  type ProjectWorkspaceLayoutOperation,
+  type ProjectWorkspaceLayoutVersion,
   SCRIPT_RUN_COMMAND_PATTERN,
   type ThreadEnvMode,
 } from "@t3tools/contracts";
@@ -15,6 +17,11 @@ import * as Schema from "effect/Schema";
 
 import type { UnsequencedProjectEvent } from "../persistence/OrchestrationEventStore.ts";
 import type { ProjectRow } from "./ProjectStore.ts";
+import {
+  decideWorkspaceLayoutOperation,
+  workspaceLayoutRejectionDetail,
+  type WorkspaceLayoutLookups,
+} from "./ProjectWorkspaceLayout.ts";
 
 export interface ProjectCreateCommand {
   readonly type: "project.create";
@@ -45,7 +52,20 @@ export interface ProjectDeleteCommand {
   readonly projectId: ProjectId;
 }
 
-export type ProjectCommand = ProjectCreateCommand | ProjectMetaUpdateCommand | ProjectDeleteCommand;
+// ── Marcode fork seam ── unified workspace tree sidebar layout mutation.
+export interface ProjectWorkspaceLayoutApplyCommand {
+  readonly type: "project.workspace-layout.apply";
+  readonly commandId: CommandId;
+  readonly projectId: ProjectId;
+  readonly expectedVersion: ProjectWorkspaceLayoutVersion;
+  readonly operation: ProjectWorkspaceLayoutOperation;
+}
+
+export type ProjectCommand =
+  | ProjectCreateCommand
+  | ProjectMetaUpdateCommand
+  | ProjectDeleteCommand
+  | ProjectWorkspaceLayoutApplyCommand;
 
 export class ProjectCommandInvariantError extends Schema.TaggedError<ProjectCommandInvariantError>()(
   "ProjectCommandInvariantError",
@@ -99,6 +119,8 @@ export const decodeProjectCommandRejection = Schema.decodeUnknownOption(
 export interface ProjectCommandState {
   readonly project: ProjectRow | undefined;
   readonly workspaceOwner: ProjectRow | undefined;
+  /** Marcode: only read by `project.workspace-layout.apply`. */
+  readonly layoutLookups?: WorkspaceLayoutLookups;
 }
 
 const monogramSegmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
@@ -208,6 +230,37 @@ export function planProjectCommand(input: {
           ...(command.faviconPath === undefined ? {} : { faviconPath: command.faviconPath }),
           ...(command.projectIcon === undefined ? {} : { projectIcon: command.projectIcon }),
           ...(command.scripts === undefined ? {} : { scripts: command.scripts }),
+          updatedAt: occurredAt,
+        },
+      });
+    }
+
+    // ── Marcode fork seam ── rejections carry the structured layout tag as JSON in `detail`.
+    case "project.workspace-layout.apply": {
+      if (activeProject === undefined) {
+        return invariant(
+          workspaceLayoutRejectionDetail({
+            tag: "missing-target",
+            message: `Project '${command.projectId}' does not exist or is not active.`,
+          }),
+        );
+      }
+      const decided = decideWorkspaceLayoutOperation({
+        project: activeProject,
+        expectedVersion: command.expectedVersion,
+        operation: command.operation,
+        ...(state.layoutLookups === undefined ? {} : { lookups: state.layoutLookups }),
+      });
+      if (Result.isFailure(decided)) {
+        return invariant(workspaceLayoutRejectionDetail(decided.failure));
+      }
+      return Result.succeed({
+        ...base,
+        type: "project.workspace-layout-applied",
+        payload: {
+          projectId: command.projectId,
+          operation: decided.success,
+          layoutVersion: activeProject.workspaceLayoutVersion + 1,
           updatedAt: occurredAt,
         },
       });
