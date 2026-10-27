@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { Image } from "expo-image";
 import { View } from "react-native";
 
+<<<<<<< HEAD
 import { AppText as Text } from "./AppText";
 import { resolveMobileStageLabel } from "../lib/mobileBranding";
 
@@ -13,6 +14,14 @@ const BRAND_MARK_SOURCE =
       ? require("../../../../assets/nightly/nightly-ios-1024.png")
       : require("../../../../assets/prod/black-ios-1024.png");
 const DEFAULT_STAGE_LABEL = resolveMobileStageLabel(appVariant);
+=======
+import { AppText as Text } from "./ui/AppText";
+import { T3_CODE_BRAND_MARK_SOURCE } from "./brandAssets";
+
+const appVariant = Constants.expoConfig?.extra?.appVariant;
+const DEFAULT_STAGE_LABEL =
+  appVariant === "development" ? "Dev" : appVariant === "preview" ? "Preview" : "Beta";
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
 export function BrandMark(props: { readonly compact?: boolean; readonly stageLabel?: string }) {
   const compact = props.compact ?? false;
@@ -22,7 +31,7 @@ export function BrandMark(props: { readonly compact?: boolean; readonly stageLab
   return (
     <View className="flex-row items-center gap-3">
       <Image
-        source={BRAND_MARK_SOURCE}
+        source={T3_CODE_BRAND_MARK_SOURCE}
         accessibilityIgnoresInvertColors
         style={{
           width: iconSize,

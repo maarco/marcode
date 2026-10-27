@@ -4,6 +4,7 @@ import {
   DEFAULT_HOSTED_APP_URL,
 } from "@t3tools/shared/connectAuth";
 import { clerkFrontendApiUrlFromPublishableKey } from "@t3tools/shared/relayAuth";
+import { isRelayTracingEnabled } from "@t3tools/shared/otelEnvironment";
 import { normalizeSecureRelayUrl } from "@t3tools/shared/relayUrl";
 import * as Config from "effect/Config";
 import * as ConfigProvider from "effect/ConfigProvider";
@@ -85,7 +86,15 @@ export function resolveRelayClientTracingConfig(
   env: Readonly<Record<string, string | undefined>> = process.env,
   fallback = buildTimeRelayClientTracing,
 ) {
+<<<<<<< HEAD
   const tracesUrl = env.MARCODE_RELAY_CLIENT_OTLP_TRACES_URL?.trim() || fallback.tracesUrl;
+=======
+  if (!isRelayTracingEnabled(env)) {
+    return null;
+  }
+
+  const tracesUrl = env.T3CODE_RELAY_CLIENT_OTLP_TRACES_URL?.trim() || fallback.tracesUrl;
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   const tracesDataset =
     env.MARCODE_RELAY_CLIENT_OTLP_TRACES_DATASET?.trim() || fallback.tracesDataset;
   const tracesToken = env.MARCODE_RELAY_CLIENT_OTLP_TRACES_TOKEN?.trim() || fallback.tracesToken;
@@ -104,11 +113,6 @@ export function makeRelayUrlConfig(fallback = buildTimeRelayUrl) {
 
 export const relayUrlConfig = makeRelayUrlConfig();
 
-/**
- * Hosted app origin used for out-of-band OAuth on headless
- * machines. Overridable so staging/nightly builds can point their CLIs at a
- * matching hosted deployment.
- */
 export const hostedAppUrlConfig = makePublicValueConfig(
   "MARCODE_HOSTED_APP_URL",
   DEFAULT_HOSTED_APP_URL,
@@ -149,13 +153,6 @@ function makePublicValueConfig(name: string, fallback: string) {
   );
 }
 
-/**
- * The CLI never calls Clerk's /oauth/authorize itself: the browser leg goes
- * through the hosted /connect page, which builds the authorize URL after a
- * Clerk session exists (see CliTokenManager.login). The token endpoint and,
- * for headless hosts, the device authorization endpoint are contacted
- * directly.
- */
 export interface CloudCliOAuthConfig {
   readonly tokenEndpoint: string;
   readonly deviceAuthorizationEndpoint: string;

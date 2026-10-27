@@ -1,4 +1,6 @@
+import { type CSSProperties, type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import {
+<<<<<<< HEAD
   type Ref,
   type ReactNode,
   type RefObject,
@@ -10,12 +12,19 @@ import {
 } from "react";
 
 import { useResizableWidth } from "~/hooks/useResizableWidth";
+=======
+  type PreviewPanelInlineSize,
+  usePreviewPanelInlineSize,
+} from "~/hooks/usePreviewPanelInlineSize";
+import { RESIZABLE_WIDTH_PROPERTY } from "~/hooks/useResizableWidth";
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 import { cn } from "~/lib/utils";
 
 import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
 
 export type PreviewPanelMode = "inline" | "sheet" | "sidebar" | "embedded";
 
+<<<<<<< HEAD
 const PREVIEW_PANEL_WIDTH_STORAGE_KEY = "marcode:preview-panel-width";
 const PREVIEW_PANEL_MIN_WIDTH = 360;
 /**
@@ -51,27 +60,47 @@ export function getPreviewPanelMaxWidth(viewportWidth: number, containerWidth?: 
  * sheet/sidebar modes the parent owns the size.
  */
 export function PreviewPanelShell(props: {
+=======
+interface PreviewPanelShellProps {
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   mode: PreviewPanelMode;
   maximized?: boolean;
+  inlineSize?: PreviewPanelInlineSize;
   open?: boolean;
-  /**
-   * Overrides the localStorage key used to persist the panel width. Callers
-   * embedding this shell for a different surface (e.g. the pull requests
-   * page) should pass their own key so resizing one panel doesn't clobber
-   * the other's remembered width.
-   */
+  /** Use a distinct key per surface to keep remembered widths independent. */
   widthStorageKey?: string;
-  /** Overrides the initial width (px) before the user has resized the panel. */
   defaultWidth?: number;
   /** Optional ref for layout consumers that need the shell's settled bounds. */
   panelRef?: Ref<HTMLDivElement>;
   children: ReactNode;
-}) {
+}
+
+export function PreviewPanelShell(props: PreviewPanelShellProps) {
+  if (props.inlineSize) {
+    return <PreviewPanelShellFrame {...props} inlineSize={props.inlineSize} />;
+  }
+
+  return <ResizablePreviewPanelShell {...props} />;
+}
+
+function ResizablePreviewPanelShell(props: PreviewPanelShellProps) {
+  const inlineSize = usePreviewPanelInlineSize({
+    enabled: props.mode === "inline" && !props.maximized,
+    widthStorageKey: props.widthStorageKey,
+    defaultWidth: props.defaultWidth,
+  });
+  return <PreviewPanelShellFrame {...props} inlineSize={inlineSize} />;
+}
+
+function PreviewPanelShellFrame(
+  props: PreviewPanelShellProps & { inlineSize: PreviewPanelInlineSize },
+) {
   const isInline = props.mode === "inline";
   const collapsible = isInline && props.open !== undefined;
   const open = props.open ?? true;
   const maximized = props.maximized ?? false;
   const hostRef = useRef<HTMLDivElement | null>(null);
+<<<<<<< HEAD
   const setHostRef = useCallback(
     (node: HTMLDivElement | null) => {
       hostRef.current = node;
@@ -98,48 +127,82 @@ export function PreviewPanelShell(props: {
   // Derive suppression before the layout commits so the browser never creates
   // a width transition for resize or maximize changes.
   const [layoutTransition, setLayoutTransition] = useState(() => ({
+=======
+  const returnedFocus = useRef(false);
+  const { width, handlers, observeRow } = props.inlineSize;
+  // Width animates only for an open or close. Any other width change disables
+  // the transition in the same commit that changes the width, so the browser
+  // never starts one; the next open or close re-enables it in its own commit,
+  // so nothing waits for a paint.
+  const [widthTransition, setWidthTransition] = useState(() => ({
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     open,
     width,
     maximized,
-    suppressed: false,
+    enabled: true,
   }));
   if (
-    layoutTransition.open !== open ||
-    layoutTransition.width !== width ||
-    layoutTransition.maximized !== maximized
+    widthTransition.open !== open ||
+    widthTransition.width !== width ||
+    widthTransition.maximized !== maximized
   ) {
-    setLayoutTransition({
+    setWidthTransition({
       open,
       width,
       maximized,
-      suppressed:
-        collapsible &&
-        layoutTransition.open === open &&
-        (layoutTransition.width !== width || layoutTransition.maximized !== maximized),
+      enabled: widthTransition.open !== open,
     });
   }
-  const suppressWidthTransition = layoutTransition.suppressed;
-  useLayoutEffect(() => {
-    if (!suppressWidthTransition) return;
-    let restoreFrame = 0;
-    const paintFrame = window.requestAnimationFrame(() => {
-      restoreFrame = window.requestAnimationFrame(() => {
-        setLayoutTransition((current) => ({ ...current, suppressed: false }));
-      });
-    });
+  const suppressWidthTransition = collapsible && !widthTransition.enabled;
+  const attachHost = (host: HTMLDivElement) => {
+    hostRef.current = host;
+    const stopObservingRow = observeRow(host);
     return () => {
-      window.cancelAnimationFrame(paintFrame);
-      window.cancelAnimationFrame(restoreFrame);
+      hostRef.current = null;
+      stopObservingRow();
     };
-  }, [suppressWidthTransition]);
+  };
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host || !collapsible) return;
+    return () => {
+      if (!host.contains(host.ownerDocument.activeElement) && !returnedFocus.current) return;
+      // Unmount moves the toggle; restore focus at its committed location if removal sent focus to body.
+      queueMicrotask(() => {
+        if (host.ownerDocument.activeElement === host.ownerDocument.body) {
+          host.ownerDocument.querySelector<HTMLButtonElement>("[data-right-panel-toggle]")?.focus();
+        }
+      });
+    };
+  }, [collapsible, hostRef]);
+  useLayoutEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const collapsed = collapsible && !open;
+    if (!collapsed) returnedFocus.current = false;
+    // Move focus before making its current owner inert, while the toggle is reachable.
+    if (collapsed && host.contains(host.ownerDocument.activeElement)) {
+      const toggle = host.ownerDocument.querySelector<HTMLButtonElement>(
+        "[data-right-panel-toggle]",
+      );
+      toggle?.focus();
+      returnedFocus.current = toggle !== null && host.ownerDocument.activeElement === toggle;
+    }
+    host.toggleAttribute("inert", collapsed);
+  }, [collapsible, open, hostRef]);
   return (
     <div
+<<<<<<< HEAD
       ref={setHostRef}
+=======
+      ref={attachHost}
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       className={cn(
         "relative flex h-full min-h-0 min-w-0 max-w-full flex-col self-stretch bg-background",
         isInline
           ? maximized
-            ? "flex-1 border-l border-border"
+            ? // Maximizing meets the sidebar border or window edge; omit the duplicate border.
+              "flex-1"
             : "shrink-0 border-l border-border"
           : "w-full",
         collapsible &&
@@ -149,10 +212,15 @@ export function PreviewPanelShell(props: {
       )}
       style={
         isInline
-          ? {
-              width: maximized ? "100%" : collapsible && !open ? "0px" : `${width}px`,
+          ? ({
+              [RESIZABLE_WIDTH_PROPERTY]: `${width}px`,
+              width: maximized
+                ? "100%"
+                : collapsible && !open
+                  ? "0px"
+                  : `var(${RESIZABLE_WIDTH_PROPERTY})`,
               transitionDuration: suppressWidthTransition ? "0ms" : undefined,
-            }
+            } as CSSProperties)
           : undefined
       }
       data-preview-panel-mode={props.mode}
@@ -162,62 +230,15 @@ export function PreviewPanelShell(props: {
       <div className={cn("h-full min-h-0 w-full", collapsible && "overflow-clip")}>
         <div
           className="flex h-full min-h-0 min-w-0 flex-col"
-          style={collapsible && !maximized ? { width: `calc(${width}px - 1px)` } : undefined}
+          style={
+            collapsible && !maximized
+              ? { width: `calc(var(${RESIZABLE_WIDTH_PROPERTY}) - 1px)` }
+              : undefined
+          }
         >
           {props.children}
         </div>
       </div>
     </div>
   );
-}
-
-/**
- * Track viewport and flex-row widths to derive an upper bound for the panel.
- * Resize-aware so dragging the OS window narrower (or expanding the app
- * sidebar) re-clamps the stored width on the next render (the hook's clamp
- * picks this up automatically). The row is observed rather than the panel
- * itself because the panel competes with its sibling column for row space.
- * Row measurement only runs when `enabled`; modes without a resize handle
- * never apply the resulting width, so they skip the observer entirely.
- */
-function useClampedMaxWidth(hostRef: RefObject<HTMLDivElement | null>, enabled: boolean): number {
-  const [vw, setVw] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
-  const [containerWidth, setContainerWidth] = useState<number | undefined>(undefined);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    let frame = 0;
-    const onResize = () => {
-      // Coalesce rapid resize events into one rAF tick.
-      if (frame !== 0) return;
-      frame = window.requestAnimationFrame(() => {
-        frame = 0;
-        setVw(window.innerWidth);
-      });
-    };
-    window.addEventListener("resize", onResize);
-    return () => {
-      window.removeEventListener("resize", onResize);
-      if (frame !== 0) window.cancelAnimationFrame(frame);
-    };
-  }, []);
-  useLayoutEffect(() => {
-    if (!enabled) return;
-    const parent = hostRef.current?.parentElement;
-    if (!parent) return;
-    // Measure before first paint: the persisted width must be clamped
-    // against the row on the initial render, not one observer tick later
-    // (the panel would flash over-wide on every mount). clientWidth is
-    // integral, so sub-pixel resize deltas bail out of re-rendering.
-    const measure = () => {
-      setContainerWidth(parent.clientWidth);
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(parent);
-    return () => {
-      observer.disconnect();
-    };
-  }, [hostRef, enabled]);
-  return getPreviewPanelMaxWidth(vw, containerWidth);
 }

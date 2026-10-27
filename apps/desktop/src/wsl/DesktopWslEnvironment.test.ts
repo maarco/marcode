@@ -2,14 +2,6 @@
 import { describe, it } from "@effect/vitest";
 import { afterAll, expect } from "vite-plus/test";
 import * as NodeChildProcess from "node:child_process";
-import * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
-import * as Layer from "effect/Layer";
-import * as Sink from "effect/Sink";
-import * as Stream from "effect/Stream";
-import * as TestClock from "effect/testing/TestClock";
-import { ChildProcessSpawner } from "effect/unstable/process";
 
 import {
   buildWslRuntimeInstallScript,
@@ -18,17 +10,9 @@ import {
   buildWslRuntimeInvalidateScript,
   buildWslRuntimePruneScript,
   buildWslRuntimeProbeScript,
-  DesktopWslDistroListError,
-  formatMissingToolsReason,
-  parseNodePath,
-  parseNodeVersion,
   parseResolvedPath,
-  parseToolchainReport,
   parseWslRuntimeRoot,
-  probeWslDistros,
 } from "./DesktopWslEnvironment.ts";
-
-const encoder = new TextEncoder();
 
 // The install script only fails the way this file cares about when a real shell
 // runs it, so find one that has the tools it needs: bash directly on Linux, and
@@ -37,8 +21,6 @@ const encoder = new TextEncoder();
 const REQUIRED_SHELL_TOOLS = ["flock", "sha256sum", "tar", "mktemp"] as const;
 
 const posixShellRunner = (() => {
-  // Candidates rather than a platform switch: wsl.exe simply fails to spawn
-  // where it does not exist, which is the same answer as a shell missing flock.
   const candidates = [
     { file: "bash", args: [] as ReadonlyArray<string> },
     { file: "wsl.exe", args: ["-e", "bash"] as ReadonlyArray<string> },
@@ -59,8 +41,7 @@ const posixShellRunner = (() => {
 
 const runShell = (script: string) => {
   if (posixShellRunner === null) throw new Error("no POSIX shell runner available");
-  // The install script arrives on stdin in production too, which is what lets
-  // its own /proc scan not match itself.
+  // Pass the script on stdin, as production does, to avoid matching its own /proc scan.
   const result = NodeChildProcess.spawnSync(
     posixShellRunner.file,
     [...posixShellRunner.args, "-s"],
@@ -71,79 +52,29 @@ const runShell = (script: string) => {
 
 const sh = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
 
+const awaitHolder = (condition: string) =>
+  `i=0; until ${condition}; do i=$((i + 1)); [ "$i" -lt 500 ] || exit 1; sleep 0.01; done`;
+
+// Use runtime-entry argv[0] for /proc detection; an open pipe keeps it alive only while this script runs.
+const holdRuntimeBusy = (entry: string) =>
+  [
+    `exec 7> >(exec -a ${entry} cat >/dev/null 2>&1)`,
+    awaitHolder(`grep -qF -- ${entry} /proc/[0-9]*/cmdline 2>/dev/null`),
+  ].join("\n");
+
+const holdInstallLock = (lock: string) =>
+  [
+    `exec 6> >(exec 9> ${lock}; flock -x 9; cat >/dev/null 2>&1)`,
+    awaitHolder(`! flock -n ${lock} true`),
+  ].join("\n");
+
 const readField = (stdout: string, field: string) => {
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(`${field}:`));
   if (line === undefined) throw new Error(`missing ${field} in fixture output: ${stdout}`);
   return line.slice(field.length + 1).trim();
 };
 
-// Stands in for the release's self-contained `t3` executable: the install
-// script only asks it for `--version`.
 const SERVER_ENTRY_SOURCE = '#!/bin/sh\necho "t3code wsl runtime test server 0.0.0"\n';
-
-const makeDistroListSpawner = (result: { readonly stdout?: string; readonly exitCode?: number }) =>
-  ChildProcessSpawner.make(() =>
-    Effect.succeed(
-      ChildProcessSpawner.makeHandle({
-        pid: ChildProcessSpawner.ProcessId(1),
-        exitCode:
-          result.exitCode === undefined
-            ? Effect.never
-            : Effect.succeed(ChildProcessSpawner.ExitCode(result.exitCode)),
-        isRunning: Effect.succeed(result.exitCode === undefined),
-        kill: () => Effect.void,
-        unref: Effect.succeed(Effect.void),
-        stdin: Sink.drain,
-        stdout: Stream.make(encoder.encode(result.stdout ?? "")),
-        stderr: Stream.empty,
-        all: Stream.empty,
-        getInputFd: () => Sink.drain,
-        getOutputFd: () => Stream.empty,
-      }),
-    ),
-  );
-
-describe("probeWslDistros", () => {
-  it.effect("preserves a successful empty distro list", () =>
-    Effect.gen(function* () {
-      const distros = yield* probeWslDistros;
-      expect(distros).toEqual([]);
-    }).pipe(
-      Effect.provideService(
-        ChildProcessSpawner.ChildProcessSpawner,
-        makeDistroListSpawner({ stdout: "", exitCode: 0 }),
-      ),
-    ),
-  );
-
-  it.effect("fails when the distro-list command exits unsuccessfully", () =>
-    Effect.gen(function* () {
-      const error = yield* probeWslDistros.pipe(Effect.flip);
-      expect(error).toBeInstanceOf(DesktopWslDistroListError);
-      expect(error.message).toContain("exited with code 1");
-    }).pipe(
-      Effect.provideService(
-        ChildProcessSpawner.ChildProcessSpawner,
-        makeDistroListSpawner({ exitCode: 1 }),
-      ),
-    ),
-  );
-
-  it.effect("fails when the distro-list command times out", () => {
-    const layer = Layer.merge(
-      TestClock.layer(),
-      Layer.succeed(ChildProcessSpawner.ChildProcessSpawner, makeDistroListSpawner({})),
-    );
-    return Effect.gen(function* () {
-      const fiber = yield* probeWslDistros.pipe(Effect.flip, Effect.forkScoped);
-      yield* Effect.yieldNow;
-      yield* TestClock.adjust(Duration.seconds(8));
-      const error = yield* Fiber.join(fiber);
-      expect(error).toBeInstanceOf(DesktopWslDistroListError);
-      expect(error.message).toContain("timed out");
-    }).pipe(Effect.provide(layer));
-  });
-});
 
 describe("WSL runtime cache", () => {
   it.each([
@@ -159,6 +90,7 @@ describe("WSL runtime cache", () => {
     expect(script).toContain("/1.2.3_x64__touch__tmp_nope");
     expect(script).not.toContain(runtimeId);
   });
+<<<<<<< HEAD
 
   it("installs through a temporary directory and only reuses valid completed caches", () => {
     const script = buildWslRuntimeInstallScript(
@@ -392,12 +324,10 @@ describe("WSL runtime cache", () => {
     // running from it; the next install moves an unready root aside instead.
     expect(script).not.toContain("rm -rf");
   });
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });
 
-// Reading the generated script proves what it says, not what it does. A cache
-// whose entry was truncated satisfied every assertion above and still got
-// reused, so these run the real script against a real archive in a throwaway
-// HOME and check the outcome.
 describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed)", () => {
   const fixtures: Array<string> = [];
 
@@ -406,16 +336,14 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     fixtures.length = 0;
   });
 
-  const createFixture = () => {
+  const createFixture = (serverEntry = SERVER_ENTRY_SOURCE) => {
     const result = runShell(
       [
         "set -eu",
         "work=$(mktemp -d)",
-        // Mirrors the release archive: one top-level versioned directory that
-        // holds the executable and its native addons.
         'stage="$work/stage/t3-0.0.0-linux-x64"',
         'mkdir -p "$stage/node_modules/node-pty/build/Release" "$work/home"',
-        `printf '%s' ${sh(SERVER_ENTRY_SOURCE)} > "$stage/t3"`,
+        `printf '%s' ${sh(serverEntry)} > "$stage/t3"`,
         'chmod +x "$stage/t3"',
         `printf '%s' 'pty-native-payload' > "$stage/node_modules/node-pty/build/Release/pty.node"`,
         `tar -czf "$work/wsl-runtime.tar.gz" -C "$work/stage" t3-0.0.0-linux-x64`,
@@ -430,8 +358,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     const archivePath = `${work}/wsl-runtime.tar.gz`;
     const archiveSha = readField(result.stdout, "archiveSha");
     const runtimeId = `sha256-${archiveSha}`;
-    // The script reads $HOME, and WSL does not inherit the parent process's
-    // environment, so the home override rides in the script itself.
+    // WSL does not inherit HOME; embed the fixture's override in the script.
     const installScript = (archive = archivePath, sha = archiveSha) =>
       [
         `HOME=${sh(`${work}/home`)}`,
@@ -456,8 +383,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
       [
         `export HOME=${sh(`${fixture.work}/home`)}`,
         'export NVM_DIR="$HOME/.nvm" FNM_DIR="$HOME/.fnm" VOLTA_HOME="$HOME/.volta"',
-        // Isolate login profiles and hide the host's Node/version managers.
-        // The resolver must discover the fixture's installation itself.
         "bash() { (",
         "  command() {",
         '    case "$*" in',
@@ -495,16 +420,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     expect(provider.stdout).toBe("linux-node-provider\n");
   });
 
-  it("keeps standalone runtime readiness independent of Node availability", () => {
-    const fixture = createFixture();
-    expect(fixture.install().status).toBe(0);
-
-    const probe = probeFixture(fixture);
-
-    expect(probe.status, probe.stderr).toBe(0);
-    expect(parseResolvedPath(probe.stdout)).not.toBeNull();
-  });
-
   it("keeps the inherited PATH when bash is unavailable", () => {
     const fixture = createFixture();
     expect(fixture.install().status).toBe(0);
@@ -523,14 +438,24 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
   it("reuses a warm cache without touching the archive", () => {
     const fixture = createFixture();
     expect(fixture.install().status).toBe(0);
-    // Deleting the archive is how the test tells reuse apart from a silent
-    // reinstall: only the warm path can succeed without it.
     expect(runShell(`set -eu\nrm ${sh(fixture.archivePath)}`).status).toBe(0);
 
     const warm = fixture.install();
 
     expect(warm.status, warm.stderr).toBe(0);
     expect(parseWslRuntimeRoot(warm.stdout)).toBe(fixture.runtimeRoot);
+  });
+
+  it("retains the loader error when a bundled executable needs a missing system library", () => {
+    const fixture = createFixture(
+      '#!/bin/sh\nprintf "error while loading shared libraries: libatomic.so.1: cannot open shared object file\\n" >&2\nexit 127\n',
+    );
+
+    const result = fixture.install();
+
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("libatomic.so.1");
+    expect(parseWslRuntimeRoot(result.stdout)).toBeNull();
   });
 
   it("reinstalls a cache whose executable was truncated", () => {
@@ -546,6 +471,28 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     expect(restored.stdout).toBe(SERVER_ENTRY_SOURCE);
   });
 
+  it("reinstalls an executable that fails --version despite a matching recorded digest", () => {
+    const fixture = createFixture();
+    expect(fixture.install().status).toBe(0);
+    const brokenEntry = "#!/bin/sh\nexit 42\n";
+    const corrupt = runShell(
+      [
+        "set -eu",
+        `printf '%s' ${sh(brokenEntry)} > ${sh(fixture.serverEntry)}`,
+        `chmod +x ${sh(fixture.serverEntry)}`,
+        `sha256sum ${sh(fixture.serverEntry)} | cut -d ' ' -f 1 > ${sh(`${fixture.runtimeRoot}/.t3code-wsl-runtime-ready`)}`,
+      ].join("\n"),
+    );
+    expect(corrupt.status, corrupt.stderr).toBe(0);
+    expect(runShell(`${sh(fixture.serverEntry)} --version`).status).toBe(42);
+
+    const repaired = fixture.install();
+    expect(repaired.status, repaired.stderr).toBe(0);
+    expect(parseWslRuntimeRoot(repaired.stdout)).toBe(fixture.runtimeRoot);
+    expect(runShell(`cat ${sh(fixture.serverEntry)}`).stdout).toBe(SERVER_ENTRY_SOURCE);
+    expect(runShell(`${sh(fixture.serverEntry)} --version`).status).toBe(0);
+  });
+
   it("falls back instead of launching a corrupted cache it cannot reinstall", () => {
     const fixture = createFixture();
     expect(fixture.install().status).toBe(0);
@@ -554,20 +501,12 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
 
     const broken = fixture.install();
 
-    // Non-zero with no runtimeRoot is what sends the backend to the mounted
-    // server tree. Exiting 0 here is the bug: launch would pick the zero-byte
-    // server, fail to become ready, and do it again on every restart.
     expect(broken.status).not.toBe(0);
     expect(parseWslRuntimeRoot(broken.stdout)).toBeNull();
   });
 
   it("extracts once when two installs race for the same cache", () => {
     const fixture = createFixture();
-    // A tar shim counts extractions and holds the critical section open long
-    // enough that the second install is certain to arrive while the first is
-    // still inside it. One extraction is the answer either way the runs
-    // interleave: whoever waits for the lock re-checks readiness before
-    // spending an extract, so a broken lock shows up as two.
     const raced = runShell(
       [
         "set -eu",
@@ -582,8 +521,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         `cat > "$work/install.sh" <<'T3CODE_INSTALL_SCRIPT'`,
         fixture.installScript(),
         "T3CODE_INSTALL_SCRIPT",
-        // Both racers run the same file, and neither file path contains the
-        // runtime root, so the script's own /proc scan cannot see them.
+        // Keep runtime roots out of both racers' argv so their /proc scans cannot match themselves.
         'sh "$work/install.sh" > "$work/first.out" 2>&1 &',
         "first=$!",
         'sh "$work/install.sh" > "$work/second.out" 2>&1 &',
@@ -608,9 +546,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
 
   it("leaves no half-built cache when extraction fails", () => {
     const fixture = createFixture();
-    // Truncating the archive and re-recording its digest gets the install past
-    // the digest gate and into a tar that dies mid-stream, which is what a full
-    // disk or an interrupted write looks like from inside the distro.
     const truncated = runShell(
       [
         "set -eu",
@@ -629,21 +564,12 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
 
     expect(failed.status).not.toBe(0);
     expect(parseWslRuntimeRoot(failed.stdout)).toBeNull();
-    // A partial extract that survived under the cache name would be promoted by
-    // the next launch's readiness check; scratch that survived would sit there
-    // until the pruner's age sweep. Neither is left behind. Only directories
-    // are counted: the empty flock file stays on purpose, which is what keeps
-    // the lock from carrying stale state across a killed install.
     const leftovers = runShell(
       `set -eu\nfind ${sh(fixture.runtimeParent)} -mindepth 1 -maxdepth 1 -type d`,
     );
     expect(leftovers.stdout.trim()).toBe("");
   });
 
-  // The archive and the identity recorded beside it can diverge — a partial
-  // download, or a rebuilt archive dropped next to an older sidecar. Either
-  // gate firing means the bytes never reach the cache under a name that claims
-  // to describe something else.
   it("refuses an archive whose bytes do not match the digest recorded for it", () => {
     const fixture = createFixture();
 
@@ -684,57 +610,6 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
     expect(selected.status, `${selected.stdout}\n${selected.stderr}`).toBe(0);
   });
 
-  it("prunes a selected cache after its prepare-to-spawn grace period expires", () => {
-    const fixture = createFixture();
-    expect(fixture.install().status).toBe(0);
-    const result = runShell(
-      [
-        "set -eu",
-        `runtime_parent=${sh(fixture.runtimeParent)}`,
-        'mkdir -p "$runtime_parent/sha256-current" "$runtime_parent/sha256-previous"',
-        'printf ready > "$runtime_parent/sha256-current/.t3code-wsl-runtime-ready"',
-        'printf ready > "$runtime_parent/sha256-previous/.t3code-wsl-runtime-ready"',
-        `touch -d "10 minutes ago" ${sh(fixture.runtimeRoot)}`,
-        `touch -d "10 minutes ago" ${sh(`${fixture.runtimeRoot}/.t3code-wsl-runtime-selected`)}`,
-        'touch -d "1 minute ago" "$runtime_parent/sha256-previous"',
-        `HOME=${sh(`${fixture.work}/home`)}`,
-        "export HOME",
-        buildWslRuntimePruneScript("sha256-current"),
-        `test ! -e ${sh(fixture.runtimeRoot)}`,
-      ].join("\n"),
-    );
-
-    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-  });
-
-  it("removes an aged stale tree after replacing an active unready cache", () => {
-    const fixture = createFixture();
-    expect(fixture.install().status).toBe(0);
-    const result = runShell(
-      [
-        "set -eu",
-        `runtime_root=${sh(fixture.runtimeRoot)}`,
-        `runtime_parent=${sh(fixture.runtimeParent)}`,
-        'rm "$runtime_root/.t3code-wsl-runtime-ready"',
-        'sh -c "sleep 30" "$runtime_root/t3" >/dev/null 2>&1 &',
-        "active_pid=$!",
-        "sleep 0.1",
-        fixture.installScript(),
-        'stale=$(find "$runtime_parent" -maxdepth 1 -type d -name ".sha256-*.stale.*" -print -quit)',
-        'test -n "$stale"',
-        'touch -d "180 minutes ago" "$stale"',
-        `HOME=${sh(`${fixture.work}/home`)}`,
-        "export HOME",
-        buildWslRuntimePruneScript(fixture.runtimeId),
-        'test ! -e "$stale"',
-        "kill $active_pid",
-        "wait $active_pid 2>/dev/null || true",
-      ].join("\n"),
-    );
-
-    expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-  });
-
   it("prunes old and markerless caches without touching retained, active, locked, or unrelated roots", () => {
     const result = runShell(
       [
@@ -754,15 +629,8 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         'touch -d "4 minutes ago" "$runtime_parent/sha256-active"',
         'touch -d "3 minutes ago" "$runtime_parent/sha256-old"',
         'touch -d "2 minutes ago" "$runtime_parent/sha256-locked"',
-        'sh -c "sleep 30" "$runtime_parent/sha256-active/t3" >/dev/null 2>&1 &',
-        "active_pid=$!",
-        "(",
-        '  exec 9> "$runtime_parent/.sha256-locked.install.lock"',
-        "  flock -x 9",
-        "  sleep 30",
-        ") >/dev/null 2>&1 &",
-        "lock_pid=$!",
-        "sleep 0.1",
+        holdRuntimeBusy('"$runtime_parent/sha256-active/t3"'),
+        holdInstallLock('"$runtime_parent/.sha256-locked.install.lock"'),
         `HOME="$home"`,
         "export HOME",
         buildWslRuntimePruneScript("sha256-current"),
@@ -773,86 +641,11 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         'test -d "$runtime_parent/versions"',
         'test ! -e "$runtime_parent/sha256-old"',
         'test ! -e "$runtime_parent/sha256-markerless"',
-        "kill $active_pid $lock_pid",
-        "wait $active_pid 2>/dev/null || true",
-        "wait $lock_pid 2>/dev/null || true",
         'rm -rf "$work"',
       ].join("\n"),
     );
 
     expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-  });
-});
-
-describe("parseToolchainReport", () => {
-  it("returns no missing tools and no node version on empty output", () => {
-    expect(parseToolchainReport("")).toEqual({ missingTools: [], nodeVersion: null });
-  });
-
-  it("collects all missing: lines", () => {
-    const stdout = ["missing:make", "missing:g++", "nodeVersion:24.10.0"].join("\n");
-    expect(parseToolchainReport(stdout)).toEqual({
-      missingTools: ["make", "g++"],
-      nodeVersion: "24.10.0",
-    });
-  });
-
-  it("ignores blank lines and trims whitespace", () => {
-    const stdout = ["  missing:python3  ", "", "  nodeVersion:v22.16.0  "].join("\n");
-    expect(parseToolchainReport(stdout)).toEqual({
-      missingTools: ["python3"],
-      nodeVersion: "v22.16.0",
-    });
-  });
-
-  it("returns null node version when value after prefix is empty", () => {
-    expect(parseToolchainReport("nodeVersion:")).toEqual({
-      missingTools: [],
-      nodeVersion: null,
-    });
-  });
-});
-
-describe("parseNodePath", () => {
-  it("extracts the absolute node path from a nodePath: line", () => {
-    const stdout = "nodePath:/home/josh/.nvm/versions/node/v22.16.0/bin/node";
-    expect(parseNodePath(stdout)).toBe("/home/josh/.nvm/versions/node/v22.16.0/bin/node");
-  });
-
-  it("returns null when node was not found (empty value after prefix)", () => {
-    expect(parseNodePath("nodePath:")).toBeNull();
-  });
-
-  it("returns null when there is no nodePath line at all", () => {
-    expect(parseNodePath("missing:node\nnodeVersion:")).toBeNull();
-  });
-
-  it("ignores surrounding noise and trims whitespace", () => {
-    const stdout = ["some preamble noise", "  nodePath:/usr/bin/node  ", "trailing"].join("\n");
-    expect(parseNodePath(stdout)).toBe("/usr/bin/node");
-  });
-});
-
-describe("parseNodeVersion", () => {
-  it("extracts the node version from a nodeVersion: line", () => {
-    expect(parseNodeVersion("nodeVersion:24.10.0")).toBe("24.10.0");
-  });
-
-  it("returns null when the version value is empty", () => {
-    expect(parseNodeVersion("nodeVersion:")).toBeNull();
-  });
-
-  it("returns null when there is no nodeVersion line at all", () => {
-    expect(parseNodeVersion("nodePath:/usr/bin/node\nresolvedPath:/usr/bin")).toBeNull();
-  });
-
-  it("ignores surrounding noise and trims whitespace", () => {
-    const stdout = [
-      "some preamble noise",
-      "  nodeVersion:22.16.0  ",
-      "nodePath:/usr/bin/node",
-    ].join("\n");
-    expect(parseNodeVersion(stdout)).toBe("22.16.0");
   });
 });
 
@@ -868,54 +661,6 @@ describe("parseResolvedPath", () => {
     expect(parseResolvedPath("resolvedPath:/usr/local/bin:/usr/bin\r\n")).toBe(
       "/usr/local/bin:/usr/bin",
     );
-  });
-
-  it("returns null when the resolved PATH is absent or empty", () => {
-    expect(parseResolvedPath("nodePath:/usr/bin/node\n")).toBeNull();
-    expect(parseResolvedPath("resolvedPath:\n")).toBeNull();
-  });
-});
-
-describe("formatMissingToolsReason", () => {
-  it("returns null when everything is present and node is in range", () => {
-    expect(
-      formatMissingToolsReason({ missingTools: [], nodeVersion: "24.10.0" }, "^24.10"),
-    ).toBeNull();
-  });
-
-  it("returns null when range is not specified and tools are present", () => {
-    expect(formatMissingToolsReason({ missingTools: [], nodeVersion: "18.0.0" }, null)).toBeNull();
-  });
-
-  it("flags missing node first", () => {
-    const reason = formatMissingToolsReason(
-      { missingTools: ["node", "make"], nodeVersion: null },
-      "^24.10",
-    );
-    expect(reason).toContain("node");
-    expect(reason).toContain("^24.10");
-    expect(reason).toContain("make");
-    expect(reason).toContain("nvm");
-  });
-
-  it("flags an out-of-range node version with the actual version surfaced", () => {
-    const reason = formatMissingToolsReason(
-      { missingTools: [], nodeVersion: "20.0.0" },
-      "^24.10 || ^22.16",
-    );
-    expect(reason).toContain("node 20.0.0");
-    expect(reason).toContain("requires ^24.10 || ^22.16");
-  });
-
-  it("flags missing build tools without node when node is fine", () => {
-    const reason = formatMissingToolsReason(
-      { missingTools: ["g++", "python3"], nodeVersion: "24.10.0" },
-      "^24.10",
-    );
-    expect(reason).toContain("g++");
-    expect(reason).toContain("python3");
-    expect(reason).toContain("build-essential");
-    expect(reason).not.toContain("nvm");
   });
 });
 

@@ -3,8 +3,10 @@ import * as Cause from "effect/Cause";
 
 export interface FileSaveCoordinatorOptions<A, E> {
   readonly debounceMs: number;
+  readonly canPersist?: () => boolean;
   readonly persist: (contents: string) => Promise<AtomCommandResult<A, E>>;
   readonly onPendingChange: (pending: boolean) => void;
+<<<<<<< HEAD
   readonly onConfirmed: (contents: string) => void;
   /**
    * Called when a persist attempt fails. Pending/dirty state is unaffected.
@@ -15,6 +17,10 @@ export interface FileSaveCoordinatorOptions<A, E> {
    * unknown>`) call site that widens a narrower-typed instance into it.
    */
   onError?(error: E): void;
+=======
+  /** Return false when another editor has newer unsaved contents. */
+  readonly onConfirmed: (contents: string) => boolean | void;
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }
 
 export class FileSaveCoordinator<A = unknown, E = unknown> {
@@ -107,12 +113,19 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
+<<<<<<< HEAD
     // `latestRevision === 0` is `cancel()`'s "nothing pending" sentinel and is
     // checked separately from upstream's already-confirmed comparison: a write
     // that confirms after a discard must not make a zeroed revision look like a
     // confirmed one, and must not resurrect the discarded buffer.
     if (this.saving || this.latestRevision === 0) return;
     if (this.latestRevision === this.confirmedRevision) return;
+=======
+    if (this.saving || this.latestRevision === this.confirmedRevision) return;
+    if (this.options.canPersist?.() === false) {
+      return;
+    }
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
     this.saving = true;
     const cancelToken = this.cancelToken;
@@ -121,6 +134,7 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     const result = await this.options.persist(contents);
     const cancelled = cancelToken !== this.cancelToken;
     const succeeded = result._tag === "Success";
+<<<<<<< HEAD
     // `cancel()` during the write zeroes the revision. Recording the completed
     // write as confirmed would then swallow the next edit, whose revision
     // climbs back to `revision` and compares equal to this stale confirmation.
@@ -133,6 +147,12 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
       this.options.onConfirmed(contents);
     } else {
       this.options.onError?.(Cause.squash(result.cause) as E);
+=======
+    let confirmed = false;
+    if (succeeded) {
+      this.confirmedRevision = revision;
+      confirmed = this.options.onConfirmed(contents) !== false;
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     }
 
     this.saving = false;
@@ -141,8 +161,12 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
       return;
     }
     if (revision === this.latestRevision) {
+<<<<<<< HEAD
       if (succeeded) this.options.onPendingChange(false);
       this.flushRequested = false;
+=======
+      if (confirmed) this.options.onPendingChange(false);
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       return;
     }
 

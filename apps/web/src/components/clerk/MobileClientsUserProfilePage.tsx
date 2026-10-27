@@ -94,7 +94,11 @@ function EmptyMobileClients() {
       <EmptyHeader>
         <EmptyTitle>No mobile clients</EmptyTitle>
         <EmptyDescription>
+<<<<<<< HEAD
           Sign in to Marcode on your iPhone to register it for push notifications and Live
+=======
+          Install T3 Code on your phone and sign in to T3 Connect to get push notifications and Live
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
           Activities.
         </EmptyDescription>
       </EmptyHeader>
@@ -112,7 +116,11 @@ export function MobileClientsUserProfilePage() {
   return (
     <ClerkUserProfilePage
       title="Mobile clients"
+<<<<<<< HEAD
       description="Devices registered to receive Marcode Connect activity from your environments."
+=======
+      description="Mobile devices that get notifications from your environments."
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
       action={
         <ClerkUserProfileRefreshButton
           isPending={devicesState.isPending}

@@ -1,8 +1,13 @@
 import type { ScopedThreadRef } from "@t3tools/contracts";
 import { isWindowsAbsolutePath, normalizeProjectPathForComparison } from "@t3tools/shared/path";
 
+<<<<<<< HEAD
 import { openFileInFloatingEditor } from "./editor/open-floating-file";
 import { resolvePathLinkTarget } from "./terminal-links";
+=======
+import { useRightPanelStore } from "./rightPanelStore";
+import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 
 interface OpenDiffFilePrimaryActionInput {
   readonly threadRef: ScopedThreadRef | null;

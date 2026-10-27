@@ -3,17 +3,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   DEFAULT_TERMINAL_ID,
-  TerminalAttachInput,
-  TerminalClearInput,
-  TerminalCloseInput,
-  TerminalEvent,
   TerminalError,
   TerminalOpenInput,
   TerminalProviderEnvironmentError,
-  TerminalResizeInput,
-  TerminalSessionSnapshot,
-  TerminalThreadInput,
-  TerminalWriteInput,
 } from "./terminal.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
@@ -22,15 +14,6 @@ const decodeTerminalError = Schema.decodeUnknownSync(TerminalError);
 
 function decodeSync<S extends Schema.Top>(schema: S, input: unknown): Schema.Schema.Type<S> {
   return Schema.decodeUnknownSync(schema as never)(input) as Schema.Schema.Type<S>;
-}
-
-function decodes<S extends Schema.Top>(schema: S, input: unknown): boolean {
-  try {
-    Schema.decodeUnknownSync(schema as never)(input);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 describe("TerminalProviderEnvironmentError", () => {
@@ -56,58 +39,12 @@ describe("TerminalProviderEnvironmentError", () => {
 });
 
 describe("TerminalOpenInput", () => {
-  it("accepts valid open input", () => {
-    expect(
-      decodes(TerminalOpenInput, {
-        threadId: "thread-1",
-        terminalId: DEFAULT_TERMINAL_ID,
-        cwd: "/tmp/project",
-        cols: 120,
-        rows: 40,
-      }),
-    ).toBe(true);
-  });
-
-  it("accepts ultrawide terminal dimensions from xterm fit", () => {
-    expect(
-      decodes(TerminalOpenInput, {
-        threadId: "thread-1",
-        terminalId: DEFAULT_TERMINAL_ID,
-        cwd: "/tmp/project",
-        cols: 423,
-        rows: 40,
-      }),
-    ).toBe(true);
-  });
-
-  it("rejects invalid bounds", () => {
-    expect(
-      decodes(TerminalOpenInput, {
-        threadId: "thread-1",
-        terminalId: DEFAULT_TERMINAL_ID,
-        cwd: "/tmp/project",
-        cols: 10,
-        rows: 0,
-      }),
-    ).toBe(false);
-  });
-
-  it("requires terminalId — the client must always pick an id", () => {
-    expect(
-      decodes(TerminalOpenInput, {
-        threadId: "thread-1",
-        cwd: "/tmp/project",
-        cols: 100,
-        rows: 24,
-      }),
-    ).toBe(false);
-  });
-
-  it("accepts optional env overrides", () => {
+  it("drops invalid env keys while retaining valid overrides", () => {
     const parsed = decodeSync(TerminalOpenInput, {
       threadId: "thread-1",
       terminalId: DEFAULT_TERMINAL_ID,
       cwd: "/tmp/project",
+<<<<<<< HEAD
       worktreePath: "/tmp/project/.marcode/worktrees/feature-a",
       cols: 100,
       rows: 24,
@@ -343,5 +280,10 @@ describe("TerminalEvent", () => {
         },
       }),
     ).toBe(true);
+=======
+      env: { "bad-key": "1", GOOD_KEY: "2" },
+    });
+    expect(parsed.env).toEqual({ GOOD_KEY: "2" });
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   });
 });

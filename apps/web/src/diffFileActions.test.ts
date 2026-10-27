@@ -12,6 +12,7 @@ const THREAD_REF = scopeThreadRef(
 
 describe("openDiffFilePrimaryAction", () => {
   beforeEach(() => {
+<<<<<<< HEAD
     useEditorStore.setState({
       panes: [{ id: "pane-a", openPaths: [], activePath: null }],
       activePaneId: "pane-a",
@@ -74,6 +75,9 @@ describe("openDiffFilePrimaryAction", () => {
 
     expect(openInEditor).toHaveBeenCalledWith("apps/web/src/components/DiffPanel.tsx");
     expect(useEditorStore.getState().panes[0]!.openPaths).toEqual([]);
+=======
+    useRightPanelStore.setState({ byThreadKey: {}, threadPanelVisibilityByThreadKey: {} });
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   });
 
   it("opens repository-relative diff files from a nested project", () => {
@@ -119,6 +123,7 @@ describe("openDiffFilePrimaryAction", () => {
     ).toBe("src/index.ts");
   });
 
+  // regression: #6174 opening diff files broke for repositories at a filesystem root
   it.each([
     { workspaceRoot: "/frontend", repositoryRoot: "/" },
     { workspaceRoot: "C:\\frontend", repositoryRoot: "C:\\" },

@@ -18,6 +18,7 @@ afterEach(() => {
 });
 
 describe("tryOpenExternalUrl", () => {
+<<<<<<< HEAD
   it("opens supported URLs", async () => {
     openURL.mockResolvedValue(undefined);
 
@@ -59,6 +60,8 @@ describe("tryOpenExternalUrl", () => {
     expect(diagnosticText).not.toContain("browser-unavailable-secret-sentinel");
   });
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it("keeps provider sign-in URLs unchanged and out of failure logs", async () => {
     const url =
       "https://accounts.google.com/o/oauth2/v2/auth?state=private-state&code_challenge=private-challenge&redirect_uri=http%3A%2F%2F127.0.0.1%3A43123%2F";

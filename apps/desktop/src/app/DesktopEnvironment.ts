@@ -55,19 +55,11 @@ export class DesktopEnvironment extends Context.Service<
     readonly browserArtifactsDir: string;
     readonly rootDir: string;
     readonly appRoot: string;
-    // Root of the tree containing apps/server/dist and node_modules for the
-    // backend. Equals appRoot everywhere except packaged Windows, where the
-    // server tree ships as the resources/server.asar sidecar (see
-    // scripts/build-desktop-artifact.ts) that the asar-aware
-    // ELECTRON_RUN_AS_NODE primary reads in place and the WSL backend
-    // extracts on demand (see DesktopWslServerTree).
     readonly serverRoot: string;
     readonly backendEntryPath: string;
-    // Built web client the packaged renderer is served from over t3code://app.
     readonly clientAssetsDir: string;
     readonly backendCwd: string;
     readonly preloadPath: string;
-    // Preload that turns on the V8 compile cache for the local backend.
     readonly compileCachePath: string;
     readonly appUpdateYmlPath: string;
     readonly devServerUrl: Option.Option<URL>;
@@ -86,9 +78,13 @@ export class DesktopEnvironment extends Context.Service<
     readonly linuxDesktopEntryName: string;
     readonly linuxWmClass: string;
     readonly linuxApplicationsDir: string;
+    readonly desktopLauncherPath: Option.Option<string>;
     readonly appImagePath: Option.Option<string>;
+<<<<<<< HEAD
     readonly userDataDirName: string;
     readonly legacyUserDataDirNames: readonly string[];
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     readonly defaultDesktopSettings: DesktopAppSettings.DesktopSettings;
     readonly runtimeInfo: DesktopRuntimeInfo;
     readonly resolvePickFolderDefaultPath: (rawOptions: unknown) => Option.Option<string>;
@@ -109,7 +105,11 @@ function resolveDesktopAppStageLabel(input: {
     return "Dev";
   }
 
+<<<<<<< HEAD
   return isNightlyDesktopVersion(input.appVersion) ? "Nightly" : "";
+=======
+  return isNightlyDesktopVersion(input.appVersion) ? "Nightly" : "Beta";
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 }
 
 export function resolveDesktopAppBranding(input: {
@@ -192,6 +192,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
     joinPath: path.join,
     t3Home: config.marcodeHome,
   });
+<<<<<<< HEAD
   const userDataDirName = isDevelopment ? "marcode-dev" : "marcode";
   // Both prior product names, oldest first: the pre-Marcode "T3 Code" brand,
   // then "Marcode (Alpha)" from before the (Alpha) suffix was dropped. A
@@ -200,6 +201,8 @@ const make = Effect.fn("desktop.environment.make")(function* (
   const legacyUserDataDirNames = isDevelopment
     ? ["T3 Code (Dev)", "Marcode (Dev)"]
     : ["T3 Code (Alpha)", "Marcode (Alpha)"];
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   const linuxApplicationsDir = path.join(
     Option.getOrElse(config.xdgDataHome, () => path.join(homeDirectory, ".local", "share")),
     "applications",
@@ -255,9 +258,13 @@ const make = Effect.fn("desktop.environment.make")(function* (
     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     linuxWmClass: isDevelopment ? "marcode-dev" : "marcode",
     linuxApplicationsDir,
+    desktopLauncherPath: config.desktopLauncherPath,
     appImagePath: config.appImagePath,
+<<<<<<< HEAD
     userDataDirName,
     legacyUserDataDirNames,
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
     defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
     runtimeInfo: resolveDesktopRuntimeInfo({
       platform: input.platform,

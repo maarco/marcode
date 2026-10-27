@@ -3,7 +3,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
@@ -20,7 +19,7 @@ const defaultInput = {
   runningUnderArm64Translation: false,
 } satisfies DesktopEnvironment.MakeDesktopEnvironmentInput;
 
-const makeEnvironmentLayer = (
+const layerEnvironment = (
   overrides: Partial<DesktopEnvironment.MakeDesktopEnvironmentInput> = {},
   env: Record<string, string | undefined> = {},
 ) =>
@@ -36,10 +35,10 @@ const makeEnvironmentLayer = (
 const makeEnvironment = (
   overrides: Partial<DesktopEnvironment.MakeDesktopEnvironmentInput> = {},
   env: Record<string, string | undefined> = {},
-) =>
-  DesktopEnvironment.DesktopEnvironment.pipe(Effect.provide(makeEnvironmentLayer(overrides, env)));
+) => DesktopEnvironment.DesktopEnvironment.pipe(Effect.provide(layerEnvironment(overrides, env)));
 
 describe("DesktopEnvironment", () => {
+<<<<<<< HEAD
   it.effect("derives state paths and development identity inside Effect", () =>
     Effect.gen(function* () {
       const environment = yield* makeEnvironment(
@@ -120,6 +119,8 @@ describe("DesktopEnvironment", () => {
     }),
   );
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect("uses the packaged Windows server sidecar as the backend root", () =>
     Effect.gen(function* () {
       const environment = yield* makeEnvironment({
@@ -142,6 +143,7 @@ describe("DesktopEnvironment", () => {
     }),
   );
 
+<<<<<<< HEAD
   it.effect("uses the stable desktop entry as the packaged Linux portal identity", () =>
     Effect.gen(function* () {
       const environment = yield* makeEnvironment({
@@ -155,6 +157,8 @@ describe("DesktopEnvironment", () => {
     }),
   );
 
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
   it.effect("keeps implicit development state separate from production state", () =>
     Effect.gen(function* () {
       const development = yield* makeEnvironment(
@@ -167,6 +171,7 @@ describe("DesktopEnvironment", () => {
       assert.equal(production.stateDir, "/Users/alice/.marcode/userdata");
     }),
   );
+<<<<<<< HEAD
 
   it.effect("uses a configured app user model id override", () =>
     Effect.gen(function* () {
@@ -201,4 +206,6 @@ describe("DesktopEnvironment", () => {
       );
     }),
   );
+=======
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7
 });

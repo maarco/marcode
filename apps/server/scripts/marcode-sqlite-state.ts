@@ -11,8 +11,8 @@ import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
-import { Argument, Command, Flag } from "effect/unstable/cli";
+import * as SqlClient from "effect/sql/SqlClient";
+import { Argument, Command, Flag } from "effect/cli";
 
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
@@ -181,8 +181,13 @@ export const runSqliteState = Effect.fn("runSqliteState")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const baseDir = path.resolve(input.baseDir);
+<<<<<<< HEAD:apps/server/scripts/marcode-sqlite-state.ts
   const sharedHome = path.resolve(options.sharedHome ?? path.join(NodeOS.homedir(), ".marcode"));
   const databasePath = path.join(baseDir, "userdata", "state.sqlite");
+=======
+  const sharedHome = path.resolve(options.sharedHome ?? path.join(NodeOS.homedir(), ".t3"));
+  const databasePath = path.join(baseDir, "userdata", "statev2.sqlite");
+>>>>>>> d73fd1279a9cbf3ef4677b88b4ad82f0a55583c7:apps/server/scripts/t3-sqlite-state.ts
   const source = yield* resolveSqlSource(input.sql, input.file);
 
   if (!(yield* fs.exists(databasePath))) {
@@ -201,6 +206,8 @@ export const runSqliteState = Effect.fn("runSqliteState")(function* (
   const program = Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     yield* sql.unsafe("PRAGMA busy_timeout = 5000").unprepared;
+    // This connection can checkpoint statev2.sqlite, so it needs Sqlite.ts's F_FULLFSYNC barrier.
+    yield* sql.unsafe("PRAGMA checkpoint_fullfsync = ON").unprepared;
 
     if (input.operation === "query") {
       const rows = yield* sql.unsafe<RawSqliteRow>(source).unprepared.pipe(
@@ -252,7 +259,7 @@ export const t3SqliteStateCommand = Command.make(
       Argument.withDescription("Run a read-only query or a backed-up fixture mutation."),
     ),
     baseDir: Flag.String("base-dir").pipe(
-      Flag.withDescription("Explicit T3 base directory containing userdata/state.sqlite."),
+      Flag.withDescription("Explicit T3 base directory containing userdata/statev2.sqlite."),
     ),
     sql: Flag.String("sql").pipe(
       Flag.optional,
