@@ -1,10 +1,7 @@
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import type * as React from "react";
 
-import {
-  PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
-  portalOverlayStyle,
-} from "~/editor/floating-surface-z";
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { cn } from "~/lib/utils";
 
 import { renderClosingPositioner } from "./closing-positioner";
@@ -89,7 +86,8 @@ function PopoverPopup({
           variant === "panel"
             ? "z-(--z-sheet) w-[min(calc(var(--thread-details-panel-width)+--spacing(4)),calc(var(--anchor-width)---spacing(2)))] transition-[top] duration-150 ease-out data-instant:transition-[top] motion-reduce:transition-none motion-reduce:data-instant:transition-none"
             : "z-[130]",
-          PORTAL_OVERLAY_ANCHOR_HIDDEN_CLASS,
+          // No data-anchor-hidden:hidden here: Base UI flags an anchor that merely touches the
+          // edge of a clipping ancestor (a timeline row) as hidden, which hid the popover.
         )}
         data-slot="popover-positioner"
         render={renderClosingPositioner}
