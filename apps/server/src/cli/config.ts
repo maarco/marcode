@@ -178,7 +178,7 @@ const EnvServerConfig = Config.all({
   lan: Config.Boolean("MARCODE_LAN").pipe(Config.option, Config.map(Option.getOrUndefined)),
 });
 
-const DevAuthTokenConfig = Config.Redacted("T3CODE_DEV_AUTH_TOKEN").pipe(
+const DevAuthTokenConfig = Config.Redacted("MARCODE_DEV_AUTH_TOKEN").pipe(
   Config.map((token) => Redacted.make(Redacted.value(token).trim())),
   Config.mapEffect((token) =>
     Redacted.value(token).length === 0 || Redacted.value(token).length >= 32
@@ -187,7 +187,7 @@ const DevAuthTokenConfig = Config.Redacted("T3CODE_DEV_AUTH_TOKEN").pipe(
           new Config.ConfigError(
             new Schema.SchemaError(
               new SchemaIssue.InvalidValue({
-                message: "T3CODE_DEV_AUTH_TOKEN must contain at least 32 characters.",
+                message: "MARCODE_DEV_AUTH_TOKEN must contain at least 32 characters.",
               }),
             ),
           ),

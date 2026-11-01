@@ -60,7 +60,7 @@ describe("brand mark ownership", () => {
     // The `t3-code` tool-server name is an upstream-shaped compatibility
     // identifier and stays as it is; only the icon beside it is Marcode's.
     const webTimeline = NodeFS.readFileSync(
-      NodePath.join(repoRoot, "apps/web/src/components/chat/MessagesTimeline.tsx"),
+      NodePath.join(repoRoot, "apps/web/src/components/chat/TimelineToolActivityIcon.tsx"),
       "utf8",
     );
     const mobileWorkLog = NodeFS.readFileSync(
