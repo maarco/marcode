@@ -2292,53 +2292,6 @@ export const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBund
   },
 );
 
-/** Find the macOS .app archive produced alongside the DMG in electron-builder's output. */
-export const findMacPackagedAsar = Effect.fn("findMacPackagedAsar")(function* (
-  stageDistDir: string,
-) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const pendingDirectories = [stageDistDir];
-
-  while (pendingDirectories.length > 0) {
-    const directory = pendingDirectories.pop();
-    if (directory === undefined) break;
-
-    for (const entry of yield* fs.readDirectory(directory)) {
-      const entryPath = path.join(directory, entry);
-      const stat = yield* fs.stat(entryPath).pipe(Effect.orElseSucceed(() => null));
-      if (stat?.type !== "Directory") continue;
-
-      if (entry.endsWith(".app")) {
-        const asarPath = path.join(entryPath, "Contents", "Resources", "app.asar");
-        if (yield* fs.exists(asarPath).pipe(Effect.orElseSucceed(() => false))) return asarPath;
-        continue;
-      }
-
-      pendingDirectories.push(entryPath);
-    }
-  }
-
-  return null;
-});
-
-export const validateMacPackagedPayload = Effect.fn("validateMacPackagedPayload")(
-  function* (input: { readonly stageDistDir: string; readonly verbose: boolean }) {
-    const asarPath = yield* findMacPackagedAsar(input.stageDistDir);
-    if (asarPath === null) {
-      return yield* new BundleNotSelfContainedError({
-        exitCode: -1,
-        output: `Expected an app.asar under a packaged macOS .app in ${input.stageDistDir}.`,
-      });
-    }
-
-    yield* verifyPackagedBundleIsSelfContained({
-      asarPath,
-      verbose: input.verbose,
-    });
-    return { asarPath } as const;
-  },
-);
 
 export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(function* (input: {
   readonly backend: "kde" | "hyprland";
@@ -4127,11 +4080,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
         platform: options.platform,
         runtimeArchivePath: options.wslRuntime,
       }),
-      verbose: options.verbose,
-    });
-  } else if (options.platform === "mac") {
-    yield* validateMacPackagedPayload({
-      stageDistDir,
       verbose: options.verbose,
     });
   }
