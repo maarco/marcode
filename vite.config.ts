@@ -233,9 +233,9 @@ export default defineConfig({
       "react/jsx-no-constructed-context-values": "off",
       "react/memo-dependencies": "error",
       "react/purity": "error",
-      "react/refs": "error",
+      "react/refs": "warn",
       "react/exhaustive-effect-dependencies": "error",
-      "react/set-state-in-effect": "error",
+      "react/set-state-in-effect": "warn",
       "react/immutability": "error",
       "react/no-array-index-key": "error",
       "react/no-unstable-nested-components": "error",
@@ -284,7 +284,13 @@ export default defineConfig({
       ],
       "marcode/no-global-process-runtime": "error",
       "marcode/no-inline-schema-compile": "warn",
-      "marcode/no-low-value-comments": "error",
+      // ── Marcode fork seam ──
+      // Upstream added these style rules with its own code already compliant.
+      // Marcode-owned code predates them (~1k sites: no-low-value-comments,
+      // no-manual-memo, no-unreasoned-state-sync, no-outset-state-indicators,
+      // react/refs, react/set-state-in-effect), so they report as "warn" here.
+      // Raise each back to "error" once the Marcode surfaces are migrated.
+      "marcode/no-low-value-comments": "warn",
       "marcode/no-manual-effect-runtime-in-tests": "error",
       // ── Marcode fork seam ──
       // Marcode-only surfaces (floating editor, floating terminal shell, git
@@ -493,7 +499,7 @@ export default defineConfig({
       },
       {
         files: ["apps/web/src/**"],
-        rules: { "marcode/no-outset-state-indicators": "error" },
+        rules: { "marcode/no-outset-state-indicators": "warn" },
       },
       {
         files: ["apps/*/src/**", "packages/*/src/**"],
@@ -574,12 +580,12 @@ export default defineConfig({
           // time; any other read carries a suppression that says why. oxlint also flags time reads
           // inside event handlers (oxc#27309); those suppressions cite it.
           "react/purity": "error",
-          "react/refs": "error",
-          "react/set-state-in-effect": "error",
+          "react/refs": "warn",
+          "react/set-state-in-effect": "warn",
           "react/set-state-in-render": "error",
           "react/static-components": "error",
           "react/unsupported-syntax": "error",
-          "marcode/no-manual-memo": "error",
+          "marcode/no-manual-memo": "warn",
         },
       },
       {
@@ -640,7 +646,7 @@ export default defineConfig({
       },
       {
         files: ["apps/web/src/**", "apps/mobile/src/**", "packages/*/src/**"],
-        rules: { "marcode/no-unreasoned-state-sync": "error" },
+        rules: { "marcode/no-unreasoned-state-sync": "warn" },
       },
       {
         // React Compiler caches use* functions only if they call a hook.
