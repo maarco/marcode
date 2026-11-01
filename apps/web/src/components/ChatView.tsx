@@ -3408,6 +3408,7 @@ export default function ChatView(props: ChatViewProps) {
           <header
             ref={threadPanelPopoverAnchorRef}
             data-chat-header
+            data-marcode-workspace-header
             className={cn(
               "relative z-10 bg-transparent [[data-panel-animations=true]_&]:motion-safe:transition-[padding-left] [[data-panel-animations=true]_&]:motion-safe:duration-(--panel-animation-duration) [[data-panel-animations=true]_&]:motion-safe:ease-out",
               isElectron
