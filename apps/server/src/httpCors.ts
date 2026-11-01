@@ -10,4 +10,10 @@ export const browserApiCorsAllowedHeaders = [
   ORCHESTRATION_PROTOCOL_HEADER,
 ] as const;
 
-export const DESKTOP_RENDERER_ORIGINS = ["t3code://app", "t3code-dev://app"] as const;
+// Marcode registers marcode:// (see ElectronProtocol.ts); the t3code:// origins stay for builds that predate the rename.
+export const DESKTOP_RENDERER_ORIGINS = [
+  "marcode://app",
+  "marcode-dev://app",
+  "t3code://app",
+  "t3code-dev://app",
+] as const;

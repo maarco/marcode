@@ -321,10 +321,15 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
 export const isRelayTracingEnabled = (env: Readonly<Record<string, string | undefined>>) =>
   Config.all({
     ...sdkFlags,
-    telemetry: flag("T3CODE_TELEMETRY_ENABLED", T3CODE_TRUE, T3CODE_FALSE, String),
+    telemetry: flag("MARCODE_TELEMETRY_ENABLED", T3CODE_TRUE, T3CODE_FALSE, String),
+    // Pre-rename name; either variable set to false turns relay tracing off.
+    legacyTelemetry: flag("T3CODE_TELEMETRY_ENABLED", T3CODE_TRUE, T3CODE_FALSE, String),
   }).pipe(
     Effect.map(
-      ({ telemetry, t3, spec }) => telemetry.value !== false && !(t3.value ?? spec.value ?? false),
+      ({ telemetry, legacyTelemetry, t3, spec }) =>
+        telemetry.value !== false &&
+        legacyTelemetry.value !== false &&
+        !(t3.value ?? spec.value ?? false),
     ),
     Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnvRecord(env))),
     Effect.orDie,
