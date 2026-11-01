@@ -11,6 +11,7 @@ import { memo } from "react";
 import { type DraftId } from "~/composerDraftStore";
 import { useT3ProjectFileScripts } from "~/hooks/useT3ProjectFileScripts";
 import GitActionsControl from "../GitActionsControl";
+import { usePillNavNarrow } from "../FloatingPillNav";
 import ProjectScriptsControl, {
   type NewProjectScriptInput,
   type ProjectScriptActionResult,
@@ -57,12 +58,14 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   keybindings,
   availableEditors,
   gitCwd,
+  onOpenPullRequest,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,
   onDeleteProjectScript,
 }: ThreadActionsClusterProps) {
   const primaryEnvironmentId = usePrimaryEnvironmentId();
+  const narrow = usePillNavNarrow();
   const fileScripts = useT3ProjectFileScripts(
     activeThreadEnvironmentId,
     activeProjectScripts ? activeProjectCwd : null,
@@ -104,7 +107,10 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
           gitCwd={gitCwd}
           activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
           {...(draftId ? { draftId } : {})}
-          compact
+          onOpenPullRequest={onOpenPullRequest}
+          collapsed={narrow}
+          flat
+          showChanges={false}
         />
       )}
     </>
