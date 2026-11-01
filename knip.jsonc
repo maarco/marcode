@@ -147,6 +147,11 @@
       // entry here. Pruning them is a product decision, not a sync decision.
       "ignoreIssues": {
         "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
+        "src/components/chat/composerMentionDrag.ts": ["exports"],
+        "src/components/files/fileCommentAnnotations.ts": ["exports"],
+        "src/components/marcodeRightPanelChrome.tsx": ["exports"],
+        "src/components/Sidebar.logic.ts": ["exports"],
+        "src/floatingShellGeometry.ts": ["exports"],
         "src/editor/*.{ts,tsx}": ["exports", "nsExports", "duplicates"],
         "src/components/chat/chatAmbient*.{ts,tsx}": ["exports", "nsExports", "duplicates"],
         "src/components/unified-workspace/*.{ts,tsx}": ["exports", "nsExports", "duplicates"],

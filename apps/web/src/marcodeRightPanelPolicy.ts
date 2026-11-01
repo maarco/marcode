@@ -1,6 +1,6 @@
 /** Marcode's right-panel compatibility boundary. */
 
-export const MARCODE_RIGHT_PANEL_KINDS = [
+const MARCODE_RIGHT_PANEL_KINDS = [
   "diff",
   "preview",
   "device",

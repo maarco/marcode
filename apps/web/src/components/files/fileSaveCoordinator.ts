@@ -56,7 +56,11 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
    */
   flush(): Promise<void> {
     this.clearTimer();
-    if (this.latestRevision === 0) return Promise.resolve();
+    if (this.latestRevision === 0) {
+      // Nothing was ever written, but a session releasing on flush still waits for this.
+      this.options.onSettled?.();
+      return Promise.resolve();
+    }
     this.flushing = true;
     return this.persistLatest();
   }

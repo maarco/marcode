@@ -101,7 +101,7 @@ export function writeTerminalOutputUpdate(
   }
 }
 
-export function terminalFontFamily(family?: string): string {
+function terminalFontFamily(family?: string): string {
   // Quote non-ident names ("3270 Nerd Font", "M+ 1m"): an unquoted one makes
   // the whole canvas font string invalid and the assignment silently no-ops.
   const custom = family === undefined ? "" : quoteTerminalFontFamilies(family);

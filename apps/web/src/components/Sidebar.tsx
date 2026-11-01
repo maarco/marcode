@@ -72,7 +72,6 @@ import {
 import {
   useEffect,
   useLayoutEffect,
-  useMemo,
   useReducer,
   useRef,
   useState,
@@ -1202,7 +1201,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   // The tree is per-project, so it renders only with exactly one project in scope;
   // "All projects" keeps upstream's plain thread list.
   const scopedProjectGroup = scopedProjectGroups.length === 1 ? scopedProjectGroups[0]! : null;
-  const workspaceSectionProject = useMemo(() => {
+  const workspaceSectionProject = (() => {
     if (!unifiedWorkspaceSidebarEnabled || scopedProjectGroup === null) return null;
     const primaryRef = scopedProjectGroup.memberProjectRefs[0];
     if (!primaryRef) return null;
@@ -1214,7 +1213,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         projectByKey.get(`${primaryRef.environmentId}:${primaryRef.projectId}`)?.workspaceRoot ??
         "",
     };
-  }, [unifiedWorkspaceSidebarEnabled, scopedProjectGroup, projectByKey]);
+  })();
   const threadSearch = useThreadSearch(
     connectedEnvironmentIds,
     threadSearchQuery,

@@ -655,19 +655,7 @@ export function ChatAmbientBackground({
   theme,
   className,
 }: ChatAmbientBackgroundProps) {
-  const resolvedAppearance = useMemo(
-    () => resolveChatAmbientAppearance(appearance),
-    [
-      appearance?.blur,
-      appearance?.customColors?.background,
-      appearance?.customColors?.primary,
-      appearance?.customColors?.secondary,
-      appearance?.dim,
-      appearance?.frost,
-      appearance?.gradient,
-      appearance?.palette,
-    ],
-  );
+  const resolvedAppearance = resolveChatAmbientAppearance(appearance);
   const cssColors = useMemo(
     () => resolveChatAmbientCssColors(resolvedAppearance, theme),
     [resolvedAppearance, theme],

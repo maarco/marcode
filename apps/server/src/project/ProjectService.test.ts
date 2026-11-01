@@ -463,7 +463,13 @@ it.layer(layerTest)("ProjectService", (it) => {
       });
       const input = { commandId: CommandId.make("command:delete-retry:delete"), projectId };
       const deleted = yield* service.delete(input);
-      assert.deepEqual(yield* service.delete(input), deleted);
+      // Enrichment (favicon, repository identity) hydrates in the background after the first delete.
+      const withoutEnrichment = ({
+        faviconPath: _f,
+        repositoryIdentity: _r,
+        ...rest
+      }: typeof deleted) => rest;
+      assert.deepEqual(withoutEnrichment(yield* service.delete(input)), withoutEnrichment(deleted));
       const events = yield* sql<{ readonly command_id: string }>`
         SELECT command_id FROM orchestration_events
         WHERE stream_id = ${projectId} AND event_type = 'project.deleted'

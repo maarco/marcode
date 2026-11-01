@@ -259,6 +259,7 @@ import {
 } from "../state/entities";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
+import AnimatedShaderHeroBackground from "./ui/animated-shader-hero";
 import { ExpandedImageDialogHost, openExpandedImagePreview } from "./chat/ExpandedImageDialog";
 import {
   BranchRestoreConfirmHost,
@@ -1158,7 +1159,6 @@ export default function ChatView(props: ChatViewProps) {
   // The file-surface pending tracker retired with the right-panel file surfaces;
   // the floating Code editor owns file editing and its own state.
   const configuredPreviewUrls = getConfiguredPreviewUrls(activeProjectScripts);
-
 
   const primaryEnvironmentId = primaryEnvironment?.environmentId ?? null;
   const activeEnvironment =
@@ -3403,6 +3403,7 @@ export default function ChatView(props: ChatViewProps) {
             theme={resolvedTheme}
           />
         ) : null}
+        {isDraftHeroState ? <AnimatedShaderHeroBackground className="z-0 opacity-90" /> : null}
         {embedded ? null : (
           <header
             ref={threadPanelPopoverAnchorRef}
@@ -3488,10 +3489,7 @@ export default function ChatView(props: ChatViewProps) {
               setThreadError={setThreadError}
               setThreadErrorBannerDismissTick={setThreadErrorBannerDismissTick}
             />
-            <div
-              {...conversationArea}
-              className="relative z-10 flex min-h-0 flex-1 flex-col"
-            >
+            <div {...conversationArea} className="relative z-10 flex min-h-0 flex-1 flex-col">
               <ThreadTimeline
                 pendingApprovals={pendingApprovals}
                 heldApprovalRequestIds={heldApprovalRequestIds}

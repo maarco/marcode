@@ -106,7 +106,7 @@ const BINARY_MIME_TYPES = new Map([
   [".db", "application/vnd.sqlite3"],
 ]);
 
-export function binaryPreviewKind(file: {
+function binaryPreviewKind(file: {
   readonly name: string;
   readonly mimeType?: string;
 }): "archive" | "sqlite" | null {

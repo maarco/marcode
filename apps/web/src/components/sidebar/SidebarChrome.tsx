@@ -24,6 +24,7 @@ import { Button } from "../ui/button";
 import { SidebarFooter, SidebarMenu, SidebarTrigger } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
+import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
 import { observeResize } from "~/lib/observeResize";
 
@@ -194,6 +195,7 @@ function SidebarBrandMark({ onBackdrop }: { onBackdrop: boolean }) {
 export const SidebarChromeFooter = memo(function SidebarChromeFooter() {
   return (
     <SidebarFooter>
+      <SidebarThreadUndoNotice />
       <SidebarProviderUpdatePill />
       <SidebarUpdateArchitectureWarning />
       <SidebarMenu className="flex-row items-center">

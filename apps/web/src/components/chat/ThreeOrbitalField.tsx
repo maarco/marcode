@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 
 import { resolveChatAmbientShaderPalette, type ChatAmbientEffectProps } from "./chatAmbientEffects";
 import { startChatAmbientAnimation } from "./chatAmbientAnimation";
+import { observeResize } from "~/lib/observeResize";
 
 const MAX_PIXEL_RATIO = 1.35;
 const PARTICLE_COUNT = 760;
@@ -112,15 +113,10 @@ export function ThreeOrbitalField({ appearance, theme }: ChatAmbientEffectProps)
     resize();
 
     const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(() => {
-            resize();
-            if (motionQuery?.matches) render(0);
-          });
-
-    resizeObserver?.observe(canvas);
+    const stopObservingResize = observeResize(canvas, () => {
+      resize();
+      if (motionQuery?.matches) render(0);
+    });
     window.addEventListener("resize", resize);
     const disposeAnimation = startChatAmbientAnimation({
       element: canvas,
@@ -131,7 +127,7 @@ export function ThreeOrbitalField({ appearance, theme }: ChatAmbientEffectProps)
     return () => {
       disposeAnimation();
       window.removeEventListener("resize", resize);
-      resizeObserver?.disconnect();
+      stopObservingResize();
       disposeScene(scene);
       renderer.dispose();
     };

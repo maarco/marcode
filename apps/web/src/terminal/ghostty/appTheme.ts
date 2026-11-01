@@ -10,14 +10,14 @@ import {
 import { type GhosttyColor, type GhosttyTheme } from "./core";
 import { type GhosttyTerminalSurface } from "./surface";
 
-export function writeSystemMessage(
+function writeSystemMessage(
   terminal: Pick<GhosttyTerminalSurface, "write">,
   message: string,
 ): void {
   terminal.write(`\r\n[terminal] ${message}\r\n`);
 }
 
-export function writeTerminalOutputUpdate(
+function writeTerminalOutputUpdate(
   terminal: Pick<GhosttyTerminalSurface, "resetAndWrite" | "write">,
   update: TerminalOutputUpdate,
 ): void {

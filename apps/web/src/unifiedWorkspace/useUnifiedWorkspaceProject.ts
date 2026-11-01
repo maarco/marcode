@@ -631,7 +631,7 @@ export function useUnifiedWorkspaceProject(input: {
         }
         // Running copy of layout entries so rank computation for a deeper
         // ambient folder sees one materialized earlier in this same chain.
-        let runningEntries = layoutEntries;
+        const runningEntries = [...layoutEntries];
         for (const ambientNode of ambientChain) {
           if (ambientNode.activation.kind !== "folder") {
             return { ok: false, tag: "invalid-parent", message: "Unknown destination." };
@@ -673,7 +673,7 @@ export function useUnifiedWorkspaceProject(input: {
           if (!result.ok) return result;
           parentItemId = newId;
           expectedVersion += 1;
-          runningEntries = [...runningEntries, newEntry];
+          runningEntries.push(newEntry);
         }
       }
 

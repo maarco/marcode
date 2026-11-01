@@ -265,7 +265,7 @@ export function useProjectFileEditor(
           console.error(`[autosave] failed to save ${cwd}/${relativePath}`, error);
         },
       }),
-    [cwd, environmentId, onPendingChange, relativePath, writeFile],
+    [confirmedRef, cwd, environmentId, onPendingChange, relativePath],
   );
 
   useEffect(() => {
@@ -293,7 +293,7 @@ export function useProjectFileEditor(
       const confirmed = confirmedRef.current;
       applyProjectFileEdit(environmentId, cwd, relativePath, contents, confirmed, coordinator);
     },
-    [coordinator, cwd, environmentId, relativePath],
+    [confirmedRef, coordinator, cwd, environmentId, relativePath],
   );
 
   const flush = useCallback(() => coordinator.flush(), [coordinator]);

@@ -112,7 +112,7 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
           });
         },
       })),
-    [hasMatchedQuery, matches, resolvedTheme, target.threadRef],
+    [hasMatchedQuery, matches, resolvedTheme, target.cwd, target.environmentId, target.threadRef],
   );
 
   const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);

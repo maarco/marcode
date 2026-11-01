@@ -209,7 +209,10 @@ export function TabBar({ paneId, rootPath }: TabBarProps) {
                     className={`flex items-center gap-0.5 font-mono ${!file.pinned ? "italic" : ""}`}
                   >
                     {display.split("/").map((seg, si, arr) => (
-                      <span key={si} className="flex items-center gap-0.5 shrink-0">
+                      <span
+                        key={arr.slice(0, si + 1).join("/")}
+                        className="flex items-center gap-0.5 shrink-0"
+                      >
                         {si > 0 && <ArrowRight1Filled className="h-2 w-2 text-white/15 shrink-0" />}
                         <span className={si === arr.length - 1 ? "text-white/70" : "text-white/30"}>
                           {seg}

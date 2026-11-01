@@ -429,7 +429,7 @@ const formatNodePtyProbeFailureReason = (exitCode: number): string | null =>
 // Capture login-shell PATH because the server launches provider CLIs by name.
 const RESOLVED_PATH_LINE = `printf 'resolvedPath:%s\\n' "$PATH"`;
 
-export const NODE_PTY_PROBE_SCRIPT = (
+const NODE_PTY_PROBE_SCRIPT = (
   linuxServerDir: string,
 ) => `printf 'nodePath:%s\\n' "$(command -v node 2>/dev/null)"
 printf 'nodeVersion:%s\\n' "$(node -p 'process.versions.node' 2>/dev/null)"
@@ -476,7 +476,7 @@ const TOOLCHAIN_CHECK_SCRIPT = [
   "fi",
 ].join("\n");
 
-export const NODE_PTY_BUILD_SCRIPT = (linuxServerDir: string) =>
+const NODE_PTY_BUILD_SCRIPT = (linuxServerDir: string) =>
   [
     "set -e",
     `cd ${shellQuote(linuxServerDir)}`,

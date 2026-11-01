@@ -264,6 +264,17 @@ function normalizeThreadRequest(frame: unknown, ignoredConfigKeys: ReadonlySet<s
   return { ...record, params: { ...params, config: owned } };
 }
 
+/** The client's product name (`clientInfo` name/title) differs per fork; recordings keep upstream's. */
+function normalizeInitializeRequest(frame: unknown): unknown {
+  if (typeof frame !== "object" || frame === null) return frame;
+  const record = frame as Record<string, unknown>;
+  if (record.method !== "initialize" || typeof record.params !== "object" || record.params === null)
+    return frame;
+  const { clientInfo, ...params } = record.params as Record<string, unknown>;
+  const { name: _name, title: _title, ...info } = (clientInfo ?? {}) as Record<string, unknown>;
+  return { ...record, params: { ...params, clientInfo: info } };
+}
+
 function sameFrame(
   left: unknown,
   right: unknown,
@@ -272,6 +283,7 @@ function sameFrame(
   const normalize = (frame: unknown) =>
     pipe(
       normalizeReplayFrame(frame),
+      normalizeInitializeRequest,
       (request) => normalizeThreadRequest(request, ignoredConfigKeys),
       stableStringify,
     );

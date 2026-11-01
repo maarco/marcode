@@ -64,7 +64,7 @@ export interface WorkspaceLayoutProjectState {
 const LIVE_TERMINAL_PREFIX = "terminal:";
 const LIVE_BROWSER_PREFIX = "browser:";
 
-export const isLiveWorkspaceResourceItemId = (id: string): boolean =>
+const isLiveWorkspaceResourceItemId = (id: string): boolean =>
   id.startsWith(LIVE_TERMINAL_PREFIX) || id.startsWith(LIVE_BROWSER_PREFIX);
 
 /**
@@ -72,7 +72,7 @@ export const isLiveWorkspaceResourceItemId = (id: string): boolean =>
  * empty, absolute, or root-escaping paths. Pure string logic: the decision
  * must not touch the filesystem.
  */
-export function normalizeWorkspaceRelativePath(rawPath: string): string | null {
+function normalizeWorkspaceRelativePath(rawPath: string): string | null {
   const trimmed = rawPath.trim();
   if (trimmed.length === 0) return null;
   if (
@@ -96,7 +96,7 @@ export function normalizeWorkspaceRelativePath(rawPath: string): string | null {
   return resolved.length === 0 ? null : resolved.join("/");
 }
 
-export const findWorkspaceLayoutEntryById = (
+const findWorkspaceLayoutEntryById = (
   layout: ReadonlyArray<ProjectWorkspaceEntry>,
   itemId: ProjectWorkspaceItemId,
 ): ProjectWorkspaceEntry | undefined => layout.find((entry) => entry.id === itemId);
@@ -108,12 +108,10 @@ const isContainerKind = (kind: ProjectWorkspaceEntry["kind"]): boolean =>
 const sortByRank = (
   entries: ReadonlyArray<ProjectWorkspaceEntry>,
 ): ReadonlyArray<ProjectWorkspaceEntry> =>
-  entries.toSorted((left, right) =>
-    left.rank < right.rank ? -1 : left.rank > right.rank ? 1 : 0,
-  );
+  entries.toSorted((left, right) => (left.rank < right.rank ? -1 : left.rank > right.rank ? 1 : 0));
 
 /** All descendant ids of `rootId`, not including `rootId` itself. */
-export function collectWorkspaceLayoutDescendantIds(
+function collectWorkspaceLayoutDescendantIds(
   layout: ReadonlyArray<ProjectWorkspaceEntry>,
   rootId: ProjectWorkspaceItemId,
 ): ReadonlySet<ProjectWorkspaceItemId> {
@@ -140,7 +138,7 @@ export function collectWorkspaceLayoutDescendantIds(
  * `beforeId` (or last when null). `excludeItemId` omits the moving item from
  * the sibling scan.
  */
-export function computeWorkspaceLayoutPlacementRank(input: {
+function computeWorkspaceLayoutPlacementRank(input: {
   readonly layout: ReadonlyArray<ProjectWorkspaceEntry>;
   readonly parentId: ProjectWorkspaceItemId | null;
   readonly beforeId: ProjectWorkspaceItemId | null;
@@ -167,7 +165,7 @@ export function computeWorkspaceLayoutPlacementRank(input: {
  * its own parent, appended after that parent's existing children in their
  * original order, so no child is orphaned and ranks cannot collide.
  */
-export function removeWorkspaceLayoutEntryById(
+function removeWorkspaceLayoutEntryById(
   layout: ReadonlyArray<ProjectWorkspaceEntry>,
   itemId: ProjectWorkspaceItemId,
 ): ReadonlyArray<ProjectWorkspaceEntry> {

@@ -228,7 +228,6 @@ it.layer(NodeServices.layer)("decider project.workspace-layout.apply", (it) => {
       if (!isInvariantError(error)) {
         throw new Error("expected an ProjectCommandInvariantError");
       }
-      // @effect-diagnostics-next-line preferSchemaOverJson:off - Decoding the invariant error's raw detail for assertions.
       const detail = JSON.parse(error.detail);
       expect(detail.currentVersion).toBe(5);
     }),

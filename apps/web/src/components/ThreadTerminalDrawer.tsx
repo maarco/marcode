@@ -886,6 +886,7 @@ export function TerminalViewport({
                 void openTerminalLinkInPreview({
                   url: match.text,
                   threadRef,
+                  // oxlint-disable-next-line react/exhaustive-effect-dependencies -- this effect owns the xterm instance: it must rebuild only when the terminal identity changes (environmentId is part of it), and openPreview/threadRef are read lazily at link-click time, so adding them would tear the terminal down on a new callback identity
                   openPreview,
                   fallbackToBrowser,
                   // Upstream added an explicit escape to the system browser.
@@ -1078,6 +1079,7 @@ export function TerminalViewport({
     return () => {
       window.cancelAnimationFrame(frame);
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- focusRequestId is the re-run trigger: each new request must refocus the terminal
   }, [autoFocus, focusRequestId]);
 
   useEffect(() => {
@@ -1095,6 +1097,7 @@ export function TerminalViewport({
     return () => {
       window.cancelAnimationFrame(frame);
     };
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- drawerHeight, environmentId, resizeEpoch and threadId are the re-fit triggers: the body reads only refs and the terminal instance
   }, [drawerHeight, environmentId, resizeEpoch, terminalId, threadId]);
   return (
     <div
@@ -1925,6 +1928,7 @@ export default function ThreadTerminalDrawer({
 
   useEffect(() => {
     lastSyncedHeightRef.current = controlledDrawerHeight;
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- threadId is the reset trigger: switching threads re-seeds the synced height
   }, [controlledDrawerHeight, threadId]);
 
   const handleResizePointerDown = useCallback((event: ReactPointerEvent<HTMLDivElement>) => {

@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 
 import { cn } from "~/lib/utils";
 import { startChatAmbientAnimation } from "../chat/chatAmbientAnimation";
+import { observeResize } from "~/lib/observeResize";
 
 const VERTEX_SHADER = `#version 300 es
 precision highp float;
@@ -123,6 +124,7 @@ export default function AnimatedShaderHeroBackground({ className }: AnimatedShad
     const buffer = gl.createBuffer();
     if (!program || !buffer) return;
 
+    const bindProgram = gl.useProgram.bind(gl);
     gl.attachShader(program, vertexShader);
     gl.attachShader(program, fragmentShader);
     gl.linkProgram(program);
@@ -139,7 +141,7 @@ export default function AnimatedShaderHeroBackground({ className }: AnimatedShad
     const time = gl.getUniformLocation(program, "time");
     if (position < 0 || !resolution || !time) return;
 
-    gl.useProgram(program);
+    bindProgram(program);
     gl.enableVertexAttribArray(position);
     gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
 
@@ -156,22 +158,20 @@ export default function AnimatedShaderHeroBackground({ className }: AnimatedShad
 
     const render = (elapsed: number) => {
       resize();
-      gl.useProgram(program);
+      bindProgram(program);
       gl.uniform2f(resolution, canvas.width, canvas.height);
       gl.uniform1f(time, elapsed);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
 
     const repaint = () => render(performance.now() * 0.001);
-    const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(repaint);
-    resizeObserver?.observe(canvas);
+    const stopObservingResize = observeResize(canvas, repaint);
     window.addEventListener("resize", repaint);
     const disposeAnimation = startChatAmbientAnimation({ element: canvas, render });
 
     return () => {
       window.removeEventListener("resize", repaint);
-      resizeObserver?.disconnect();
+      stopObservingResize();
       disposeAnimation();
       gl.deleteBuffer(buffer);
       gl.deleteProgram(program);

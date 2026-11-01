@@ -23,7 +23,10 @@ export function Breadcrumb({ paneId, rootPath }: BreadcrumbProps) {
       {segments.map((seg, i) => {
         const isLast = i === segments.length - 1;
         return (
-          <div key={i} className="flex items-center gap-0.5 shrink-0">
+          <div
+            key={segments.slice(0, i + 1).join("/")}
+            className="flex items-center gap-0.5 shrink-0"
+          >
             {i > 0 && <ArrowRight1Filled className="h-2.5 w-2.5 text-white/15 shrink-0" />}
             <span
               className={`text-[10px] font-mono ${

@@ -189,9 +189,9 @@ export function SearchPanel({ workspacePath }: SearchPanelProps) {
                 </div>
 
                 {/* file results */}
-                {fileResults.map((r, idx) => (
+                {fileResults.map((r) => (
                   <div
-                    key={idx}
+                    key={`${r.line}:${r.column}`}
                     onClick={() => handleResultClick(r)}
                     className="px-3 py-1 text-xs font-mono hover:bg-accent transition-colors cursor-pointer border-l-2 border-transparent hover:border-foreground/20 overflow-hidden"
                   >
