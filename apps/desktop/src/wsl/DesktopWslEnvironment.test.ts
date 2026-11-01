@@ -280,7 +280,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         ': > "$work/tar-calls"',
         'PATH="$work/bin:$PATH"',
         "export PATH",
-        `cat > "$work/install.sh" <<'T3CODE_INSTALL_SCRIPT'`,
+        `cat > "$work/install.sh" <<'MARCODE_INSTALL_SCRIPT'`,
         fixture.installScript(),
         "MARCODE_INSTALL_SCRIPT",
         // Keep runtime roots out of both racers' argv so their /proc scans cannot match themselves.

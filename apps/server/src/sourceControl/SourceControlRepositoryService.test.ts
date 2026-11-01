@@ -449,7 +449,7 @@ it.effect("strips embedded credentials from the remote URL it reports", () =>
     const result = yield* Effect.gen(function* () {
       const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
       return yield* service.prepareClone({
-        remoteUrl: "https://user:s3cret@github.com/octocat/t3code.git",
+        remoteUrl: "https://user:s3cret@github.com/octocat/marcode.git",
         destinationPath,
       });
     }).pipe(
@@ -509,12 +509,12 @@ it.effect("redacts query tokens and userinfo containing '@' from reported URLs",
     yield* Effect.gen(function* () {
       const service = yield* SourceControlRepositoryService.SourceControlRepositoryService;
       const query = yield* service.prepareClone({
-        remoteUrl: "https://github.com/octocat/t3code.git?access_token=s3cret",
+        remoteUrl: "https://github.com/octocat/marcode.git?access_token=s3cret",
         destinationPath: path.join(parent, "a"),
       });
-      assert.equal(query.remoteUrl, "https://github.com/octocat/t3code.git");
+      assert.equal(query.remoteUrl, "https://github.com/octocat/marcode.git");
       const nested = yield* service.prepareClone({
-        remoteUrl: "https://user:pa@rt@github.com/octocat/t3code.git",
+        remoteUrl: "https://user:pa@rt@github.com/octocat/marcode.git",
         destinationPath: path.join(parent, "b"),
       });
       assert.equal(nested.remoteUrl, "https://github.com/octocat/marcode.git");
