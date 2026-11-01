@@ -32,7 +32,7 @@ const bitbucketPullRequest = {
   updated_on: "2026-01-02T00:00:00.000Z",
   links: {
     html: {
-      href: "https://bitbucket.org/pingdotgg/t3code/pull-requests/42",
+      href: "https://bitbucket.org/pingdotgg/marcode/pull-requests/42",
     },
   },
   source: {
@@ -45,19 +45,19 @@ const bitbucketPullRequest = {
   destination: {
     branch: { name: "main" },
     repository: {
-      full_name: "pingdotgg/t3code",
+      full_name: "pingdotgg/marcode",
       workspace: { slug: "pingdotgg" },
     },
   },
 };
 
 const repositoryJson = {
-  full_name: "pingdotgg/t3code",
+  full_name: "pingdotgg/marcode",
   links: {
-    html: { href: "https://bitbucket.org/pingdotgg/t3code" },
+    html: { href: "https://bitbucket.org/pingdotgg/marcode" },
     clone: [
-      { name: "https", href: "https://bitbucket.org/pingdotgg/t3code.git" },
-      { name: "ssh", href: "git@bitbucket.org:pingdotgg/t3code.git" },
+      { name: "https", href: "https://bitbucket.org/pingdotgg/marcode.git" },
+      { name: "ssh", href: "git@bitbucket.org:pingdotgg/marcode.git" },
     ],
   },
   mainbranch: { name: "main" },
@@ -169,7 +169,7 @@ it.effect("parses pull request responses from the Bitbucket REST API", () => {
     assert.deepStrictEqual(result, {
       number: 42,
       title: "Add Bitbucket provider",
-      url: "https://bitbucket.org/pingdotgg/t3code/pull-requests/42",
+      url: "https://bitbucket.org/pingdotgg/marcode/pull-requests/42",
       baseRefName: "main",
       headRefName: "feature/source-control",
       state: "open",
@@ -180,7 +180,7 @@ it.effect("parses pull request responses from the Bitbucket REST API", () => {
     });
     assert.strictEqual(
       execute.mock.calls[0]?.[0].url,
-      "https://api.test.local/2.0/repositories/pingdotgg/t3code/pullrequests/42",
+      "https://api.test.local/2.0/repositories/pingdotgg/marcode/pullrequests/42",
     );
   }).pipe(Effect.provide(layer));
 });
@@ -280,7 +280,7 @@ it.effect.each([false, true])(
                   baseUrl: "https://bitbucket.org",
                 },
                 remoteName: "upstream",
-                remoteUrl: "git@bitbucket.org:PingDotGG/T3Code.git",
+                remoteUrl: "git@bitbucket.org:PingDotGG/Marcode.git",
               },
             }
           : {}),
@@ -307,7 +307,7 @@ it.effect("lists pull requests with Bitbucket state and source branch query para
             state: "MERGED",
             source: {
               branch: { name: "feature/merged" },
-              repository: { full_name: "pingdotgg/t3code" },
+              repository: { full_name: "pingdotgg/marcode" },
             },
           },
         ],
@@ -327,7 +327,7 @@ it.effect("lists pull requests with Bitbucket state and source branch query para
     const request = execute.mock.calls[0]?.[0];
     assert.strictEqual(
       request?.url,
-      "https://api.test.local/2.0/repositories/pingdotgg/t3code/pullrequests",
+      "https://api.test.local/2.0/repositories/pingdotgg/marcode/pullrequests",
     );
     assert.deepStrictEqual(request?.urlParams.params, [
       ["pagelen", "10"],
@@ -358,14 +358,14 @@ it.effect("reads repository clone URLs and default branch", () => {
     const bitbucket = yield* BitbucketApi.BitbucketApi;
     const cloneUrls = yield* bitbucket.getRepositoryCloneUrls({
       cwd: "/repo",
-      repository: "pingdotgg/t3code",
+      repository: "pingdotgg/marcode",
     });
     const defaultBranch = yield* bitbucket.getDefaultBranch({ cwd: "/repo" });
 
     assert.deepStrictEqual(cloneUrls, {
-      nameWithOwner: "pingdotgg/t3code",
-      url: "https://bitbucket.org/pingdotgg/t3code.git",
-      sshUrl: "git@bitbucket.org:pingdotgg/t3code.git",
+      nameWithOwner: "pingdotgg/marcode",
+      url: "https://bitbucket.org/pingdotgg/marcode.git",
+      sshUrl: "git@bitbucket.org:pingdotgg/marcode.git",
     });
     assert.strictEqual(defaultBranch, "main");
   }).pipe(Effect.provide(layer));
@@ -548,8 +548,8 @@ it.effect(
       assert.deepStrictEqual(
         execute.mock.calls.map((call) => call[0].url).toSorted(),
         [
-          "https://api.test.local/2.0/repositories/pingdotgg/t3code",
-          "https://api.test.local/2.0/repositories/pingdotgg/t3code/branching-model",
+          "https://api.test.local/2.0/repositories/pingdotgg/marcode",
+          "https://api.test.local/2.0/repositories/pingdotgg/marcode/branching-model",
         ].toSorted(),
       );
     }).pipe(Effect.provide(layer));
@@ -605,7 +605,7 @@ it.effect("creates pull requests using the official REST payload shape", () => {
     const request = execute.mock.calls[0]?.[0];
     assert.strictEqual(
       request?.url,
-      "https://api.test.local/2.0/repositories/pingdotgg/t3code/pullrequests",
+      "https://api.test.local/2.0/repositories/pingdotgg/marcode/pullrequests",
     );
     assert.strictEqual(request?.method, "POST");
     assert.ok(request);
@@ -616,7 +616,7 @@ it.effect("creates pull requests using the official REST payload shape", () => {
       description: "PR body",
       source: {
         branch: { name: "feature/provider" },
-        repository: { full_name: "owner/t3code" },
+        repository: { full_name: "owner/marcode" },
       },
       destination: {
         branch: { name: "main" },

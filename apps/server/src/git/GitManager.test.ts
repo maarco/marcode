@@ -1094,7 +1094,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
               {
                 number: 216,
                 title: "Saved branch PR",
-                url: "https://github.com/pingdotgg/marcode/pull/216",
+                url: "https://github.com/pingdotgg/t3code/pull/216",
                 baseRefName: "main",
                 headRefName: "feature/saved-branch",
                 headSha: "a".repeat(40),
@@ -3775,7 +3775,7 @@ it.layer(layerGitManagerTest)("GitManager", (it) => {
                 {
                   number: 1661,
                   title: "Fork PR with same branch name",
-                  url: "https://github.com/pingdotgg/marcode/pull/1661",
+                  url: "https://github.com/pingdotgg/t3code/pull/1661",
                   baseRefName: "main",
                   headRefName: "feature/no-fork-match",
                   state: "open",

@@ -280,7 +280,7 @@ it.layer(NodeServices.layer)("cli config resolution", (it) => {
         lan: Option.none<boolean>(),
       };
       const layerConfig = ConfigProvider.layer(
-        ConfigProvider.fromEnv({ env: { MARCODE_DEV_AUTH_TOKEN: secret } }),
+        ConfigProvider.fromEnv({ env: { T3CODE_DEV_AUTH_TOKEN: secret } }),
       );
       const error = yield* resolveServerConfig(flags, Option.none()).pipe(
         Effect.provide(Layer.mergeAll(layerConfig, NetService.layer)),

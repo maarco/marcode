@@ -72,7 +72,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("t3 up with T3 Co
       link.mode = input.prior ?? "managed";
       const fs = yield* FileSystem.FileSystem;
       const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-up-connect-test-" });
-      yield* fs.writeFileString(`${baseDir}/service.env`, "T3CODE_LAN=false\n");
+      yield* fs.writeFileString(`${baseDir}/service.env`, "MARCODE_LAN=false\n");
       const status = {
         supported: true,
         installed: true,
@@ -120,7 +120,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NetService.layer))("t3 up with T3 Co
           ? { desired: false, mode: "managed" }
           : { desired: true, mode: input.prior },
       );
-      expect(yield* fs.readFileString(`${baseDir}/service.env`)).toBe("T3CODE_LAN=false\n");
+      expect(yield* fs.readFileString(`${baseDir}/service.env`)).toBe("MARCODE_LAN=false\n");
     }),
   );
 });

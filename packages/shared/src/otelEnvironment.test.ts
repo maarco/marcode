@@ -264,7 +264,7 @@ describe("OtelEnvironment", () => {
           url: "http://t3:4318/v1/logs",
           export: t3Export,
           source: "environment" as const,
-          variable: "T3CODE_OTLP_LOGS_URL",
+          variable: "MARCODE_OTLP_LOGS_URL",
         },
       },
       {
@@ -393,13 +393,13 @@ describe("isRelayTracingEnabled", () => {
     assert.isTrue(
       OtelEnvironment.isRelayTracingEnabled({
         OTEL_SDK_DISABLED: "true",
-        T3CODE_OTEL_SDK_DISABLED: "false",
+        MARCODE_OTEL_SDK_DISABLED: "false",
       }),
     );
     assert.isFalse(
       OtelEnvironment.isRelayTracingEnabled({
         OTEL_SDK_DISABLED: "false",
-        T3CODE_OTEL_SDK_DISABLED: "true",
+        MARCODE_OTEL_SDK_DISABLED: "true",
       }),
     );
   });
@@ -408,7 +408,7 @@ describe("isRelayTracingEnabled", () => {
     Effect.gen(function* () {
       const env = {
         T3CODE_TELEMETRY_ENABLED: "false",
-        T3CODE_OTEL_SDK_DISABLED: "false",
+        MARCODE_OTEL_SDK_DISABLED: "false",
         OTEL_SDK_DISABLED: "true",
         OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "https://user.example.test/v1/traces",
       };

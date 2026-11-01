@@ -356,7 +356,7 @@ export const resolveSignalEndpoint = (
       url: t3Url,
       export: t3.export,
       source: "environment",
-      variable: `T3CODE_OTLP_${signal.toUpperCase()}_URL`,
+      variable: `MARCODE_OTLP_${signal.toUpperCase()}_URL`,
     };
   }
   return OtelSignal.$match(otel[signal], {
