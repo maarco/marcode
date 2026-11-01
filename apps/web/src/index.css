@@ -952,6 +952,16 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     margin-top: var(--marcode-floating-pill-nav-top-inset);
   }
 
+  /* Settings and Usage open as a full-viewport modal whose own header is not a
+     workspace header; without this the top-docked pill covers its title and
+     close button (390px) or its search box (820px). */
+  html[data-floating-pill-nav-top="true"] [data-app-modal] {
+    padding-top: max(
+      var(--marcode-floating-pill-nav-top-inset),
+      env(safe-area-inset-top)
+    ) !important;
+  }
+
   /* Mentiko's decision header pattern: the animated GIF is the fill, and the
      browser clips that fill to each glyph. Keep the filter monochrome so the
      movement reads as light in the dark thread shell instead of as a neon blob. */
