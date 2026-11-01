@@ -2,6 +2,7 @@ import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { XIcon } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
+import { portalOverlayStyle } from "~/editor/floating-surface-z";
 import { useCloseAppModal } from "./sidebar/mainAppLocation";
 import { Button } from "./ui/button";
 import { DialogBackdrop } from "./ui/dialog";
@@ -42,6 +43,7 @@ export function AppRouteModal({ label, children }: { label: string; children: Re
         <DialogBackdrop />
         <DialogPrimitive.Viewport
           className="fixed inset-0 z-50 flex items-center justify-center sm:p-6 lg:p-10"
+          style={portalOverlayStyle()}
           onPointerDown={(event) => {
             backdropPressRef.current = event.target === event.currentTarget;
           }}

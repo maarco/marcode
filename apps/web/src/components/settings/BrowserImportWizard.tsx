@@ -262,7 +262,7 @@ function FullDiskAccessStep({
       <DialogHeader>
         <DialogTitle>Let Marcode read {source.name}&rsquo;s cookies</DialogTitle>
         <DialogDescription>
-          To import cookies from {source.name}, T3 Code needs Full Disk Access. Turn it on in System
+          To import cookies from {source.name}, Marcode needs Full Disk Access. Turn it on in System
           Settings, then come back to finish the import. You can revoke it again once the import is
           done.
         </DialogDescription>
