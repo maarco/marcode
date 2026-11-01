@@ -92,7 +92,6 @@ export const PULL_REQUESTS_PANEL_REF = scopeThreadRef(
   ThreadId.make("pull-requests-panel"),
 );
 
-
 export interface ThreadRightPanelState {
   isOpen: boolean;
   activeSurfaceId: string | null;

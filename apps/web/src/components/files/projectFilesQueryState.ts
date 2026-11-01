@@ -202,8 +202,8 @@ export function useProjectEntriesQuery(
   const { canReadFiles } = fileAccess;
   const atom =
     canReadFiles && environmentId !== null
-    ? getProjectEntriesQueryAtom(environmentId, cwd, directoryPath)
-    : EMPTY_PROJECT_ENTRIES_QUERY_ATOM;
+      ? getProjectEntriesQueryAtom(environmentId, cwd, directoryPath)
+      : EMPTY_PROJECT_ENTRIES_QUERY_ATOM;
   const result = useAtomValue(revisionedQuery(atom, canReadFiles ? revision : undefined));
   const refreshAtom = useAtomRefresh(atom);
   const refresh = () => refreshAtom();

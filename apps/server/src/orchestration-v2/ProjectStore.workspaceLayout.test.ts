@@ -90,7 +90,13 @@ it.layer(ProjectStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemor
         const { projects, projectId } = yield* seed("layout-ops");
         yield* applyOp(projects, projectId, 2, {
           type: "attach-path",
-          entry: { kind: "folder", id: itemId("folder"), parentId: null, rank: "a", relativePath: "src" },
+          entry: {
+            kind: "folder",
+            id: itemId("folder"),
+            parentId: null,
+            rank: "a",
+            relativePath: "src",
+          },
         });
         yield* applyOp(projects, projectId, 3, {
           type: "attach-path",
@@ -102,7 +108,11 @@ it.layer(ProjectStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemor
             relativePath: "src/a.ts",
           },
         });
-        yield* applyOp(projects, projectId, 4, { type: "rename", itemId: itemId("folder"), label: "Source" });
+        yield* applyOp(projects, projectId, 4, {
+          type: "rename",
+          itemId: itemId("folder"),
+          label: "Source",
+        });
         yield* applyOp(projects, projectId, 5, { type: "remove", itemId: itemId("folder") });
         const shell = Option.getOrThrow(yield* projects.getShell(projectId));
         assert.strictEqual(shell.workspaceLayoutVersion, 4);

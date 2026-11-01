@@ -62,12 +62,12 @@ export class MobileTelemetrySettings extends Context.Service<
     readonly axiomToken: Redacted.Redacted<string>;
     readonly destinations: Readonly<Record<RelayMobileTelemetrySignal, AxiomDestination>>;
   }
->()("t3code-relay/mobileTelemetry/MobileTelemetry/MobileTelemetrySettings") {}
+>()("marcode-relay/mobileTelemetry/MobileTelemetry/MobileTelemetrySettings") {}
 
 export class MobileTelemetryRateLimiter extends Context.Service<
   MobileTelemetryRateLimiter,
   { readonly allow: (key: string) => Effect.Effect<boolean> }
->()("t3code-relay/mobileTelemetry/MobileTelemetry/MobileTelemetryRateLimiter") {}
+>()("marcode-relay/mobileTelemetry/MobileTelemetry/MobileTelemetryRateLimiter") {}
 
 export class SourceMapObjectError extends Schema.TaggedError<SourceMapObjectError>()(
   "SourceMapObjectError",
@@ -90,14 +90,14 @@ export class SourceMaps extends Context.Service<
   {
     readonly find: (key: string) => Effect.Effect<FoundSourceMap | SourceMapMiss>;
   }
->()("t3code-relay/mobileTelemetry/MobileTelemetry/SourceMaps") {}
+>()("marcode-relay/mobileTelemetry/MobileTelemetry/SourceMaps") {}
 
 export class SourceMapObjects extends Context.Service<
   SourceMapObjects,
   {
     readonly get: (key: string) => Effect.Effect<StoredSourceMap | undefined, SourceMapObjectError>;
   }
->()("t3code-relay/mobileTelemetry/MobileTelemetry/SourceMapObjects") {}
+>()("marcode-relay/mobileTelemetry/MobileTelemetry/SourceMapObjects") {}
 
 const makeSourceMaps = Effect.gen(function* () {
   const objects = yield* SourceMapObjects;
@@ -156,7 +156,7 @@ export class MobileTelemetry extends Context.Service<
       params: { readonly projectId: string; readonly signal: RelayMobileTelemetrySignal },
     ) => Effect.Effect<HttpServerResponse.HttpServerResponse>;
   }
->()("t3code-relay/mobileTelemetry/MobileTelemetry") {}
+>()("marcode-relay/mobileTelemetry/MobileTelemetry") {}
 
 class BodyTooLarge extends Schema.TaggedError<BodyTooLarge>()("BodyTooLarge", {}) {}
 

@@ -260,7 +260,10 @@ it.effect.each([false, true])(
       response: () =>
         Response.json({
           ...bitbucketPullRequest,
-          source: { ...bitbucketPullRequest.source, repository: { full_name: "pingdotgg/marcode" } },
+          source: {
+            ...bitbucketPullRequest.source,
+            repository: { full_name: "pingdotgg/marcode" },
+          },
         }),
     });
     return Effect.gen(function* () {

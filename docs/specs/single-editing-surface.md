@@ -207,7 +207,7 @@ The pill has a real narrow mode, not a desktop layout squeezed:
 - `MOBILE_BREAKPOINT = 640` (`floating-code-pill.tsx:73`), applied via
   `matchMedia` with a live `change` listener (`:147-152`).
 - At that width the panel goes full-bleed — `MOBILE_BOUNDS = {top:0, left:0,
-right:0, bottom:0}` (`:72`) — and the sidebar starts collapsed (`:151`).
+  right:0, bottom:0}` (`:72`) — and the sidebar starts collapsed (`:151`).
 - The file tree becomes a collapsible top panel capped at 40% height
   (`:592-596`), toggled by a header button that only exists on mobile
   (`:511-519`).
@@ -680,7 +680,7 @@ Simplified:
 
 - `open` and `toggle` lose the `Exclude<..., "file" | "terminal">` gymnastics
   (`:53`, `:88`, `:99`) — with `"file"` gone, `Exclude<RightPanelKind,
-"terminal">` is the whole story.
+  "terminal">` is the whole story.
 - `withoutStandaloneExplorer` (`:291-293`) — the rule that opening a file
   replaces the standalone explorer surface. _[review]_ An earlier draft
   attributed this to `openBrowser`; it actually lives inside `openFile` and dies

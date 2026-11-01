@@ -9,6 +9,7 @@ import {
   DropdownMenuGroup,
 } from "./ui-dropdown-menu";
 import { cn } from "~/lib/utils";
+import { guarded } from "./guarded";
 import { showToast } from "./toast";
 import { useEditorStore } from "./editor-store";
 import { useEnvironmentQuery } from "~/state/query";
@@ -146,29 +147,33 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
     e.preventDefault();
     if (!canCreateBranch || environmentId === null) return;
 
-    try {
-      setActionLoading("__create__");
-      setError(null);
-      const result = await createRef({
-        environmentId,
-        input: { cwd: workspacePath, refName: createInput.trim() },
-      });
+    await guarded(
+      async () => {
+        setActionLoading("__create__");
+        setError(null);
+        const result = await createRef({
+          environmentId,
+          input: { cwd: workspacePath, refName: createInput.trim() },
+        });
 
-      const failure = resultErrorMessage(result);
-      if (failure) {
-        setError(failure);
-        return;
-      }
+        const failure = resultErrorMessage(result);
+        if (failure) {
+          setError(failure);
+          return;
+        }
 
-      setCreateInput("");
-      setCreateValidationError(null);
-      refresh();
-      showToast({ type: "success", title: "Branch created", message: createInput.trim() });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create branch");
-    } finally {
-      setActionLoading(null);
-    }
+        setCreateInput("");
+        setCreateValidationError(null);
+        refresh();
+        showToast({ type: "success", title: "Branch created", message: createInput.trim() });
+      },
+      (e) => {
+        setError(e instanceof Error ? e.message : "Failed to create branch");
+      },
+      () => {
+        setActionLoading(null);
+      },
+    );
   };
 
   const handleSwitchBranch = async (branchName: string) => {
@@ -177,29 +182,33 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
       return;
     }
 
-    try {
-      setActionLoading(branchName);
-      setError(null);
-      const result = await switchRef({
-        environmentId,
-        input: { cwd: workspacePath, refName: branchName },
-      });
+    await guarded(
+      async () => {
+        setActionLoading(branchName);
+        setError(null);
+        const result = await switchRef({
+          environmentId,
+          input: { cwd: workspacePath, refName: branchName },
+        });
 
-      const failure = resultErrorMessage(result);
-      if (failure) {
-        setError(failure);
-        return;
-      }
+        const failure = resultErrorMessage(result);
+        if (failure) {
+          setError(failure);
+          return;
+        }
 
-      setIsOpen(false);
-      refresh();
-      showToast({ type: "success", title: "Switched branch", message: branchName });
-      onBranchSwitch?.(branchName);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to switch branch");
-    } finally {
-      setActionLoading(null);
-    }
+        setIsOpen(false);
+        refresh();
+        showToast({ type: "success", title: "Switched branch", message: branchName });
+        onBranchSwitch?.(branchName);
+      },
+      (e) => {
+        setError(e instanceof Error ? e.message : "Failed to switch branch");
+      },
+      () => {
+        setActionLoading(null);
+      },
+    );
   };
 
   /**
@@ -218,35 +227,39 @@ export function BranchSelector({ workspacePath, onBranchSwitch }: BranchSelector
 
   const handleDeleteBranch = async (branchName: string, force = false) => {
     if (environmentId === null) return;
-    try {
-      setActionLoading(branchName);
-      setError(null);
-      const result = await deleteRef({
-        environmentId,
-        input: { cwd: workspacePath, refName: branchName, force },
-      });
+    await guarded(
+      async () => {
+        setActionLoading(branchName);
+        setError(null);
+        const result = await deleteRef({
+          environmentId,
+          input: { cwd: workspacePath, refName: branchName, force },
+        });
 
-      const failure = resultErrorMessage(result);
-      if (failure) {
-        // Prompt for force-delete when the branch has unmerged commits.
-        const isNotMerged = failure.toLowerCase().includes("not fully merged");
-        if (!force && isNotMerged) {
-          setShowDeleteConfirm({ branchName, force: true });
-          setError("Branch has unmerged changes. Use force delete to remove it.");
-        } else {
-          setError(failure);
+        const failure = resultErrorMessage(result);
+        if (failure) {
+          // Prompt for force-delete when the branch has unmerged commits.
+          const isNotMerged = failure.toLowerCase().includes("not fully merged");
+          if (!force && isNotMerged) {
+            setShowDeleteConfirm({ branchName, force: true });
+            setError("Branch has unmerged changes. Use force delete to remove it.");
+          } else {
+            setError(failure);
+          }
+          return;
         }
-        return;
-      }
 
-      setShowDeleteConfirm(null);
-      refresh();
-      showToast({ type: "success", title: "Branch deleted", message: branchName });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to delete branch");
-    } finally {
-      setActionLoading(null);
-    }
+        setShowDeleteConfirm(null);
+        refresh();
+        showToast({ type: "success", title: "Branch deleted", message: branchName });
+      },
+      (e) => {
+        setError(e instanceof Error ? e.message : "Failed to delete branch");
+      },
+      () => {
+        setActionLoading(null);
+      },
+    );
   };
 
   const loading = refsQuery.isPending && refs.length === 0;

@@ -705,13 +705,15 @@ export function FloatingPillNav() {
     isMobile: false,
     isDragging: false,
   });
-  geometryMeta.current = {
-    edge: isDragging ? edgeProximity.edge : position.edge,
-    offset: position.offset,
-    scale: pillScale,
-    isMobile,
-    isDragging,
-  };
+  useLayoutEffect(() => {
+    geometryMeta.current = {
+      edge: isDragging ? edgeProximity.edge : position.edge,
+      offset: position.offset,
+      scale: pillScale,
+      isMobile,
+      isDragging,
+    };
+  });
   const publishGeometry = useCallback(() => {
     const element = pillRef.current;
     if (!element) return;
@@ -834,7 +836,7 @@ export function FloatingPillNav() {
   const summonIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const summonStartTime = useRef<number | null>(null);
   const summonRaf = useRef<number | null>(null);
-  const summonStartPos = useRef<{ x: number; y: number } | null>(null);
+  const [summonStart, setSummonStart] = useState<{ x: number; y: number } | null>(null);
 
   // hydration: load from localStorage after mount
   useEffect(() => {
@@ -900,7 +902,7 @@ export function FloatingPillNav() {
     }
     summonAnchor.current = null;
     summonStartTime.current = null;
-    summonStartPos.current = null;
+    setSummonStart(null);
     setSummonProgress(0);
     setSummonTarget(null);
   }, []);
@@ -940,7 +942,7 @@ export function FloatingPillNav() {
           startY = (position.offset / 100) * h;
           break;
       }
-      summonStartPos.current = { x: startX, y: startY };
+      setSummonStart({ x: startX, y: startY });
       summonStartTime.current = performance.now();
       setSummonTarget({ x: anchor.x, y: anchor.y, edge });
 
@@ -1218,10 +1220,12 @@ export function FloatingPillNav() {
   const beginDragRef = useRef(beginDrag);
   const moveDragRef = useRef(moveDrag);
   const endDragRef = useRef(endDrag);
-  isLockedRef.current = isLocked;
-  beginDragRef.current = beginDrag;
-  moveDragRef.current = moveDrag;
-  endDragRef.current = endDrag;
+  useLayoutEffect(() => {
+    isLockedRef.current = isLocked;
+    beginDragRef.current = beginDrag;
+    moveDragRef.current = moveDrag;
+    endDragRef.current = endDrag;
+  });
 
   useEffect(() => {
     const grip = gripRef.current;
@@ -1318,7 +1322,6 @@ export function FloatingPillNav() {
   }
 
   // during summon: interpolate pill position from docked to cursor edge
-  const summonStart = summonStartPos.current;
   const isSummoning = summonTarget && summonProgress > 0 && summonStart;
   let summonStyle: React.CSSProperties | null = null;
   if (isSummoning) {

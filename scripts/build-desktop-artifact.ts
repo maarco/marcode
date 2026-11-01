@@ -2292,7 +2292,6 @@ export const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBund
   },
 );
 
-
 export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(function* (input: {
   readonly backend: "kde" | "hyprland";
   readonly repoRoot: string;

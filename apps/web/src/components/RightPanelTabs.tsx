@@ -1269,7 +1269,7 @@ export function RightPanelTabs(props: RightPanelTabsProps) {
                 surfacesCount={props.surfaces.length}
                 open={addSurfaceMenuOpen}
                 onOpenChange={setAddSurfaceMenuOpen}
-                triggerRef={addSurfaceTriggerRef}
+                triggerHandle={addSurfaceTriggerRef}
                 onAddBrowser={props.onAddBrowser}
                 onAddBrowserInProfile={props.onAddBrowserInProfile}
                 browserProfiles={browserProfiles}

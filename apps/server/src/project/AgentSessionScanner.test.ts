@@ -897,7 +897,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
 
           const input = { claudeHomePath, codexHomePath, configBaseDir };
           const result = yield* runScan(input);
-          const git = { remoteKey: "github.com/pingdotgg/marcode", repository: "pingdotgg/marcode" };
+          const git = {
+            remoteKey: "github.com/pingdotgg/marcode",
+            repository: "pingdotgg/marcode",
+          };
           expect(
             result.candidates.map((candidate) => ({ path: candidate.path, git: candidate.git })),
           ).toEqual([

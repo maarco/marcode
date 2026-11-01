@@ -11,7 +11,6 @@ import { AsyncResult } from "effect/reactivity";
 import { expect, it, vi } from "vite-plus/test";
 
 import { act, render } from "../../test/render";
-import { useRightPanelStore } from "../rightPanelStore";
 
 const state = vi.hoisted(() => ({
   allowed: true,
@@ -25,6 +24,11 @@ const state = vi.hoisted(() => ({
   openExternal: vi.fn(),
   copy: vi.fn(),
   pullRequests: [] as ThreadPullRequestLink[],
+}));
+
+vi.mock(import("../editor/open-floating-file"), async (original) => ({
+  ...(await original()),
+  openFileInFloatingEditor: state.openFile,
 }));
 
 vi.mock(import("../state/use-atom-query-runner"), async (original) => ({
@@ -138,9 +142,6 @@ function setup() {
   state.openFile.mockReset();
   state.openExternal.mockReset().mockResolvedValue(undefined);
   state.copy.mockReset().mockResolvedValue(undefined);
-  const { openFile } = useRightPanelStore.getState();
-  useRightPanelStore.setState({ openFile: state.openFile });
-  stack.defer(() => useRightPanelStore.setState({ openFile }));
   stack.use(vi.spyOn(navigator.clipboard, "writeText").mockImplementation(state.copy));
   stack.use(
     vi.spyOn(navigator.clipboard, "write").mockImplementation(async (items) => {
@@ -192,7 +193,13 @@ it("removes host actions after revocation while keeping file preview and copying
   expect(offeredActions()).toEqual(["copy-relative", "copy-full"]);
   await vi.waitFor(() => expect(state.copy).toHaveBeenCalledWith("/work/docs/readme.md"));
   await act(async () => screen.anchor().click());
-  expect(state.openFile).toHaveBeenCalledWith(threadRef, "docs/readme.md", undefined);
+  expect(state.openFile).toHaveBeenCalledWith({
+    environmentId: threadRef.environmentId,
+    workspacePath: "/work",
+    relativePath: "docs/readme.md",
+    line: undefined,
+    assetThreadId: threadRef.threadId,
+  });
   expect(state.openEditor).not.toHaveBeenCalled();
 });
 

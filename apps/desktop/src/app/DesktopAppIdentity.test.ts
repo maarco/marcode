@@ -134,7 +134,8 @@ const withIdentity = <A, E, R>(
               input.legacyPathProbeError
                 ? Effect.fail(input.legacyPathProbeError)
                 : Effect.succeed(
-                    input.legacyPathExists === true && /(T3 Code|Marcode) \((Alpha|Dev)\)/.test(path),
+                    input.legacyPathExists === true &&
+                      /(T3 Code|Marcode) \((Alpha|Dev)\)/.test(path),
                   ),
             readFileString: () =>
               Effect.succeed(input.packageJson ?? '{"marcodeCommitHash":"abcdef1234567890"}'),

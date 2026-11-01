@@ -8,13 +8,17 @@ import { act, render } from "../../test/render";
 import "../index.css";
 
 import { filesystemEnvironment } from "../state/filesystem";
-import { useRightPanelStore } from "../rightPanelStore";
+import { openFileInFloatingEditor } from "../editor/open-floating-file";
 import { setMarkdownTaskChecked } from "./files/filePreviewMode";
 import { HostImageUrlContext } from "./chat/hostImageUrl";
 
 const { workspaceSearch, filesystemMetadata } = vi.hoisted(() => ({
   workspaceSearch: vi.fn(),
   filesystemMetadata: vi.fn(),
+}));
+vi.mock(import("../editor/open-floating-file"), async (original) => ({
+  ...(await original()),
+  openFileInFloatingEditor: vi.fn(),
 }));
 const parsedSources = vi.hoisted(() => [] as string[]);
 vi.mock(import("mdast-util-from-markdown"), async (original) => {
@@ -295,9 +299,8 @@ describe("ChatMarkdown workspace file opens", () => {
       resolvePending = resolve;
     });
     workspaceSearch.mockReturnValueOnce(pending);
-    using openFile = vi
-      .spyOn(useRightPanelStore.getState(), "openFile")
-      .mockImplementation(() => {});
+    const openFile = vi.mocked(openFileInFloatingEditor);
+    openFile.mockClear();
     await using screen = await renderText(
       "[Notes](physics/notes/a.md) and [Other](/elsewhere/b.md:9)",
       {
@@ -314,7 +317,13 @@ describe("ChatMarkdown workspace file opens", () => {
     await act(async () => other!.click());
     await act(async () => resolvePending(result));
 
-    expect(openFile).toHaveBeenCalledExactlyOnceWith(threadRef, "/elsewhere/b.md", 9);
+    expect(openFile).toHaveBeenCalledExactlyOnceWith({
+      environmentId: threadRef.environmentId,
+      workspacePath: "/school/physics",
+      relativePath: "/elsewhere/b.md",
+      line: 9,
+      assetThreadId: threadRef.threadId,
+    });
     expect(workspaceSearch).toHaveBeenCalledOnce();
   });
 });
@@ -338,15 +347,19 @@ describe("ChatMarkdown skill chips", () => {
         },
       ],
     });
-    using openFile = vi
-      .spyOn(useRightPanelStore.getState(), "openFile")
-      .mockImplementation(() => {});
+    const openFile = vi.mocked(openFileInFloatingEditor);
+    openFile.mockClear();
 
     await userEvent.click(screen.getByRole("button", { name: "Skill Review. Show details" }));
     await expect.element(page.getByText("Reviews the current branch.")).toBeVisible();
     await userEvent.click(page.getByRole("button", { name: "View instructions" }));
 
-    expect(openFile).toHaveBeenCalledExactlyOnceWith(threadRef, "/skills/review/SKILL.md");
+    expect(openFile).toHaveBeenCalledExactlyOnceWith({
+      environmentId: threadRef.environmentId,
+      workspacePath: "",
+      relativePath: "/skills/review/SKILL.md",
+      assetThreadId: threadRef.threadId,
+    });
   });
 });
 

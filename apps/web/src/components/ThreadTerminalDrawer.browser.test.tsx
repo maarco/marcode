@@ -27,6 +27,7 @@ vi.mock("~/terminal/ghostty/surface", () => ({
 }));
 vi.mock("../state/terminalSessions", async () => {
   const Atom = await import("effect/reactivity/Atom");
+  const { useAtomValue } = await import("@effect/atom-react");
   const sessions = Atom.family((_environmentId: EnvironmentId) =>
     Atom.family((threadId: ThreadId) =>
       Atom.make({
@@ -39,6 +40,10 @@ vi.mock("../state/terminalSessions", async () => {
   return {
     attachedTerminalSessionAtom: (environmentId: EnvironmentId, terminal: { threadId: ThreadId }) =>
       sessions(environmentId)(terminal.threadId),
+    useAttachedTerminalSession: (input: {
+      environmentId: EnvironmentId;
+      terminal: { threadId: ThreadId };
+    }) => useAtomValue(sessions(input.environmentId)(input.terminal.threadId)),
   };
 });
 vi.mock("../state/session", () => ({
@@ -52,7 +57,10 @@ vi.mock("../state/use-atom-command", () => ({
 vi.mock("../state/server", async () => {
   const Atom = await import("effect/reactivity/Atom");
   const config = Atom.make(null);
-  return { serverEnvironment: { configValueAtom: () => config } };
+  return {
+    serverEnvironment: { configValueAtom: () => config },
+    primaryServerKeybindingsAtom: Atom.make([]),
+  };
 });
 vi.mock("../state/terminal", () => ({ terminalEnvironment: { write: {}, resize: {} } }));
 vi.mock("../state/preview", () => ({ previewEnvironment: { open: {} } }));
@@ -69,7 +77,7 @@ vi.mock("../hooks/useSettings", async () => {
 
 function Drawer(props: {
   threadRef: ScopedThreadRef;
-  onCloseTerminal: (terminalId: string, threadRef?: ScopedThreadRef) => void;
+  onCloseTerminal: (terminalId: string) => void;
 }) {
   return (
     <ThreadTerminalDrawer
@@ -126,5 +134,5 @@ it("closes an exited terminal on its own thread after navigating to one reusing 
   await act(async () => {
     vi.runOnlyPendingTimers();
   });
-  expect(onCloseTerminal.mock.calls).toEqual([["term-1", original]]);
+  expect(onCloseTerminal.mock.calls).toEqual([["term-1"]]);
 });

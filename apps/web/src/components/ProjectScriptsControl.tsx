@@ -278,7 +278,8 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
           icon,
           runOnWorktreeCreate,
           waitForSetup: false,
-          runOnSettle: scripts.find((script) => script.id === editingScriptId)?.runOnSettle ?? false,
+          runOnSettle:
+            scripts.find((script) => script.id === editingScriptId)?.runOnSettle ?? false,
           keybinding: keybindingRule?.key ?? null,
           previewUrl: trimmedPreviewUrl.length > 0 ? trimmedPreviewUrl : null,
           autoOpenPreview: trimmedPreviewUrl.length > 0 ? autoOpenPreview : false,

@@ -12,6 +12,7 @@ import {
 } from "@aliimam/icons";
 import { cva } from "class-variance-authority";
 import { cn } from "~/lib/utils";
+import { guarded } from "./guarded";
 import { WaveSpinner } from "./wave-spinner";
 import { showToast } from "./toast";
 import { useEditorStore } from "./editor-store";
@@ -667,33 +668,37 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
       if (environmentId === null) return;
       setCreateLoading(true);
       setCreateError(null);
-      try {
-        const result = await createStash({
-          environmentId,
-          input: {
-            cwd: workspacePath,
-            ...(message ? { message } : {}),
-            includeUntracked: true,
-          },
-        });
+      await guarded(
+        async () => {
+          const result = await createStash({
+            environmentId,
+            input: {
+              cwd: workspacePath,
+              ...(message ? { message } : {}),
+              includeUntracked: true,
+            },
+          });
 
-        const failure = resultErrorMessage(result);
-        if (failure) {
-          setCreateError(failure);
-          showToast({ type: "error", title: "Failed to create stash", message: failure });
-          return;
-        }
+          const failure = resultErrorMessage(result);
+          if (failure) {
+            setCreateError(failure);
+            showToast({ type: "error", title: "Failed to create stash", message: failure });
+            return;
+          }
 
-        showToast({ type: "success", title: "Stash created", message: "" });
-        setShowCreateDialog(false);
-        refresh();
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : "Failed to create stash";
-        setCreateError(errorMsg);
-        showToast({ type: "error", title: "Failed to create stash", message: errorMsg });
-      } finally {
-        setCreateLoading(false);
-      }
+          showToast({ type: "success", title: "Stash created", message: "" });
+          setShowCreateDialog(false);
+          refresh();
+        },
+        (e) => {
+          const errorMsg = e instanceof Error ? e.message : "Failed to create stash";
+          setCreateError(errorMsg);
+          showToast({ type: "error", title: "Failed to create stash", message: errorMsg });
+        },
+        () => {
+          setCreateLoading(false);
+        },
+      );
     },
     [createStash, environmentId, refresh, workspacePath],
   );
@@ -710,30 +715,34 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
       if (environmentId === null) return;
       setApplyConfirmStash(null);
       setApplyLoading(true);
-      try {
-        // commitSha (captured when this stash was listed) lets the server
-        // re-resolve the current stash@{N} for it and refuse rather than
-        // silently applying whatever now sits at a stale index.
-        const result = await applyStash({
-          environmentId,
-          input: { cwd: workspacePath, id: stash.id, commitSha: stash.commitSha },
-        });
+      await guarded(
+        async () => {
+          // commitSha (captured when this stash was listed) lets the server
+          // re-resolve the current stash@{N} for it and refuse rather than
+          // silently applying whatever now sits at a stale index.
+          const result = await applyStash({
+            environmentId,
+            input: { cwd: workspacePath, id: stash.id, commitSha: stash.commitSha },
+          });
 
-        const failure = resultErrorMessage(result);
-        if (failure) {
-          showToast({ type: "error", title: "Failed to apply stash", message: failure });
-          return;
-        }
+          const failure = resultErrorMessage(result);
+          if (failure) {
+            showToast({ type: "error", title: "Failed to apply stash", message: failure });
+            return;
+          }
 
-        showToast({ type: "success", title: "Stash applied", message: stash.id });
-        onStashApplied?.(stash.id);
-        refresh();
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : "Failed to apply stash";
-        showToast({ type: "error", title: "Failed to apply stash", message: errorMsg });
-      } finally {
-        setApplyLoading(false);
-      }
+          showToast({ type: "success", title: "Stash applied", message: stash.id });
+          onStashApplied?.(stash.id);
+          refresh();
+        },
+        (e) => {
+          const errorMsg = e instanceof Error ? e.message : "Failed to apply stash";
+          showToast({ type: "error", title: "Failed to apply stash", message: errorMsg });
+        },
+        () => {
+          setApplyLoading(false);
+        },
+      );
     },
     [applyStash, environmentId, onStashApplied, refresh, workspacePath],
   );
@@ -744,30 +753,34 @@ export function StashSelector({ workspacePath, onStashApplied }: StashSelectorPr
       if (environmentId === null) return;
       setDropLoading(true);
       setDropError(null);
-      try {
-        // Same stale-index guard as apply — drop is irreversible.
-        const result = await dropStash({
-          environmentId,
-          input: { cwd: workspacePath, id: stash.id, commitSha: stash.commitSha },
-        });
+      await guarded(
+        async () => {
+          // Same stale-index guard as apply — drop is irreversible.
+          const result = await dropStash({
+            environmentId,
+            input: { cwd: workspacePath, id: stash.id, commitSha: stash.commitSha },
+          });
 
-        const failure = resultErrorMessage(result);
-        if (failure) {
-          setDropError(failure);
-          showToast({ type: "error", title: "Failed to delete stash", message: failure });
-          return;
-        }
+          const failure = resultErrorMessage(result);
+          if (failure) {
+            setDropError(failure);
+            showToast({ type: "error", title: "Failed to delete stash", message: failure });
+            return;
+          }
 
-        showToast({ type: "success", title: "Stash deleted", message: stash.id });
-        setShowDropDialog(null);
-        refresh();
-      } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : "Failed to delete stash";
-        setDropError(errorMsg);
-        showToast({ type: "error", title: "Failed to delete stash", message: errorMsg });
-      } finally {
-        setDropLoading(false);
-      }
+          showToast({ type: "success", title: "Stash deleted", message: stash.id });
+          setShowDropDialog(null);
+          refresh();
+        },
+        (e) => {
+          const errorMsg = e instanceof Error ? e.message : "Failed to delete stash";
+          setDropError(errorMsg);
+          showToast({ type: "error", title: "Failed to delete stash", message: errorMsg });
+        },
+        () => {
+          setDropLoading(false);
+        },
+      );
     },
     [dropStash, environmentId, refresh, workspacePath],
   );

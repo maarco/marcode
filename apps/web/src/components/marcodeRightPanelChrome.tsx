@@ -138,7 +138,7 @@ export function MarcodeRightPanelAddMenu(props: {
   /** Controlled open state, so the rightPanel.new shortcut can open the menu. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
-  triggerRef?: Ref<HTMLButtonElement>;
+  triggerHandle?: Ref<HTMLButtonElement>;
   /** Absent where side chats are not offered. */
   onAddSideChat?: (() => void) | undefined;
   sideChatAvailable?: boolean;
@@ -165,6 +165,7 @@ export function MarcodeRightPanelAddMenu(props: {
   agentsAvailable?: boolean;
   deviceAvailable: boolean;
 }) {
+  const { triggerHandle } = props;
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = props.open ?? uncontrolledOpen;
   const setOpen = props.onOpenChange ?? setUncontrolledOpen;
@@ -243,6 +244,7 @@ export function MarcodeRightPanelAddMenu(props: {
       : []),
   ] as const;
 
+  const { browserProfiles, onAddBrowserInProfile } = props;
   const handleKeyDownCapture = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const action = surfaceShortcutActionForKey(actions, event.nativeEvent);
     if (!action) return;
@@ -256,7 +258,7 @@ export function MarcodeRightPanelAddMenu(props: {
   return (
     <Menu open={open} onOpenChange={setOpen}>
       <MenuTrigger
-        ref={props.triggerRef}
+        ref={triggerHandle}
         render={
           <Button
             aria-label="Add panel surface"
@@ -308,11 +310,8 @@ export function MarcodeRightPanelAddMenu(props: {
                   <MenuShortcut>{action.shortcut}</MenuShortcut>
                 </MenuSubTrigger>
                 <MenuSubPopup className="min-w-40 max-w-56">
-                  {props.browserProfiles.map((profile) => (
-                    <MenuItem
-                      key={profile.id}
-                      onClick={() => props.onAddBrowserInProfile(profile.id)}
-                    >
+                  {browserProfiles.map((profile) => (
+                    <MenuItem key={profile.id} onClick={() => onAddBrowserInProfile(profile.id)}>
                       <span className="min-w-0 truncate">{profile.name}</span>
                     </MenuItem>
                   ))}
