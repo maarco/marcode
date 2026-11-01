@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   ArchiveIcon,
+  ArrowLeftIcon,
   FlaskConicalIcon,
   BotIcon,
   createLucideIcon,
@@ -32,7 +33,7 @@ import {
   WrenchIcon,
   XIcon,
 } from "lucide-react";
-import { useCanGoBack, useLocation, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useCanGoBack, useLocation, useNavigate } from "@tanstack/react-router";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -131,9 +132,6 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
   const navigate = useNavigate();
   const currentHash = useLocation({ select: (location) => location.hash });
   const canGoBack = useCanGoBack();
-  const resolvedPathname = useRouterState({
-    select: (state) => state.resolvedLocation?.pathname,
-  });
   const currentSearch = useLocation({ select: (location) => location.search });
   const scopeSearch = validateSettingsScopeSearch(currentSearch);
   const activePath = SETTINGS_DETAIL_PAGE_PARENTS[pathname] ?? pathname;
@@ -441,9 +439,27 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
         <Suspense fallback={null}>
           <T3ConnectSidebarSignIn />
         </Suspense>
-        <Suspense fallback={null}>
-          <T3ConnectSidebarAvatar />
-        </Suspense>
+        <div className="flex items-center gap-1">
+          <SidebarMenu className="min-w-0 flex-1">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => {
+                  if (canGoBack) {
+                    window.history.back();
+                    return;
+                  }
+                  void navigate({ to: "/" });
+                }}
+              >
+                <ArrowLeftIcon />
+                <span>Back</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+          <Suspense fallback={null}>
+            <T3ConnectSidebarAvatar />
+          </Suspense>
+        </div>
       </SidebarFooter>
     </nav>
   );

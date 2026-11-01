@@ -124,7 +124,8 @@ describe("theme failure handling", () => {
     let readSnapshot: (() => unknown) | undefined;
     let subscribeToTheme: ((listener: () => void) => () => void) | undefined;
     let storageHandler: ((event: StorageEvent) => void) | undefined;
-    vi.doMock("react", () => ({
+    vi.doMock("react", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("react")>()),
       useCallback: <A>(callback: A) => callback,
       useEffect: () => undefined,
       useSyncExternalStore: (
@@ -170,7 +171,9 @@ describe("theme failure handling", () => {
     const cause = new Error("desktop IPC unavailable");
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
     const setTheme = vi.fn().mockRejectedValue(cause);
-    vi.stubGlobal("window", { desktopBridge: { setTheme } });
+    vi.stubGlobal("window", {
+      desktopBridge: { setTheme, getRelayTelemetryEnabled: () => true, getAppBranding: () => null },
+    });
 
     const { DesktopThemeSyncError, syncDesktopTheme, syncDesktopThemePreference } =
       await import("./useTheme");
@@ -230,7 +233,8 @@ describe("onboarding theme", () => {
         setProperty: (name: string, value: string) => styleValues.set(name, value),
       },
     };
-    vi.doMock("react", () => ({
+    vi.doMock("react", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("react")>()),
       useCallback: <A>(callback: A) => callback,
       useEffect: () => undefined,
       useSyncExternalStore: (
@@ -288,11 +292,11 @@ describe("onboarding theme", () => {
 
     const cleanup = mountOnboardingTheme();
     expect(root.dataset.themeId).toBeUndefined();
-    expect(styleValues.size).toBe(0);
+    expect([...styleValues.keys()].filter((name) => name.startsWith("--app-theme-"))).toEqual([]);
 
     expect(useTheme().setTheme(secondTheme.id)).toBe(true);
     expect(root.dataset.themeId).toBeUndefined();
-    expect(styleValues.size).toBe(0);
+    expect([...styleValues.keys()].filter((name) => name.startsWith("--app-theme-"))).toEqual([]);
 
     cleanup();
     expect(root.dataset.themeId).toBe(secondTheme.id);
@@ -328,7 +332,8 @@ describe("onboarding theme", () => {
     const body = { style: { backgroundColor: "" } };
     let storageHandler: ((event: StorageEvent) => void) | undefined;
     const setDesktopTheme = vi.fn().mockResolvedValue(undefined);
-    vi.doMock("react", () => ({
+    vi.doMock("react", async (importOriginal) => ({
+      ...(await importOriginal<typeof import("react")>()),
       useCallback: <A>(callback: A) => callback,
       useEffect: () => undefined,
       useSyncExternalStore: (
@@ -350,7 +355,11 @@ describe("onboarding theme", () => {
         removeEventListener: () => undefined,
       }),
       removeEventListener: () => undefined,
-      desktopBridge: { setTheme: setDesktopTheme },
+      desktopBridge: {
+        setTheme: setDesktopTheme,
+        getRelayTelemetryEnabled: () => true,
+        getAppBranding: () => null,
+      },
     });
     vi.stubGlobal("document", {
       body,

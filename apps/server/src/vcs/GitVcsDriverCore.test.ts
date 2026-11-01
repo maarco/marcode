@@ -1829,25 +1829,6 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       }),
     );
 
-    it.effect("reports git's own reason when an operation is refused", () =>
-      Effect.gen(function* () {
-        // Git's stderr is the only place that says *why* an operation was
-        // refused. It used to be dropped, leaving the caller's fallback string
-        // ("git checkout failed") as the whole explanation.
-        const cwd = yield* makeTmpDir();
-        const driver = yield* GitVcsDriver.GitVcsDriver;
-        yield* driver.initRepo({ cwd });
-
-        const refused = yield* driver
-          .switchRef({ cwd, refName: "definitely-not-a-branch" })
-          .pipe(Effect.flip);
-
-        assert.notMatch(refused.detail, /exited with a non-zero status/);
-        assert.include(refused.detail, "definitely-not-a-branch");
-        assert.notInclude(refused.detail, "[redacted]");
-      }),
-    );
-
     it.effect("keeps line callbacks flowing past the output cap when asked", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();
@@ -1894,25 +1875,6 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.equal(remoteStatus.isRepo, false);
         assert.equal(refs.isRepo, false);
         assert.deepStrictEqual(refs.refs, []);
-      }),
-    );
-
-    it.effect("reports git's own reason when an operation is refused", () =>
-      Effect.gen(function* () {
-        // Git's stderr is the only place that says *why* an operation was
-        // refused. It used to be dropped, leaving the caller's fallback string
-        // ("git checkout failed") as the whole explanation.
-        const cwd = yield* makeTmpDir();
-        const driver = yield* GitVcsDriver.GitVcsDriver;
-        yield* driver.initRepo({ cwd });
-
-        const refused = yield* driver
-          .switchRef({ cwd, refName: "definitely-not-a-branch" })
-          .pipe(Effect.flip);
-
-        assert.notMatch(refused.detail, /exited with a non-zero status/);
-        assert.include(refused.detail, "definitely-not-a-branch");
-        assert.notInclude(refused.detail, "[redacted]");
       }),
     );
   });
@@ -4595,7 +4557,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           "# test\n",
         );
         assert.equal(
-          yield* driver.readConfigValue(worktreePath, "branch.feature/locked-config.marcode-merge-base"),
+          yield* driver.readConfigValue(
+            worktreePath,
+            "branch.feature/locked-config.marcode-merge-base",
+          ),
           null,
         );
         assert.equal(yield* fileSystem.exists(pathService.join(cwd, ".git/config.lock")), true);
@@ -5567,7 +5532,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         assert.strictEqual(status.branchChanges?.deletions, 0);
         // gh pr create consumes this setting verbatim as the hosted target branch.
         assert.equal(
-          yield* driver.readConfigValue(worktreePath, "branch.feature/from-upstream.marcode-merge-base"),
+          yield* driver.readConfigValue(
+            worktreePath,
+            "branch.feature/from-upstream.marcode-merge-base",
+          ),
           "release",
         );
         assert.equal(changes.baseRef, "upstream/release");
@@ -5835,7 +5803,10 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           yield* git(cwd, ["rev-parse", "--abbrev-ref", "@{upstream}"]),
           "origin/feature/x",
         );
-        assert.equal(yield* driver.readConfigValue(cwd, "branch.feature/x.marcode-merge-base"), "dev");
+        assert.equal(
+          yield* driver.readConfigValue(cwd, "branch.feature/x.marcode-merge-base"),
+          "dev",
+        );
 
         const preview = yield* driver.getReviewDiffPreview({ cwd });
         const changes = preview.sources.find((source) => source.kind === "branch-range")!;

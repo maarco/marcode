@@ -7,6 +7,8 @@ import { FolderPlusIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import { useRef, useState } from "react";
 
+import { INTRO_MESSAGES } from "~/content/introMessages";
+
 import { openCommandPalette } from "~/commandPaletteBus";
 import { shortcutLabelForCommand } from "~/keybindings";
 import { primaryServerKeybindingsAtom } from "~/state/server";
@@ -69,10 +71,6 @@ interface DraftHeroHeadlineProps {
   readonly activeProjectTitle: string | null;
 }
 
-const MENTIKO_GIF_TEXT_SOURCE = "https://assets.amarn.me/gif-text.gif";
-
-type GifTextStatus = "loading" | "ready" | "failed";
-
 export function DraftHeroHeadline({
   draftId,
   activeProjectRef,
@@ -98,6 +96,11 @@ export function DraftHeroHeadline({
   const openAddProject = () => openCommandPalette({ open: "add-project" });
   const { scratchEnvironmentId, scratchWorkspaceRootFor, openScratchProject } = useScratchProject();
   const openProjectDraft = useNewThreadHandler();
+  // Marcode rotates the hero's lead line per mount; only a question can take " in <project>?".
+  const [introLead] = useState(() => {
+    const message = INTRO_MESSAGES[Math.floor(Math.random() * INTRO_MESSAGES.length)];
+    return message?.endsWith("?") ? message.slice(0, -1) : undefined;
+  });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -419,7 +422,10 @@ export function DraftHeroHeadline({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col items-center">
       {hasResolvedProject && !isScratchDraft ? (
-        <DraftHeroProjectHeading projectName={activeProjectDisplayName ?? "Choose a project"}>
+        <DraftHeroProjectHeading
+          projectName={activeProjectDisplayName ?? "Choose a project"}
+          {...(introLead !== undefined ? { lead: introLead } : {})}
+        >
           {projectSelector}
         </DraftHeroProjectHeading>
       ) : (

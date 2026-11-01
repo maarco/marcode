@@ -1,6 +1,5 @@
 // @effect-diagnostics nodeBuiltinImport:off - Static assertions read checked-in DMG source files and use Node's glob matcher to verify electron-builder exclusions.
 import * as NodeCrypto from "node:crypto";
-import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";

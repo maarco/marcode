@@ -19,7 +19,7 @@ import type {
   SourceControlRepositoryVisibility,
   VcsStatusResult,
 } from "@t3tools/contracts";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import * as Option from "effect/Option";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useDeadlinePassed } from "../hooks/useDeadline";
@@ -37,22 +37,7 @@ import {
   LockIcon,
   GlobeIcon,
 } from "lucide-react";
-import {
-  ArrowSquareDownFilled,
-  CloudPlusFilled,
-  FlashFilled,
-  Export3Filled,
-  Hierarchy2Filled,
-  InfoCircleFilled,
-  RecordCircleFilled,
-} from "@aliimam/icons";
-import { PillTooltip, pillIconButtonClass, pillMenuRowClass } from "~/components/FloatingPillNav";
-import {
-  PillNavHoverCard,
-  WORKSPACE_COLOR,
-  type PillNavMeta,
-  type PillNavMetaKey,
-} from "~/components/PillNavHoverCard";
+import { Export3Filled, RecordCircleFilled } from "@aliimam/icons";
 import { Radio as RadioPrimitive } from "@base-ui/react/radio";
 import { RadioGroup } from "~/components/ui/radio-group";
 import { Spinner } from "~/components/ui/spinner";
@@ -307,38 +292,6 @@ function GitActionItemIcon({
   if (icon === "push") return <Export3Filled className={GIT_ICON_CLASS} />;
   // "pr" keeps the provider mark — it tells you *where* the PR lands.
   return <SourceControlIcon className={GIT_ICON_CLASS} />;
-}
-
-/**
- * The glyph for the quick-action pill, as a component reference rather than a
- * rendered element — shared by `GitQuickActionIcon` (renders it inline) and
- * the quick action's hover-card `meta` override (needs the component itself
- * for `PillNavCard`'s watermark), so the two never drift apart.
- */
-function resolveGitQuickActionIconComponent(
-  quickAction: GitQuickAction,
-  SourceControlIcon: ReturnType<typeof getSourceControlPresentation>["Icon"],
-): PillNavMeta["icon"] {
-  // Provider icons (GitHubIcon/GitLabIcon/...) are always a concrete
-  // `{ className }` component at runtime; `SourceControlIcon`'s declared type is
-  // the broader `ElementType` (which also permits a bare intrinsic tag name), so
-  // it needs a narrowing cast to satisfy the hover card's icon shape.
-  const providerIcon = SourceControlIcon as PillNavMeta["icon"];
-  if (quickAction.kind === "open_publish") return CloudPlusFilled;
-  if (quickAction.kind === "run_pull") return ArrowSquareDownFilled;
-  if (quickAction.kind === "run_action") {
-    if (quickAction.action === "commit") return RecordCircleFilled;
-    // commit_push sits next to the plain Push menu item in the pill — give it its
-    // own glyph so the two aren't the same arrow twice.
-    if (quickAction.action === "commit_push") return FlashFilled;
-    if (quickAction.action === "push") return Export3Filled;
-    return providerIcon;
-  }
-  if (quickAction.label === "Commit") return RecordCircleFilled;
-  // A disabled push action only carries a label, so it needs the same upload
-  // glyph the enabled `run_action`/`push` branch above resolves to.
-  if (quickAction.label === "Push") return Export3Filled;
-  return InfoCircleFilled;
 }
 
 function GitQuickActionIcon({
@@ -1442,25 +1395,6 @@ export default function GitActionsControl({
   const canPublishRepository =
     canWriteSourceControl && isRepo && gitStatusForActions !== null && !hasPrimaryRemote;
 
-  // In the pill the quick action and the menu items render as bare icons, so an
-  // overlap between them shows up as two identical glyphs with identical
-  // tooltips side by side. `push`, `create_pr` and `open_pr` run *exactly* the
-  // same code path from either control (see `openDialogForMenuItem`), and the
-  // publish button repeats the quick action verbatim. Keep the quick action —
-  // it is the resolved recommendation — and drop the redundant twin.
-  const quickActionAlreadyRuns = (item: GitActionMenuItem): boolean => {
-    if (quickAction.kind !== "run_action") return false;
-    if (item.dialogAction === "push") return quickAction.action === "push";
-    if (item.dialogAction === "create_pr") return quickAction.action === "create_pr";
-    return false;
-  };
-  const flatMenuItems = gitActionMenuItems.filter((item) => !quickActionAlreadyRuns(item));
-  const showPublishButton = canPublishRepository && quickAction.kind !== "open_publish";
-  // Commit is the one overlap that is *not* redundant: the quick action commits
-  // straight away, this one opens the review dialog. Trailing ellipsis is the
-  // standard "opens a dialog" tell, and it stops the two sharing a name.
-  const flatMenuItemLabel = (item: GitActionMenuItem): string =>
-    item.kind === "open_dialog" && item.dialogAction === "commit" ? `${item.label}…` : item.label;
   const initializeGit = () => {
     void (async () => {
       const result = await initAction.run();

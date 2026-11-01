@@ -90,6 +90,8 @@ const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
           projectId,
           title: "Project",
           workspaceRoot: "/project-root",
+          workspaceLayoutVersion: 0,
+          workspaceLayout: [],
           defaultModelSelection: null,
           defaultThreadEnvMode: null,
           autoPull: false,

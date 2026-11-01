@@ -5,8 +5,6 @@ import * as NodeChildProcess from "node:child_process";
 
 import {
   buildWslRuntimeInstallScript,
-  NODE_PTY_BUILD_SCRIPT,
-  NODE_PTY_PROBE_SCRIPT,
   buildWslRuntimeInvalidateScript,
   buildWslRuntimePruneScript,
   buildWslRuntimeProbeScript,

@@ -129,6 +129,7 @@ import {
   usePreferredEditor,
 } from "../editorPreferences";
 import { openInEditorMenuLabel } from "../editorLabels";
+import { openFileInFloatingEditor } from "../editor/open-floating-file";
 import { resolveDiffThemeName } from "../lib/diffRendering";
 import { RenderErrorBoundary } from "./RenderErrorBoundary";
 import { useRenderedAppearance } from "../hooks/useTheme";
@@ -150,7 +151,6 @@ import { isElectron } from "../env";
 import { readLocalApi } from "../localApi";
 import { cn } from "../lib/utils";
 import { resolveRemoteOpenState, useRemoteOpenResolution } from "../remoteOpen";
-import { useRightPanelStore } from "../rightPanelStore";
 import { readThreadShell, useProjects } from "../state/entities";
 import { serverEnvironment } from "../state/server";
 import { shellEnvironment } from "../state/shell";
@@ -578,7 +578,13 @@ function useChatMarkdownState({
         environmentId === null ? undefined : readPreparedConnection(environmentId)?.httpBaseUrl,
       createAssetUrl,
       onOpenFile: threadRef
-        ? (path) => useRightPanelStore.getState().openFile(threadRef, path)
+        ? (path) =>
+            openFileInFloatingEditor({
+              environmentId: threadRef.environmentId,
+              workspacePath: cwd ?? "",
+              relativePath: path,
+              assetThreadId: threadRef.threadId,
+            })
         : undefined,
     }).then(
       (preview) => {
@@ -799,8 +805,15 @@ function useChatMarkdownState({
     if (!threadRef) return;
     // Every open supersedes pending lookups, including synchronous opens.
     const isLatestLookup = claimWorkspaceBasenameLookup();
+    // Marcode fork seam: the floating Code editor is the only file-editing surface.
     const openAt = (path: string) =>
-      useRightPanelStore.getState().openFile(threadRef, path, fileLinkMeta.line);
+      openFileInFloatingEditor({
+        environmentId: threadRef.environmentId,
+        workspacePath: cwd ?? "",
+        relativePath: path,
+        line: fileLinkMeta.line,
+        assetThreadId: threadRef.threadId,
+      });
     if (
       fileLinkMeta.workspaceLookupPath === null ||
       !cwd ||
@@ -1428,7 +1441,13 @@ const CHAT_MARKDOWN_COMPONENTS = {
                   threadId: threadRef.threadId,
                   path: filePath,
                 },
-                onOpen: () => useRightPanelStore.getState().openFile(threadRef, filePath),
+                onOpen: () =>
+                  openFileInFloatingEditor({
+                    environmentId: threadRef.environmentId,
+                    workspacePath: cwd ?? "",
+                    relativePath: filePath,
+                    assetThreadId: threadRef.threadId,
+                  }),
               }
             : imageSource._tag === "Direct"
               ? { src: resolveProtocolRelativeMediaUrl(imageSource.uri) }

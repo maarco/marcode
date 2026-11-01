@@ -42,11 +42,6 @@ export interface UpdatesHarnessOptions {
   readonly wslBackend?: boolean;
 }
 
-// The accessor is annotated so the inferred harness type names the exported
-// alias instead of expanding it into builder-util-runtime, which pnpm does not
-// link into this workspace (TS2883).
-type ReadFeedUrls = () => ReadonlyArray<ElectronUpdater.ElectronUpdaterFeedUrl>;
-
 export function makeHarness(options: UpdatesHarnessOptions = {}) {
   let checkCount = 0;
   let quitAndInstallCount = 0;

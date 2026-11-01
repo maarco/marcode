@@ -1,7 +1,3 @@
-import {
-  EMPTY_PROJECT_WORKSPACE_LAYOUT,
-  INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
-} from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import type { Thread } from "../types";

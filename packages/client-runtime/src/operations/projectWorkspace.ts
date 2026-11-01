@@ -151,12 +151,13 @@ export const applyProjectWorkspaceLayout: (
       ok: true,
       layoutVersion: input.expectedVersion + 1,
     })),
-    Effect.catchTag("ProjectMutationError", (error) =>
-      Effect.succeed<ApplyProjectWorkspaceLayoutResult>({
-        ok: false,
-        rejection: parseProjectWorkspaceLayoutRejection(error.message),
-      }),
-    ),
+    Effect.catchTags({
+      ProjectMutationError: (error) =>
+        Effect.succeed<ApplyProjectWorkspaceLayoutResult>({
+          ok: false,
+          rejection: parseProjectWorkspaceLayoutRejection(error.message),
+        }),
+    }),
   );
 });
 

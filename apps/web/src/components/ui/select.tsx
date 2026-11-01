@@ -98,7 +98,6 @@ function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
 
 function SelectPopup({
   className,
-  popupClassName,
   positionerStyle,
   children,
   side = "bottom",
@@ -110,7 +109,6 @@ function SelectPopup({
   anchor,
   ...props
 }: SelectPrimitive.Popup.Props & {
-  popupClassName?: string;
   positionerStyle?: React.CSSProperties;
   side?: SelectPrimitive.Positioner.Props["side"];
   sideOffset?: SelectPrimitive.Positioner.Props["sideOffset"];

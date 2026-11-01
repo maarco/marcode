@@ -82,6 +82,7 @@ function makeProject(
     defaultModelSelection: null,
     scripts: [],
     workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+    workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
     repositoryIdentity,
     createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: "2026-08-01T00:00:00.000Z",

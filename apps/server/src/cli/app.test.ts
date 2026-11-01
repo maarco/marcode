@@ -40,14 +40,6 @@ const liveProcess = Effect.acquireRelease(
 
 const encodeRuntimeState = Schema.encodeEffect(Schema.fromJsonString(PersistedServerRuntimeState));
 
-// ── Marcode fork seam ──
-// Upstream's fixtures hardcode `~/.t3` as the home the CLI falls back to when
-// neither `--base-dir` nor `MARCODE_HOME` is set. Marcode's `resolveBaseDir`
-// defaults to `~/.marcode`, so the fake desktop has to bind the socket derived
-// from that directory or the CLI dials an address nobody is listening on.
-// `os-jank.test.ts` pins the default itself; keep the two in step.
-const MARCODE_DEFAULT_HOME_DIRECTORY = ".marcode";
-
 const runCli = (args: ReadonlyArray<string>, env: Record<string, string> = {}) =>
   Command.runWith(makeCli(), { version: "0.0.0" })(args).pipe(
     Effect.provide(

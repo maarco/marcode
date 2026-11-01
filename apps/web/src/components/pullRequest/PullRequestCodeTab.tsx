@@ -835,19 +835,26 @@ function PullRequestCodeTab({
   const renderHeaderPrefix = (item: CodeViewItem<ReviewAnnotationGroup>) => {
     const collapsed = item.collapsed === true;
     return (
-      <Button
-        size="icon-micro"
-        variant="ghost-muted"
-        aria-expanded={!collapsed}
-        aria-label={collapsed ? "Expand diff" : "Collapse diff"}
-        className="mr-1"
-        onClick={(event) => {
-          event.stopPropagation();
-          toggleFile(item.id);
-        }}
-      >
-        <MorphIcon className="size-4" icon={collapsed ? ChevronRight : ChevronDown} />
-      </Button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              size="icon-micro"
+              variant="ghost-muted"
+              aria-expanded={!collapsed}
+              aria-label={collapsed ? "Expand diff" : "Collapse diff"}
+              className="mr-1 rounded hover:bg-transparent"
+              onClick={(event) => {
+                event.stopPropagation();
+                toggleFile(item.id);
+              }}
+            />
+          }
+        >
+          <MorphIcon className="size-4" icon={collapsed ? ChevronRight : ChevronDown} />
+        </TooltipTrigger>
+        <TooltipPopup side="top">{collapsed ? "Expand diff" : "Collapse diff"}</TooltipPopup>
+      </Tooltip>
     );
   };
 
@@ -1254,12 +1261,18 @@ function PullRequestCodeTab({
               }
             }}
           >
-            <Toggle aria-label="Stacked diff view" value="stacked">
-              <Rows3Icon className="size-3.5" />
-            </Toggle>
-            <Toggle aria-label="Split diff view" value="split">
-              <Columns2Icon className="size-3.5" />
-            </Toggle>
+            <Tooltip>
+              <TooltipTrigger render={<Toggle aria-label="Stacked diff view" value="stacked" />}>
+                <Rows3Icon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup side="top">Stacked diff view</TooltipPopup>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger render={<Toggle aria-label="Split diff view" value="split" />}>
+                <Columns2Icon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup side="top">Split diff view</TooltipPopup>
+            </Tooltip>
           </ToggleGroup>
           <Tooltip>
             <TooltipTrigger

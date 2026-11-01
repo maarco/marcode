@@ -94,7 +94,6 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   threadRef,
   threadId,
   active,
-  composerHeight,
   launchContext,
   splitShortcutLabel,
   splitVerticalShortcutLabel,
@@ -169,7 +168,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   const openRightPanelTerminalGroups = useRightPanelStore((state) => state.openTerminalGroups);
   const closeRightPanelSurface = useRightPanelStore((state) => state.closeSurface);
 
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- reconciles the terminal UI store's ids with the server's terminal list when they diverge
+  // oxlint-disable-next-line marcode/no-unreasoned-state-sync -- reconciles the terminal UI store's ids with the server's terminal list when they diverge
   useEffect(() => {
     if (terminalIdListsEqual(serverOrderedTerminalIds, terminalUiState.terminalIds)) {
       return;
@@ -314,7 +313,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     return (
       <FloatingTerminalShell
         scopeKey={scopedThreadKey(threadRef)}
-        title={project.title ? `Terminal — ${project.title}` : "Terminal"}
+        title={project.title ? `Terminal: ${project.title}` : "Terminal"}
         onClose={() => storeSetTerminalOpenForThread(threadRef, false)}
       >
         <ThreadTerminalDrawer mode="floating" {...drawerProps} />

@@ -19,10 +19,6 @@ function AlertDialog<Payload>(props: AlertDialogPrimitive.Root.Props<Payload>) {
 
 const AlertDialogPortal = AlertDialogPrimitive.Portal;
 
-function AlertDialogTrigger(props: AlertDialogPrimitive.Trigger.Props) {
-  return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;
-}
-
 function AlertDialogBackdrop({ className, style, ...props }: AlertDialogPrimitive.Backdrop.Props) {
   return (
     <AlertDialogPrimitive.Backdrop

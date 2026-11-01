@@ -51,6 +51,8 @@ it.effect("parks automatic pull until activation without delaying command readin
             id: ProjectId.make("auto-pull-project"),
             title: "Auto pull project",
             workspaceRoot: cwd,
+            workspaceLayoutVersion: 0,
+            workspaceLayout: [],
             repositoryIdentity: null,
             defaultModelSelection: null,
             scripts: [],

@@ -3,7 +3,7 @@ import { formatProviderSkillDisplayName } from "@t3tools/shared/inlineSkills";
 import { Children, cloneElement, isValidElement, type ReactNode } from "react";
 import { matchInlineSkills } from "@t3tools/shared/inlineSkills";
 
-import { useRightPanelStore } from "~/rightPanelStore";
+import { openFileInFloatingEditor } from "~/editor/open-floating-file";
 import { SKILL_CHIP_ICON_SVG } from "../composerInlineChip";
 import { ContextChipPopover } from "../contextChipParts";
 import { Button } from "../ui/button";
@@ -80,7 +80,13 @@ export function skillInstructionsOpener(
   skill: Pick<ServerProviderSkill, "path"> | undefined,
 ) {
   if (!threadRef || !skill?.path) return undefined;
-  return () => useRightPanelStore.getState().openFile(threadRef, skill.path);
+  return () =>
+    openFileInFloatingEditor({
+      environmentId: threadRef.environmentId,
+      workspacePath: "",
+      relativePath: skill.path,
+      assetThreadId: threadRef.threadId,
+    });
 }
 
 export function SkillChipPopover(props: {

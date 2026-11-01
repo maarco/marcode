@@ -1396,14 +1396,21 @@ export function PullRequestDetailPanel({
             </TooltipProvider>
           ) : null}
           {onClose ? (
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              aria-label={`Collapse ${terminology.singular} panel`}
-              onClick={onClose}
-            >
-              <PanelRightIcon className="size-3.5" />
-            </Button>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Collapse ${terminology.singular} panel`}
+                    onClick={onClose}
+                  />
+                }
+              >
+                <PanelRightIcon className="size-3.5" />
+              </TooltipTrigger>
+              <TooltipPopup side="bottom">{`Collapse ${terminology.singular} panel`}</TooltipPopup>
+            </Tooltip>
           ) : null}
         </div>
 

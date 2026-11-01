@@ -14,7 +14,7 @@ import {
 
 import { useAssetUrlRefresh, useAssetUrlState } from "../../assets/assetUrls";
 import { cn } from "../../lib/utils";
-import { useRightPanelStore } from "../../rightPanelStore";
+import { openFileInFloatingEditor } from "~/editor/open-floating-file";
 import { MediaActions, type MediaActionSource } from "../media/MediaActions";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
@@ -388,12 +388,12 @@ export const ChatMarkdownAssetImage = memo(function ChatMarkdownAssetImage(props
     ...(relativePath && (resource._tag === "media-file" || resource._tag === "workspace-file")
       ? {
           onOpenFile: () =>
-            useRightPanelStore
-              .getState()
-              .openFile(
-                { environmentId: props.environmentId, threadId: resource.threadId },
-                relativePath,
-              ),
+            openFileInFloatingEditor({
+              environmentId: props.environmentId,
+              workspacePath: props.workspaceRoot ?? "",
+              relativePath,
+              assetThreadId: resource.threadId,
+            }),
         }
       : {}),
   };

@@ -1,5 +1,4 @@
 import {
-  EMPTY_PROJECT_WORKSPACE_LAYOUT,
   EnvironmentId,
   MessageId,
   NodeId,

@@ -1,5 +1,4 @@
 import { assert, describe, it } from "@effect/vitest";
-import { PNG } from "pngjs";
 
 import { encodePngIco } from "./icon-export.ts";
 

@@ -47,8 +47,10 @@ export interface ProjectUpdateInput extends ProjectUpdatePayload {
 }
 
 // ── Marcode fork seam ── unified workspace tree sidebar layout mutation.
-export interface ProjectWorkspaceLayoutApplyInput
-  extends Omit<ProjectWorkspaceLayoutApplyCommand, "type"> {}
+export interface ProjectWorkspaceLayoutApplyInput extends Omit<
+  ProjectWorkspaceLayoutApplyCommand,
+  "type"
+> {}
 
 export interface ProjectBootstrapInput extends ProjectCreateInput {}
 
@@ -248,32 +250,31 @@ export const make = Effect.gen(function* () {
       );
 
   // Marcode: the only state outside the edited project that a layout decision reads.
-  const readLayoutLookups = (
+  const readLayoutLookups = Effect.fn("ProjectService.readLayoutLookups")(function* (
     command: Extract<ProjectCommand, { readonly type: "project.workspace-layout.apply" }>,
-  ) =>
-    Effect.gen(function* () {
-      const resource =
-        command.operation.type === "place-resource" ? command.operation.resource : undefined;
-      const threadId = resource?.kind === "thread" ? resource.threadId : undefined;
-      const thread =
-        threadId === undefined
-          ? undefined
-          : yield* threadProjections.getThread(threadId).pipe(
-              Effect.map((found) => ({
-                projectId: found.projectId,
-                deleted: found.deletedAt !== null,
-              })),
-              // A thread that cannot be read does not exist for layout purposes.
-              Effect.catch(() => Effect.succeed(undefined)),
-            );
-      const others = yield* projects.list();
-      return {
-        thread,
-        otherProjectLayouts: others
-          .filter((row) => row.projectId !== command.projectId)
-          .map((row) => ({ projectId: row.projectId, layout: row.workspaceLayout })),
-      };
-    });
+  ) {
+    const resource =
+      command.operation.type === "place-resource" ? command.operation.resource : undefined;
+    const threadId = resource?.kind === "thread" ? resource.threadId : undefined;
+    const thread =
+      threadId === undefined
+        ? undefined
+        : yield* threadProjections.getThread(threadId).pipe(
+            Effect.map((found) => ({
+              projectId: found.projectId,
+              deleted: found.deletedAt !== null,
+            })),
+            // A thread that cannot be read does not exist for layout purposes.
+            Effect.orElseSucceed(() => undefined),
+          );
+    const others = yield* projects.list();
+    return {
+      thread,
+      otherProjectLayouts: others
+        .filter((row) => row.projectId !== command.projectId)
+        .map((row) => ({ projectId: row.projectId, layout: row.workspaceLayout })),
+    };
+  });
 
   const commit = Effect.fn("ProjectService.commit")(function* (command: ProjectCommand) {
     const { projectId } = command;

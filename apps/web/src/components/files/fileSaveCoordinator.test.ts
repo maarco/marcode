@@ -191,7 +191,7 @@ describe("FileSaveCoordinator", () => {
     expect(onPendingChange).not.toHaveBeenCalledWith(false);
     expect(onError).toHaveBeenCalledTimes(1);
     expect(onError.mock.calls[0]?.[0]).toBeInstanceOf(Error);
-    expect((onError.mock.calls[0]?.[0] as Error).message).toBe("write failed");
+    expect(onError.mock.calls[0]?.[0]).toMatchObject({ message: "write failed" });
   });
 
   it("cancel() forgets pending edits without persisting them", async () => {

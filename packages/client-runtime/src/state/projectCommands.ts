@@ -26,14 +26,7 @@ import {
   createEnvironmentRpcCommand,
   createEnvironmentRpcQueryAtomFamily,
 } from "./runtime.ts";
-import {
-  type CreateProjectInput,
-  type DeleteProjectInput,
-  type UpdateProjectInput,
-  createProject,
-  deleteProject,
-  updateProject,
-} from "../operations/commands.ts";
+import { createProject, deleteProject, updateProject } from "../operations/commands.ts";
 import {
   type ApplyProjectWorkspaceLayoutInput,
   applyProjectWorkspaceLayout,

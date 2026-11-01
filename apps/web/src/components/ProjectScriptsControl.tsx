@@ -74,9 +74,6 @@ import {
   MenuSeparator,
   MenuShortcut,
   MenuTrigger,
-  MenuSub,
-  MenuSubTrigger,
-  MenuSubPopup,
 } from "./ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
@@ -200,10 +197,6 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
   ) {
     const addScriptFormId = React.useId();
     const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
-    const [actionsMenuOpen, setActionsMenuOpen] = useState({
-      scripts: false,
-      imports: false,
-    });
     const [dialogOpen, setDialogOpen] = useState(false);
     const [name, setName] = useState("");
     const [command, setCommand] = useState("");
@@ -346,7 +339,6 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
 
     const openEditDialog = (script: ProjectScript) => {
       onRequestMenuClose?.();
-      setActionsMenuOpen({ scripts: false, imports: false });
       setEditingScriptId(script.id);
       setName(script.name);
       setCommand(script.command);
@@ -527,7 +519,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
               return (
                 <PillTooltip
                   key={script.id}
-                  label={`Run ${script.name}${shortcutLabel ? ` (${shortcutLabel})` : ""} — right-click to edit`}
+                  label={`Run ${script.name}${shortcutLabel ? ` (${shortcutLabel})` : ""}, right-click to edit`}
                   render={
                     <button
                       type="button"

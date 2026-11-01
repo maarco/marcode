@@ -27,7 +27,7 @@ interface ThreeShaderCanvasProps {
   readonly palette: ThreeShaderPalette;
 }
 
-export function ThreeShaderCanvas({ theme, fragmentShader, palette }: ThreeShaderCanvasProps) {
+export function ThreeShaderCanvas({ fragmentShader, palette }: ThreeShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {

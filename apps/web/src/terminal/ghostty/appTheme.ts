@@ -70,7 +70,6 @@ export function synchronizeTerminalSession(
   return nextCursor;
 }
 
-
 function parseTerminalColor(value: string, fallback: GhosttyColor): GhosttyColor {
   if (typeof document === "undefined") return fallback;
 
@@ -137,12 +136,6 @@ const TERMINAL_PALETTES = {
   ].map(hexToGhosttyColor),
 };
 
-
-function terminalFontOptions(family: string, size: number): { family?: string; size: number } {
-  const trimmed = family.trim();
-  return trimmed.length > 0 ? { family: trimmed, size } : { size };
-}
-
 export function terminalThemeFromApp(mountElement?: HTMLElement | null): GhosttyTheme {
   const drawerSurface =
     mountElement?.closest("[data-thread-terminal-drawer]") ??
@@ -206,7 +199,6 @@ export function terminalThemeFromApp(mountElement?: HTMLElement | null): Ghostty
     selectionBackground: terminalSelection,
   };
 }
-
 
 function normalizeComputedColor(value: string | null | undefined, fallback: string): string {
   const normalizedValue = value?.trim().toLowerCase();

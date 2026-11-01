@@ -17,6 +17,8 @@ const row = (overrides: Partial<ProjectRow> = {}): ProjectRow => ({
   projectId,
   title: "Scripts",
   workspaceRoot: "/tmp/scripts",
+  workspaceLayoutVersion: 0,
+  workspaceLayout: [],
   defaultModelSelection: null,
   defaultThreadEnvMode: null,
   autoPull: false,
@@ -115,6 +117,8 @@ describe("planProjectCommand", () => {
     const owner = row({
       projectId: ProjectId.make("project-existing"),
       workspaceRoot: "/tmp/project",
+      workspaceLayoutVersion: 0,
+      workspaceLayout: [],
     });
     const create = failureOf(
       plan(

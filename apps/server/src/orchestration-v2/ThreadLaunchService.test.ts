@@ -77,6 +77,8 @@ const project = {
   id: projectId,
   title: "Project",
   workspaceRoot: "/repo",
+  workspaceLayoutVersion: 0,
+  workspaceLayout: [],
   repositoryIdentity: null,
   faviconPath: null,
   defaultModelSelection: modelSelection,
@@ -94,6 +96,8 @@ const otherProject = {
   id: otherProjectId,
   title: "Other",
   workspaceRoot: "/other-repo",
+  workspaceLayoutVersion: 0,
+  workspaceLayout: [],
 } as const;
 
 const adapter = {
@@ -181,6 +185,7 @@ function makeHarness(options: HarnessOptions = {}) {
       create: () => Effect.die("unused"),
       bootstrap: () => Effect.die("unused"),
       update: () => Effect.die("unused"),
+      applyWorkspaceLayout: () => Effect.die("unused"),
       delete: () => Effect.die("unused"),
       listPage: () => Effect.die("unused"),
       getById: (id) =>
@@ -243,6 +248,8 @@ function makeHarness(options: HarnessOptions = {}) {
               projectId,
               title: project.title,
               workspaceRoot: project.workspaceRoot,
+              workspaceLayoutVersion: 0,
+              workspaceLayout: [],
               defaultModelSelection: project.defaultModelSelection,
               defaultThreadEnvMode: null,
               autoPull: false,

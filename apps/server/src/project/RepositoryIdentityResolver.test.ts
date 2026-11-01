@@ -43,10 +43,10 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       expect(identity).not.toBeNull();
       expect(identity?.canonicalKey).toBe("github.com/t3tools/marcode");
       expect(normalizeResolvedPath(resolvedIdentityRoot)).toBe(normalizeResolvedPath(resolvedCwd));
-      expect(identity?.displayName).toBe("T3Tools/t3code");
+      expect(identity?.displayName).toBe("T3Tools/Marcode");
       expect(identity?.provider).toBe("github");
       expect(identity?.owner).toBe("T3Tools");
-      expect(identity?.name).toBe("marcode");
+      expect(identity?.name).toBe("Marcode");
       expect(yield* resolver.resolve(path.join(cwd, ".git"))).toBeNull();
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
@@ -70,7 +70,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
       const resolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const identity = yield* resolver.resolve(cwd);
       expect(identity?.canonicalKey).toBe("github.com/t3tools/marcode");
-      expect(identity?.locator.remoteUrl).toBe("git@github.com:T3Tools/t3code.git");
+      expect(identity?.locator.remoteUrl).toBe("git@github.com:T3Tools/Marcode.git");
       expect(identity?.locator.remoteName).toBe("origin");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),
   );
@@ -281,7 +281,7 @@ it.layer(NodeServices.layer)("RepositoryIdentityResolverLive", (it) => {
 
       expect(identity).not.toBeNull();
       expect(identity?.canonicalKey).toBe("gitlab.com/t3tools/platform/marcode");
-      expect(identity?.displayName).toBe("T3Tools/platform/t3code");
+      expect(identity?.displayName).toBe("T3Tools/platform/marcode");
       expect(identity?.owner).toBe("T3Tools");
       expect(identity?.name).toBe("marcode");
     }).pipe(Effect.provide(RepositoryIdentityResolver.layer)),

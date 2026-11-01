@@ -77,6 +77,7 @@ function project(input: {
     // Marcode's project shell carries the unified workspace tree's persisted
     // layout, which upstream's fixture has no reason to know about.
     workspaceLayout: EMPTY_PROJECT_WORKSPACE_LAYOUT,
+    workspaceLayoutVersion: INITIAL_PROJECT_WORKSPACE_LAYOUT_VERSION,
     createdAt: "2026-07-01T00:00:00Z",
     updatedAt: "2026-07-01T00:00:00Z",
   };

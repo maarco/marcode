@@ -155,8 +155,9 @@ describe("rankSequence", () => {
     expect(ranks.length).toBe(1);
   });
 
-  for (const count of [2, 3, 5, 35, 60, 200]) {
-    it(`returns ${count} strictly increasing, distinct, canonical ranks`, () => {
+  it.each([2, 3, 5, 35, 60, 200])(
+    "returns %i strictly increasing, distinct, canonical ranks",
+    (count) => {
       const ranks = rankSequence(count);
       expect(ranks.length).toBe(count);
       assertStrictlyIncreasing(ranks);
@@ -164,8 +165,8 @@ describe("rankSequence", () => {
       for (const rank of ranks) {
         expect(() => rankBetween(rank, null)).not.toThrow();
       }
-    });
-  }
+    },
+  );
 
   it("rejects a negative or non-integer count", () => {
     expect(() => rankSequence(-1)).toThrow(RangeError);

@@ -151,12 +151,6 @@ const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>): Effect.
     ),
   );
 
-interface GitResult {
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly exitCode: number;
-}
-
 interface GitOptions {
   readonly operation: string;
   readonly cwd?: string | undefined;

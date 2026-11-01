@@ -1238,14 +1238,13 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
             ...gitCommandContext({ operation, cwd, args }),
             ...(reason === null ? {} : { reason }),
             detail:
-              // A progress reporter means this command's output is already
-              // being streamed to the client as `hook_output` events (commit
-              // and push run user hooks). Repeating it here would duplicate a
-              // hook's message into the error string as well, so those keep
-              // their caller-supplied fallback — see the "emits action_failed
-              // when a commit hook rejects" test in GitManager.test.ts.
-              (options.progress ? null : gitStderrDetail(result.stderr, args)) ??
+              // Upstream wording wins whenever a caller supplies a fallback, so
+              // messages stay stable and never quote a ref or path. Marcode adds
+              // git's own redacted stderr only where there is no fallback. A
+              // progress reporter streams its output as `hook_output` events, so
+              // it is not repeated here either.
               options.fallbackErrorDetail ??
+              (options.progress || reason !== null ? null : gitStderrDetail(result.stderr, args)) ??
               gitFailureDetail(reason),
             ...(result.exitCode === null ? {} : { exitCode: result.exitCode }),
             stdoutLength: result.stdout.length,
@@ -1909,7 +1908,10 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       readonly knownOriginDefaultBranch?: string | null;
     },
   ) {
-    const configuredBaseRef = yield* readConfigValue(cwd, `branch.${refName}.marcode-merge-base-ref`);
+    const configuredBaseRef = yield* readConfigValue(
+      cwd,
+      `branch.${refName}.marcode-merge-base-ref`,
+    );
     if (
       configuredBaseRef?.startsWith("refs/heads/") ||
       configuredBaseRef?.startsWith("refs/remotes/")
@@ -5140,7 +5142,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       operation,
       command: "git",
       cwd,
-      detail: `Stash ${commitSha.slice(0, 12)} is no longer present (it may already have been applied, dropped, or the list has changed) — refresh and try again.`,
+      detail: `Stash ${commitSha.slice(0, 12)} is no longer present (it may already have been applied, dropped, or the list has changed). Refresh and try again.`,
     });
   });
 

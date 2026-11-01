@@ -58,7 +58,6 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
   keybindings,
   availableEditors,
   gitCwd,
-  onOpenPullRequest,
   onRunProjectScript,
   onAddProjectScript,
   onUpdateProjectScript,

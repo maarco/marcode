@@ -41,7 +41,6 @@ import {
   CursorIcon,
   FileExplorerIcon,
   FinderIcon,
-  Icon,
   KiroIcon,
   TraeIcon,
   VisualStudioCode,
