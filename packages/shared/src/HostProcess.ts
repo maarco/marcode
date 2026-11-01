@@ -5,14 +5,12 @@ import * as NodeOS from "node:os";
 import * as NodeSea from "node:sea";
 
 export const Platform = Context.Reference<NodeJS.Platform>("@t3tools/shared/HostProcess/Platform", {
-  // oxlint-disable-next-line marcode/no-global-process-runtime -- This reference is the injectable default for process.platform.
   defaultValue: () => process.platform,
 });
 
 export const Architecture = Context.Reference<NodeJS.Architecture>(
   "@t3tools/shared/HostProcess/Architecture",
   {
-    // oxlint-disable-next-line marcode/no-global-process-runtime -- This reference is the injectable default for process.arch.
     defaultValue: () => process.arch,
   },
 );
