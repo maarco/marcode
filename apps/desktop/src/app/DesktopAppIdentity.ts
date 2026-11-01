@@ -3,13 +3,14 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
-import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 
 import * as ElectronApp from "../electron/ElectronApp.ts";
 import * as DesktopAssets from "./DesktopAssets.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
+import * as DesktopUserData from "./DesktopUserData.ts";
 
 const COMMIT_HASH_PATTERN = /^[0-9a-f]{7,40}$/i;
 const COMMIT_HASH_DISPLAY_LENGTH = 12;
@@ -19,22 +20,13 @@ const AppPackageMetadata = Schema.Struct({
 });
 const decodeAppPackageMetadata = Schema.decodeEffect(Schema.fromJsonString(AppPackageMetadata));
 
-export class DesktopUserDataPathResolutionError extends Schema.TaggedError<DesktopUserDataPathResolutionError>()(
-  "DesktopUserDataPathResolutionError",
-  {
-    legacyPath: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return `Failed to inspect legacy desktop user-data path at "${this.legacyPath}".`;
-  }
-}
-
 export class DesktopAppIdentity extends Context.Service<
   DesktopAppIdentity,
   {
-    readonly resolveUserDataPath: Effect.Effect<string, DesktopUserDataPathResolutionError>;
+    readonly resolveUserDataPath: Effect.Effect<
+      string,
+      DesktopUserData.DesktopUserDataInitializationError
+    >;
     readonly configure: Effect.Effect<void>;
   }
 >()("@t3tools/desktop/app/DesktopAppIdentity") {}
@@ -46,70 +38,16 @@ const normalizeCommitHash = (value: string): Option.Option<string> => {
     : Option.none();
 };
 
-export const resolveUserDataPath = Effect.gen(function* () {
-  const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const fileSystem = yield* FileSystem.FileSystem;
-
-  // Check every prior product name's userData directory, oldest first, and
-  // keep using the first one that already exists on disk. This is a
-  // continuous "stay put if found" check (not a one-time copy), so an
-  // install that matched a legacy name keeps using it on every launch.
-  //
-  // The checks run CONCURRENTLY, not sequentially: this effect runs before
-  // DesktopClerk creates the Clerk bridge (see DesktopClerk.ts), which
-  // synchronously calls Electron's protocol.registerSchemesAsPrivileged —
-  // an API that must be called before Electron's "ready" event fires, on
-  // the real (unmocked) filesystem. Each extra sequential await here is
-  // extra wall-clock time for "ready" to win that race, and that race is
-  // real: it cost a startup crash once already (see git blame / the
-  // regression test below) when this loop briefly checked candidates one
-  // at a time. Probing concurrently keeps resolution to roughly one
-  // filesystem round-trip no matter how many legacy names get added.
-  //
-  // Effect.result (never fails) rather than letting fs.exists fail the
-  // forEach directly: this keeps the outcome deterministic regardless of
-  // concurrency — we pick the first-by-priority-order match or failure
-  // ourselves from the settled results, instead of depending on which
-  // concurrent fiber happens to fail first.
-  const legacyPaths = environment.legacyUserDataDirNames.map((legacyUserDataDirName) =>
-    environment.path.join(environment.appDataDirectory, legacyUserDataDirName),
-  );
-  // Pair each probe with its own path up front (rather than indexing back into
-  // legacyPaths by position afterward) so every path stays a plain `string` —
-  // noUncheckedIndexedAccess types `array[i]` as `string | undefined`, and
-  // that undefined would otherwise leak into the resolved userData path.
-  const probes = yield* Effect.forEach(
-    legacyPaths,
-    (legacyPath) =>
-      Effect.result(fileSystem.exists(legacyPath)).pipe(
-        Effect.map((probe) => [legacyPath, probe] as const),
-      ),
-    { concurrency: "unbounded" },
-  );
-
-  for (const [legacyPath, probe] of probes) {
-    if (Result.isFailure(probe)) {
-      return yield* new DesktopUserDataPathResolutionError({
-        legacyPath,
-        cause: probe.failure,
-      });
-    }
-  }
-
-  const matched = probes.find(([, probe]) => Result.isSuccess(probe) && probe.success);
-  if (matched !== undefined) {
-    return matched[0];
-  }
-
-  return environment.path.join(environment.appDataDirectory, environment.userDataDirName);
-}).pipe(Effect.withSpan("desktop.appIdentity.resolveUserDataPath"));
-
+// -- Marcode fork seam -- upstream moved userData resolution into
+// DesktopUserData.resolveUserDataPath (V1 -> V2 cutover); Marcode's legacy
+// multi-name probing is superseded by that path. See lane report.
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
   const assets = yield* DesktopAssets.DesktopAssets;
   const electronApp = yield* ElectronApp.ElectronApp;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const fileSystem = yield* FileSystem.FileSystem;
+  const userDataContext = yield* Effect.context<FileSystem.FileSystem | Path.Path>();
   const commitHashCache = yield* Ref.make<Option.Option<Option.Option<string>>>(Option.none());
 
   const resolveEmbeddedCommitHash = Effect.gen(function* () {
@@ -152,15 +90,19 @@ export const make = Effect.gen(function* () {
     return commitHash;
   });
 
-  const userDataPath = resolveUserDataPath.pipe(
-    Effect.provide(
-      yield* Effect.context<DesktopEnvironment.DesktopEnvironment | FileSystem.FileSystem>(),
-    ),
+  const userDataPath = DesktopUserData.resolveUserDataPath(environment).pipe(
+    Effect.provide(userDataContext),
   );
 
   const configure = Effect.gen(function* () {
     const commitHash = yield* resolveAboutCommitHash;
-    yield* electronApp.setName(environment.displayName);
+    // Electron strips spaces but keeps parentheses in its User-Agent token, breaking Turnstile in preview sessions.
+    // -- Marcode fork seam -- stable builds carry no stage label, so the runtime name is the bare base name.
+    const runtimeName =
+      environment.branding.stageLabel === ""
+        ? environment.branding.baseName
+        : `${environment.branding.baseName} ${environment.branding.stageLabel}`;
+    yield* electronApp.setName(runtimeName);
     yield* electronApp.setAboutPanelOptions({
       applicationName: environment.displayName,
       applicationVersion: environment.appVersion,
@@ -171,9 +113,7 @@ export const make = Effect.gen(function* () {
       yield* electronApp.setAppUserModelId(environment.appUserModelId);
     }
 
-    // Unpackaged runs only. A packaged bundle already carries its icon in
-    // Info.plist, so setting the dock tile again changes nothing except to
-    // overwrite a custom icon the user attached to the app themselves.
+    // Packaged bundles carry their icon in Info.plist; setting it again overwrites the user's custom icon.
     if (environment.platform === "darwin" && !environment.isPackaged) {
       const iconPaths = yield* assets.iconPaths;
       yield* Option.match(iconPaths.png, {

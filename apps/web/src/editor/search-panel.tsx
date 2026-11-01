@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { useAtomValue } from "@effect/atom-react";
 import * as Option from "effect/Option";
-import { AsyncResult, Atom } from "effect/unstable/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 import type { ProjectSearchContentResult } from "@t3tools/contracts";
 import { useEditorStore, makeFileRef, fileKey } from "./editor-store";
 import { projectEnvironment } from "~/state/projects";

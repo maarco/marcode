@@ -15,12 +15,13 @@ const repoRoot = NodePath.resolve(desktopDir, "..", "..");
 const devBundleIdSuffix = NodePath.basename(repoRoot)
   .toLowerCase()
   .replaceAll(/[^a-z0-9]+/g, "");
+// -- Marcode fork seam -- branded identity: name, bundle id and URL schemes stay Marcode-shaped.
 export const APP_DISPLAY_NAME = isDevelopment ? "Marcode (Dev)" : "Marcode";
 export const APP_BUNDLE_ID = isDevelopment
   ? `app.marcode.desktop.dev.${devBundleIdSuffix || "local"}`
   : "app.marcode.desktop";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["marcode-dev"] : ["marcode"];
-const LAUNCHER_VERSION = 19;
+const LAUNCHER_VERSION = 20;
 const developmentMacIconPngPath = NodePath.join(
   repoRoot,
   "assets",
@@ -96,6 +97,7 @@ function runChecked(command, args) {
   throw new Error(`Failed to run ${command} ${args.join(" ")}: ${details}`.trim());
 }
 
+// -- Marcode fork seam -- exported for the launcher test's plist/codesign assertions.
 export function resolveMacCodeSignArguments(appBundlePath) {
   return ["--force", "--deep", "--sign", "-", "--timestamp=none", appBundlePath];
 }
@@ -203,7 +205,7 @@ function registerMacLauncherBundle(appBundlePath) {
 }
 
 // Bundle-internal paths are macOS paths whatever host builds them.
-export function resolveMacLauncherIconPaths(runtimeDir, development = isDevelopment) {
+function resolveMacLauncherIconPaths(runtimeDir, development = isDevelopment) {
   return {
     sourceIconPath: development ? developmentMacIconPngPath : productionMacIconPngPath,
     generatedIconPath: NodePath.posix.join(
@@ -262,6 +264,7 @@ function ensureMacIconIcns(runtimeDir) {
   }
 }
 
+// -- Marcode fork seam -- exported for the launcher test's plist/codesign assertions.
 export function resolveMacBundleInfoPlistStrings(executableName) {
   return {
     CFBundleDisplayName: APP_DISPLAY_NAME,
@@ -280,6 +283,8 @@ function patchMainBundleInfoPlist(appBundlePath, iconPath, executableName) {
   for (const [key, value] of Object.entries(resolveMacBundleInfoPlistStrings(executableName))) {
     setPlistString(infoPlistPath, key, value);
   }
+  // macOS 26 offers Messages/Mail codes in every text field unless opted out.
+  setPlistJson(infoPlistPath, "NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac", true);
   setPlistJson(infoPlistPath, "CFBundleURLTypes", [
     {
       CFBundleURLName: APP_BUNDLE_ID,
@@ -372,9 +377,7 @@ function buildMacLauncher(electronBinaryPath) {
     JSON.stringify(currentMetadata) === JSON.stringify(expectedMetadata)
   ) {
     if (isDevelopment) {
-      // The launcher also handles protocol activations outside the dev runner,
-      // so refresh its fallback environment on every launch. Never let a value
-      // captured by an older parent app override the live dev-runner environment.
+      // Protocol activations bypass the dev runner, so refresh the fallback environment on every launch.
       writeDevelopmentEnvironmentScript();
       if (writeDevelopmentLauncherScript(launcherBinaryPath, runtimeElectronBinaryPath)) {
         signMacLauncherBundle(targetAppBundlePath);
@@ -385,10 +388,7 @@ function buildMacLauncher(electronBinaryPath) {
   }
 
   NodeFS.rmSync(targetAppBundlePath, { recursive: true, force: true });
-  // verbatimSymlinks keeps the framework's relative symlinks intact
-  // (e.g. Resources -> Versions/Current/Resources). Without it cpSync
-  // rewrites them to absolute paths into node_modules, which escape the
-  // bundle and crash sandboxed helper processes (icudtl.dat not found).
+  // Without verbatimSymlinks, cpSync makes framework symlinks point outside the bundle and crashes helpers.
   NodeFS.cpSync(sourceAppBundlePath, targetAppBundlePath, {
     recursive: true,
     verbatimSymlinks: true,

@@ -53,11 +53,11 @@ import { cn, isMacPlatform } from "~/lib/utils";
 import { pillIconButtonClass } from "./FloatingPillNav";
 import { type TerminalContextSelection } from "~/lib/terminalContext";
 import { useOpenInPreferredEditor } from "../editorPreferences";
+import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import {
   collectWrappedTerminalLinkLine,
   extractTerminalLinks,
   isTerminalLinkActivation,
-  resolvePathLinkTarget,
   resolveWrappedTerminalLinkRange,
   wrappedTerminalLinkRangeIntersectsBufferLine,
 } from "../terminal-links";

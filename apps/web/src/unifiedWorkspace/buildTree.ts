@@ -26,7 +26,7 @@ import type { SidebarThreadSortOrder } from "@t3tools/contracts/settings";
 import { sortThreads } from "@t3tools/client-runtime/state/thread-sort";
 import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 
-import { faviconUrlForOrigin } from "~/lib/favicon";
+import { faviconUrlForOrigin } from "@t3tools/shared/favicon";
 
 import { compareUnifiedWorkspaceRanks, qualifyUnifiedWorkspaceNodeId } from "./treeOperations";
 import type {

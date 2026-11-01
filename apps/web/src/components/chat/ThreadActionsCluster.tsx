@@ -106,10 +106,8 @@ export const ThreadActionsCluster = memo(function ThreadActionsCluster({
         <GitActionsControl
           gitCwd={gitCwd}
           activeThreadRef={scopeThreadRef(activeThreadEnvironmentId, activeThreadId)}
-          onOpenPullRequest={onOpenPullRequest}
           {...(draftId ? { draftId } : {})}
-          collapsed={narrow}
-          flat
+          compact={narrow}
         />
       )}
     </>

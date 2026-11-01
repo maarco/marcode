@@ -123,6 +123,8 @@ export interface NewProjectScriptInput {
    * action keeps the asynchronous default.
    */
   waitForSetup: boolean;
+  /** Run when the thread settles (upstream); the editor keeps an edited script's value. */
+  runOnSettle: boolean;
   keybinding: string | null;
   /** Optional URL to open in the in-app preview when this script runs. */
   previewUrl: string | null;
@@ -283,6 +285,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
           icon,
           runOnWorktreeCreate,
           waitForSetup: false,
+          runOnSettle: scripts.find((script) => script.id === editingScriptId)?.runOnSettle ?? false,
           keybinding: keybindingRule?.key ?? null,
           previewUrl: trimmedPreviewUrl.length > 0 ? trimmedPreviewUrl : null,
           autoOpenPreview: trimmedPreviewUrl.length > 0 ? autoOpenPreview : false,
@@ -373,6 +376,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
         icon: fileScript.icon ?? "play",
         runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
         waitForSetup: fileScript.runOnWorktreeCreate === true && fileScript.async === false,
+        runOnSettle: fileScript.runOnSettle ?? false,
         keybinding: null,
         previewUrl: fileScript.previewUrl ?? null,
         autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,

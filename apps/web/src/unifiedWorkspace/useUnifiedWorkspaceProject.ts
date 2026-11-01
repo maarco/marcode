@@ -187,7 +187,7 @@ export function useUnifiedWorkspaceProject(input: {
   const discoveredPorts = useDiscoveredPortsState(environmentId).servers;
   const terminals = useMemo(
     () =>
-      allKnownTerminalSessions
+      (allKnownTerminalSessions ?? [])
         .filter((session) => projectThreadIdSet.has(session.target.threadId))
         .map((session) => {
           const port = discoveredPorts.find(
