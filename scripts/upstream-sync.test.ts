@@ -23,7 +23,6 @@ it.layer(NodeServices.layer)("upstream-sync cli", (it) => {
 
       assert.equal(report.status, "clean-merge");
       assert.ok(yield* fs.exists(output));
-      // @effect-diagnostics-next-line preferSchemaOverJson:off
       const written = yield* decodePlanReport(JSON.parse(yield* fs.readFileString(output)));
       assert.equal(written.status, "clean-merge");
       assert.equal(written.source.sha, report.source.sha);

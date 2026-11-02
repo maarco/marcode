@@ -55,19 +55,11 @@ export class DesktopEnvironment extends Context.Service<
     readonly browserArtifactsDir: string;
     readonly rootDir: string;
     readonly appRoot: string;
-    // Root of the tree containing apps/server/dist and node_modules for the
-    // backend. Equals appRoot everywhere except packaged Windows, where the
-    // server tree ships as the resources/server.asar sidecar (see
-    // scripts/build-desktop-artifact.ts) that the asar-aware
-    // ELECTRON_RUN_AS_NODE primary reads in place and the WSL backend
-    // extracts on demand (see DesktopWslServerTree).
     readonly serverRoot: string;
     readonly backendEntryPath: string;
-    // Built web client the packaged renderer is served from over t3code://app.
     readonly clientAssetsDir: string;
     readonly backendCwd: string;
     readonly preloadPath: string;
-    // Preload that turns on the V8 compile cache for the local backend.
     readonly compileCachePath: string;
     readonly appUpdateYmlPath: string;
     readonly devServerUrl: Option.Option<URL>;
@@ -84,11 +76,12 @@ export class DesktopEnvironment extends Context.Service<
     readonly displayName: string;
     readonly appUserModelId: string;
     readonly linuxDesktopEntryName: string;
-    readonly linuxWmClass: string;
     readonly linuxApplicationsDir: string;
+    readonly desktopLauncherPath: Option.Option<string>;
     readonly appImagePath: Option.Option<string>;
     readonly userDataDirName: string;
     readonly legacyUserDataDirNames: readonly string[];
+    readonly linuxWmClass: string;
     readonly defaultDesktopSettings: DesktopAppSettings.DesktopSettings;
     readonly runtimeInfo: DesktopRuntimeInfo;
     readonly resolvePickFolderDefaultPath: (rawOptions: unknown) => Option.Option<string>;
@@ -194,9 +187,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
   });
   const userDataDirName = isDevelopment ? "marcode-dev" : "marcode";
   // Both prior product names, oldest first: the pre-Marcode "T3 Code" brand,
-  // then "Marcode (Alpha)" from before the (Alpha) suffix was dropped. A
-  // given install only ever matches one of these — resolveUserDataPath keeps
-  // using whichever legacy directory already exists on disk.
+  // then "Marcode (Alpha)" from before the (Alpha) suffix was dropped.
   const legacyUserDataDirNames = isDevelopment
     ? ["T3 Code (Dev)", "Marcode (Dev)"]
     : ["T3 Code (Alpha)", "Marcode (Alpha)"];
@@ -255,6 +246,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
     linuxDesktopEntryName: resolveLinuxDesktopEntryName(isDevelopment),
     linuxWmClass: isDevelopment ? "marcode-dev" : "marcode",
     linuxApplicationsDir,
+    desktopLauncherPath: config.desktopLauncherPath,
     appImagePath: config.appImagePath,
     userDataDirName,
     legacyUserDataDirNames,

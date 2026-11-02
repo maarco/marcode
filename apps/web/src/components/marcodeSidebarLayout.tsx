@@ -1,29 +1,29 @@
 import { useAtomValue } from "@effect/atom-react";
-import { useEffect } from "react";
+import { useEffect, type CSSProperties } from "react";
 
 import { resolveShortcutCommand } from "../keybindings";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import LegacyThreadSidebar from "./LegacySidebar";
 import ThreadSidebar from "./Sidebar";
+import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import { TOGGLE_SIDEBAR_EVENT } from "./FloatingPillNav";
 import {
   THREAD_MAIN_CONTENT_MIN_WIDTH,
-  THREAD_SIDEBAR_MIN_WIDTH,
   THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
 } from "./threadSidebarWidth";
 import { Sidebar, SidebarRail, useSidebar } from "./ui/sidebar";
 
 interface MarcodeSidebarShellProps {
-  isOnSettings: boolean;
-  legacySidebarEnabled: boolean;
+  routeReveal: SidebarRouteReveal;
+  sidebarMinimumWidth: number;
   sidebarMaximumWidth: number;
+  style?: CSSProperties;
+  areaProps?: Record<string, unknown>;
   onResize: (width: number) => void;
   onResetWidth: () => void;
 }
 
 /** Marcode's floating sidebar mount; upstream owns the sidebar implementation. */
 export function MarcodeSidebarShell(props: MarcodeSidebarShellProps) {
-  if (props.isOnSettings) return null;
   return (
     <Sidebar
       side="left"
@@ -31,9 +31,13 @@ export function MarcodeSidebarShell(props: MarcodeSidebarShellProps) {
       collapsible="offcanvas"
       data-app-sidebar=""
       className="text-foreground"
+      {...props.areaProps}
+      role="navigation"
+      aria-label="Threads"
+      {...(props.style ? { style: props.style } : {})}
       resizable={{
         maxWidth: props.sidebarMaximumWidth,
-        minWidth: THREAD_SIDEBAR_MIN_WIDTH,
+        minWidth: props.sidebarMinimumWidth,
         shouldAcceptWidth: ({ currentWidth, nextWidth, wrapper }) =>
           nextWidth <= currentWidth ||
           wrapper.clientWidth - nextWidth >= THREAD_MAIN_CONTENT_MIN_WIDTH,
@@ -41,7 +45,7 @@ export function MarcodeSidebarShell(props: MarcodeSidebarShellProps) {
         onResize: props.onResize,
       }}
     >
-      {props.legacySidebarEnabled ? <LegacyThreadSidebar /> : <ThreadSidebar />}
+      <ThreadSidebar routeReveal={props.routeReveal} />
       <SidebarRail onDoubleClick={props.onResetWidth} />
     </Sidebar>
   );

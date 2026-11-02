@@ -80,10 +80,7 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
   );
   const { resolvedTheme } = useTheme();
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const matches = useMemo(
-    () => getProjectFilePickerMatches(result.entries, result.matchedQuery),
-    [result.entries, result.matchedQuery],
-  );
+  const matches = getProjectFilePickerMatches(result.entries, result.matchedQuery);
   const hasMatchedQuery = /\S/.test(result.matchedQuery);
   const items = useMemo<CommandPaletteActionItem[]>(
     () =>
@@ -115,7 +112,7 @@ function OpenProjectFilePicker(props: ProjectFilePickerProps & { target: ActiveP
           });
         },
       })),
-    [hasMatchedQuery, matches, resolvedTheme, target.threadRef],
+    [hasMatchedQuery, matches, resolvedTheme, target.cwd, target.environmentId, target.threadRef],
   );
 
   const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);

@@ -122,7 +122,7 @@ export function UnifiedWorkspaceMoveDialog(props: UnifiedWorkspaceMoveDialogProp
             })}
             {destinations.length === 1 && (
               <p className="px-2 py-3 text-center text-xs text-muted-foreground/70">
-                No other containers yet — this can only move to the project root.
+                No other containers yet, so this can only move to the project root.
               </p>
             )}
           </div>

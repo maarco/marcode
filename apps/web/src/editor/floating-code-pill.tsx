@@ -195,7 +195,7 @@ export function FloatingCodePill() {
       mq.removeEventListener("change", onChange);
       window.removeEventListener("resize", onResize);
     };
-  }, []);
+  }, [openOverlay]);
 
   const projectRoot = workspacePath;
 

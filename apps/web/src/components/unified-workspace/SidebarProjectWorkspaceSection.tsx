@@ -37,7 +37,7 @@ import {
 } from "@t3tools/client-runtime/state/runtime";
 import { useAtomValue } from "@effect/atom-react";
 import * as Cause from "effect/Cause";
-import { AsyncResult } from "effect/unstable/reactivity";
+import { AsyncResult } from "effect/reactivity";
 import { PlusIcon } from "lucide-react";
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -281,7 +281,7 @@ export const SidebarProjectWorkspaceSection = memo(function SidebarProjectWorksp
           return;
         }
         case "mark-unread":
-          markThreadUnread(threadKey, shell?.latestTurn?.completedAt);
+          markThreadUnread(threadKey, shell?.latestRun?.completedAt);
           return;
         case "copy-id":
           copyThreadIdToClipboard(threadId, { threadId: ThreadId.make(threadId) });

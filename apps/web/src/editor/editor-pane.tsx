@@ -299,7 +299,7 @@ function WorkspaceImagePreview({
   }
 
   return assetUrl._tag === "Success" ? (
-    <div className="flex items-center justify-center h-full overflow-auto p-4">
+    <div className="flex items-center justify-center h-full overflow-auto scrollbar-gutter-both p-4">
       <img
         className="max-h-full max-w-full object-contain"
         src={assetUrl.url}
@@ -494,7 +494,14 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
         message: error instanceof Error ? error.message : "An error occurred.",
       });
     })();
-  }, [assetThreadRef, environmentHttpBaseUrl, createAssetUrl, openPreviewMutation, file.path]);
+  }, [
+    assetThreadRef,
+    environmentHttpBaseUrl,
+    createAssetUrl,
+    openPreviewMutation,
+    file.path,
+    file.cwd,
+  ]);
 
   if (fileState.isPending && fileState.contents === null) {
     return (
@@ -535,7 +542,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
     <div className="flex flex-col h-full">
       {surface.kind === "truncated" && (
         <div className="shrink-0 px-3 py-1 text-[10px] font-mono text-amber-400/80 bg-amber-500/10 shadow-[0_1px_0_0_rgba(245,158,11,0.15)]">
-          Read-only — showing the first 1 MB of a {surface.byteLength.toLocaleString()} byte file.
+          Read-only: showing the first 1 MB of a {surface.byteLength.toLocaleString()} byte file.
           Edits are disabled to avoid truncating it on save.
         </div>
       )}
@@ -559,7 +566,7 @@ function EnvFileEditor({ file, rootPath, isMarkdown }: ChildProps & { isMarkdown
             <EditorErrorMessage message="Preview unavailable for this file." />
           )
         ) : surface.kind === "markdown" ? (
-          <div className="overflow-y-auto h-full">
+          <div className="overflow-y-auto scrollbar-gutter-both h-full">
             <div className="max-w-3xl mx-auto px-8 py-8">
               <Markdown content={contents} />
             </div>

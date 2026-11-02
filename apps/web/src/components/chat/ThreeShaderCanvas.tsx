@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 
 import type { ChatAmbientTheme } from "./chatAmbientEffects";
 import { startChatAmbientAnimation } from "./chatAmbientAnimation";
+import { observeResize } from "~/lib/observeResize";
 
 const MAX_PIXEL_RATIO = 1.35;
 
@@ -27,7 +28,7 @@ interface ThreeShaderCanvasProps {
   readonly palette: ThreeShaderPalette;
 }
 
-export function ThreeShaderCanvas({ theme, fragmentShader, palette }: ThreeShaderCanvasProps) {
+export function ThreeShaderCanvas({ fragmentShader, palette }: ThreeShaderCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -83,15 +84,10 @@ export function ThreeShaderCanvas({ theme, fragmentShader, palette }: ThreeShade
 
     resize();
     const motionQuery = window.matchMedia?.("(prefers-reduced-motion: reduce)") ?? null;
-    const resizeObserver =
-      typeof ResizeObserver === "undefined"
-        ? null
-        : new ResizeObserver(() => {
-            resize();
-            if (motionQuery?.matches) render(0);
-          });
-
-    resizeObserver?.observe(canvas);
+    const stopObservingResize = observeResize(canvas, () => {
+      resize();
+      if (motionQuery?.matches) render(0);
+    });
     window.addEventListener("resize", resize);
     const disposeAnimation = startChatAmbientAnimation({
       element: canvas,
@@ -102,7 +98,7 @@ export function ThreeShaderCanvas({ theme, fragmentShader, palette }: ThreeShade
     return () => {
       disposeAnimation();
       window.removeEventListener("resize", resize);
-      resizeObserver?.disconnect();
+      stopObservingResize();
       geometry.dispose();
       material.dispose();
       renderer.dispose();

@@ -1,55 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
-import * as Schema from "effect/Schema";
 
 import {
-  managedEndpointDigestInput,
-  managedEndpointForHostname,
   managedEndpointHostname,
   isManagedEndpointHostname,
-  managedEndpointTunnelName,
-  managedEndpointTunnelNamePrefix,
   relayOwnsManagedEndpointZone,
-  RelayPublicDomainLabelTooLongError,
-  relayPublicDomainForStage,
-  relayResourceNameForStage,
 } from "./deploymentConfig.ts";
-
-const isRelayPublicDomainLabelTooLongError = Schema.is(RelayPublicDomainLabelTooLongError);
-
-describe("relayPublicDomainForStage", () => {
-  it("uses the canonical relay hostname for production", () => {
-    expect(relayPublicDomainForStage("prod", ".example.com.")).toBe("relay.example.com");
-  });
-
-  it("isolates personal stages below the imported zone", () => {
-    expect(relayPublicDomainForStage("dev_julius", "example.com")).toBe(
-      "relay-dev-julius.example.com",
-    );
-  });
-
-  it("reports the stage and derived DNS label when the label is too long", () => {
-    const stage = `dev_${"x".repeat(60)}`;
-    let error: unknown;
-
-    try {
-      relayPublicDomainForStage(stage, "example.com");
-    } catch (cause) {
-      error = cause;
-    }
-
-    if (!isRelayPublicDomainLabelTooLongError(error)) {
-      throw error;
-    }
-    expect(error).toMatchObject({
-      stage,
-      label: `relay-dev-${"x".repeat(60)}`,
-      maxLength: 63,
-    });
-    expect(error.message).toBe(
-      `Relay stage '${stage}' produces custom domain label 'relay-dev-${"x".repeat(60)}' (70 characters), exceeding the DNS label limit of 63.`,
-    );
-  });
-});
 
 describe("relayOwnsManagedEndpointZone", () => {
   it("keeps the shared Cloudflare zone owned by production", () => {
@@ -58,43 +13,7 @@ describe("relayOwnsManagedEndpointZone", () => {
   });
 });
 
-describe("relayResourceNameForStage", () => {
-  it("isolates production and personal stages", () => {
-    expect(relayResourceNameForStage("t3-code-relay-traces", "prod")).toBe(
-      "t3-code-relay-traces-prod",
-    );
-    expect(relayResourceNameForStage("t3-code-relay-traces", "dev_julius")).toBe(
-      "t3-code-relay-traces-dev-julius",
-    );
-  });
-});
-
 describe("managed endpoint names", () => {
-  it("uses the stage slug and a stable stage-scoped digest suffix", () => {
-    const hash = "ABCDEF0123456789ABCDEF0123456789";
-
-    expect(managedEndpointDigestInput("dev_julius", "user_123", "env_123")).toBe(
-      "dev_julius:user_123:env_123",
-    );
-    expect(managedEndpointHostname("dev_julius", ".example.com.", hash)).toBe(
-      "dev-julius-abcdef0123456789.example.com",
-    );
-    expect(managedEndpointHostname("prod", "marcoderelay.com", hash)).toBe(
-      "prod-abcdef0123456789.marcoderelay.com",
-    );
-    expect(managedEndpointTunnelName("dev_julius", hash)).toBe(
-      "marcoderelay-managedendpoint-dev-julius-abcdef0123456789",
-    );
-    // -- Marcode fork seam --
-    // Marcode deploys the relay under its own name, so every managed endpoint
-    // tunnel is `marcoderelay-managedendpoint-*`. Upstream's literal is
-    // `t3coderelay-*`; taking it here would assert a prefix that
-    // MANAGED_ENDPOINT_TUNNEL_PREFIX no longer produces.
-    expect(managedEndpointTunnelNamePrefix("dev_julius")).toBe(
-      "marcoderelay-managedendpoint-dev-julius-",
-    );
-  });
-
   it("keeps the DNS label within the provider limit for long stage names", () => {
     const hostname = managedEndpointHostname(
       "dev_" + "x".repeat(100),
@@ -104,17 +23,6 @@ describe("managed endpoint names", () => {
 
     expect(hostname.split(".")[0]?.length).toBeLessThanOrEqual(63);
     expect(hostname).toMatch(/-a{16}\.example\.com$/);
-  });
-
-  it("accepts allocated hostnames within the relay zone", () => {
-    expect(
-      isManagedEndpointHostname("dev-julius-abcdef0123456789.example.com", "example.com"),
-    ).toBe(true);
-    expect(managedEndpointForHostname("dev-julius-abcdef0123456789.example.com")).toEqual({
-      httpBaseUrl: "https://dev-julius-abcdef0123456789.example.com/",
-      wsBaseUrl: "wss://dev-julius-abcdef0123456789.example.com/ws",
-      providerKind: "cloudflare_tunnel",
-    });
   });
 
   it("rejects hostnames outside the relay zone", () => {

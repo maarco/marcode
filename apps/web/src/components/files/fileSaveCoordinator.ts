@@ -3,16 +3,17 @@ import * as Cause from "effect/Cause";
 
 export interface FileSaveCoordinatorOptions<A, E> {
   readonly debounceMs: number;
+  readonly canPersist?: () => boolean;
   readonly persist: (contents: string) => Promise<AtomCommandResult<A, E>>;
   readonly onPendingChange: (pending: boolean) => void;
-  readonly onConfirmed: (contents: string) => void;
+  /** Return false when another editor has newer unsaved contents. */
+  readonly onConfirmed: (contents: string) => boolean | void;
+  /** Called when a write pass ends with nothing further scheduled. */
+  readonly onSettled?: () => void;
   /**
    * Called when a persist attempt fails. Pending/dirty state is unaffected.
-   * Declared with method shorthand (not an arrow-typed property) so `E` stays
-   * bivariantly checked here, matching its only other appearance (`persist`'s
-   * return type) — otherwise this field alone would make `E` invariant and
-   * break every existing `FileSaveCoordinator` (defaulting to `<unknown,
-   * unknown>`) call site that widens a narrower-typed instance into it.
+   * Method shorthand (not an arrow-typed property) keeps `E` bivariant, like
+   * `persist`'s return type, so narrower-typed instances still widen.
    */
   onError?(error: E): void;
 }
@@ -25,12 +26,10 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   private lastChangeAt = 0;
   private saving = false;
   private disposed = false;
-  private flushRequested = false;
+  private flushing = false;
   /**
-   * Bumped by `cancel()`. A write already in flight when the buffer is
-   * discarded must not report its revision as confirmed: upstream's entry
-   * guard compares `latestRevision` with `confirmedRevision`, so a stale
-   * confirmation would leave the two unequal and let the discarded buffer
+   * Bumped by `cancel()`. A write already in flight when the buffer is discarded
+   * must not report its revision as confirmed, or the discarded buffer would
    * persist a second time.
    */
   private cancelToken = 0;
@@ -46,16 +45,23 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     this.schedule(this.options.debounceMs);
   }
 
+  /** The newest contents not yet written, which is the last write this coordinator will make. */
+  get unconfirmedContents(): string | null {
+    return this.latestRevision === this.confirmedRevision ? null : this.latestContents;
+  }
+
   /**
-   * Persist the latest contents immediately, cancelling the debounce timer.
-   * Used for explicit "save now" (e.g. Cmd+S). If a save is already in flight,
-   * the latest contents are persisted as soon as it completes, skipping the
-   * remaining debounce.
+   * Writes the newest draft now instead of after the debounce, then any draft
+   * queued behind it. Resolves when this pass ends (explicit "save now").
    */
   flush(): Promise<void> {
     this.clearTimer();
-    if (this.latestRevision === 0) return Promise.resolve();
-    this.flushRequested = true;
+    if (this.latestRevision === 0) {
+      // Nothing was ever written, but a session releasing on flush still waits for this.
+      this.options.onSettled?.();
+      return Promise.resolve();
+    }
+    this.flushing = true;
     return this.persistLatest();
   }
 
@@ -67,28 +73,15 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
 
   /**
    * Forget the pending buffer without persisting it (explicit discard/revert).
-   * Cancels the debounce timer and zeroes `latestRevision`, so a subsequent
-   * `dispose()` treats there as nothing pending and skips its force-persist.
-   * If a write is already in flight, this can't abort that network call —
-   * there is no cancellation token wired through `persist()` — but it does
-   * clear `flushRequested` and zero `latestRevision` so the in-flight write's
-   * completion cannot reschedule a further persist: `persistLatest()`'s
-   * entry guard (`this.saving || this.latestRevision === this.confirmedRevision`)
-   * makes any such stray reschedule a no-op when it fires.
-   *
-   * `confirmedRevision` is zeroed with it. The two counters are only ever
-   * compared to each other, so resetting the revision alone would leave the
-   * guard mismatched: an in-flight write confirming after `cancel()` sets
-   * `confirmedRevision = 1` against a zeroed `latestRevision`, which both
-   * re-persists the discarded buffer and then swallows the *next* edit, whose
-   * revision climbs back to 1 and compares equal to the stale confirmation.
+   * Zeroes both revision counters so an in-flight write confirming later can
+   * neither re-persist the discarded buffer nor swallow the next edit.
    */
   cancel(): void {
     this.clearTimer();
     this.cancelToken += 1;
     this.latestRevision = 0;
     this.confirmedRevision = 0;
-    this.flushRequested = false;
+    this.flushing = false;
     this.options.onPendingChange(false);
   }
 
@@ -107,12 +100,16 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
   }
 
   private async persistLatest(): Promise<void> {
-    // `latestRevision === 0` is `cancel()`'s "nothing pending" sentinel and is
-    // checked separately from upstream's already-confirmed comparison: a write
-    // that confirms after a discard must not make a zeroed revision look like a
-    // confirmed one, and must not resurrect the discarded buffer.
-    if (this.saving || this.latestRevision === 0) return;
-    if (this.latestRevision === this.confirmedRevision) return;
+    if (this.saving) return;
+    // `latestRevision === 0` is cancel()'s "nothing pending" sentinel.
+    if (
+      this.latestRevision === 0 ||
+      this.latestRevision === this.confirmedRevision ||
+      this.options.canPersist?.() === false
+    ) {
+      this.settle();
+      return;
+    }
 
     this.saving = true;
     const cancelToken = this.cancelToken;
@@ -121,45 +118,41 @@ export class FileSaveCoordinator<A = unknown, E = unknown> {
     const result = await this.options.persist(contents);
     const cancelled = cancelToken !== this.cancelToken;
     const succeeded = result._tag === "Success";
-    // `cancel()` during the write zeroes the revision. Recording the completed
-    // write as confirmed would then swallow the next edit, whose revision
-    // climbs back to `revision` and compares equal to this stale confirmation.
-    const discarded = this.latestRevision === 0;
+    let confirmed = false;
     if (succeeded) {
-      // The write did land, so the caller still hears about it; only the
-      // revision bookkeeping is skipped for a buffer that was discarded or
-      // superseded by a new buffer after cancel().
-      if (!discarded && !cancelled) this.confirmedRevision = revision;
-      this.options.onConfirmed(contents);
+      // The write did land, so the caller still hears about it; the revision
+      // bookkeeping is skipped for a buffer that was discarded after cancel().
+      if (!cancelled && this.latestRevision !== 0) this.confirmedRevision = revision;
+      confirmed = this.options.onConfirmed(contents) !== false;
     } else {
       this.options.onError?.(Cause.squash(result.cause) as E);
     }
 
     this.saving = false;
     if (cancelled) {
-      this.flushRequested = false;
+      this.settle();
       return;
     }
     if (revision === this.latestRevision) {
-      if (succeeded) this.options.onPendingChange(false);
-      this.flushRequested = false;
+      if (confirmed) this.options.onPendingChange(false);
+      this.settle();
       return;
     }
 
-    if (this.disposed) {
-      void this.persistLatest();
-      return;
-    }
-    if (this.flushRequested) {
-      this.flushRequested = false;
-      this.schedule(0);
-      return;
-    }
     const remainingDebounce = Math.max(
       0,
       this.options.debounceMs - (Date.now() - this.lastChangeAt),
     );
-    this.schedule(remainingDebounce);
+    if (this.disposed || this.flushing) {
+      void this.persistLatest();
+    } else {
+      this.schedule(remainingDebounce);
+    }
+  }
+
+  private settle(): void {
+    this.flushing = false;
+    this.options.onSettled?.();
   }
 }
 

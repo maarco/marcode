@@ -1,6 +1,6 @@
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 
-import { resolvePathLinkTarget } from "~/terminal-links";
+import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 
 import { makeFileRef, useEditorStore } from "./editor-store";
 

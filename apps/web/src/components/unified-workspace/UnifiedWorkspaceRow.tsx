@@ -495,6 +495,7 @@ export const UnifiedWorkspaceRow = memo(function UnifiedWorkspaceRow(
       ) : node.kind === "file" && !node.isBroken ? (
         <FileTypeIcon ext={fileExtension(node.tooltip ?? node.label)} size="xs" />
       ) : (
+        // oxlint-disable-next-line react/static-components -- iconForNode returns a module-level icon component, not one built per render
         <Icon
           className={cn(
             UW_TREE_ICON_CLASS,

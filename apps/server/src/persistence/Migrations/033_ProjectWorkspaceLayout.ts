@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
+import * as SqlClient from "effect/sql/SqlClient";
 
 /**
  * Adds the unified workspace tree sidebar's persisted layout columns to

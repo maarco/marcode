@@ -1,5 +1,14 @@
 import { PullRequestGlyph } from "~/components/pullRequest/pullRequestIcons";
-import { Bot, Smartphone, ChevronDown, FileDiff, Globe2, Plus, TerminalSquare } from "lucide-react";
+import {
+  Bot,
+  Smartphone,
+  ChevronDown,
+  FileDiff,
+  Globe2,
+  MessagesSquare,
+  Plus,
+  TerminalSquare,
+} from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -8,6 +17,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactElement,
   type ReactNode,
+  type Ref,
 } from "react";
 
 import { cn } from "~/lib/utils";
@@ -34,6 +44,7 @@ const SURFACE_DISABLED_REASONS = {
   pullRequests: "No linked pull requests are available for this thread.",
   device: "Devices are only available from a thread.",
   agents: "Agents are only available from a thread.",
+  sideChat: "Side chats start after the first message.",
 } as const;
 
 /** Overlays that must win over the launcher's letter shortcuts. */
@@ -58,9 +69,7 @@ const SURFACE_UNAVAILABLE_HINTS = {
   agents: "Available from a thread.",
 } as const;
 
-export function shouldOpenDefaultBrowserProfileFromMenuClick(
-  pointerType: string | undefined,
-): boolean {
+function shouldOpenDefaultBrowserProfileFromMenuClick(pointerType: string | undefined): boolean {
   return pointerType !== "touch";
 }
 
@@ -69,9 +78,10 @@ type SurfaceShortcutEvent = Pick<
   "altKey" | "ctrlKey" | "defaultPrevented" | "isComposing" | "key" | "metaKey"
 >;
 
-export function surfaceShortcutActionForKey<
-  const Action extends { available: boolean; shortcut: string },
->(actions: readonly Action[], event: SurfaceShortcutEvent): Action | null {
+function surfaceShortcutActionForKey<const Action extends { available: boolean; shortcut: string }>(
+  actions: readonly Action[],
+  event: SurfaceShortcutEvent,
+): Action | null {
   if (event.defaultPrevented || event.isComposing) return null;
   if (event.metaKey || event.ctrlKey || event.altKey) return null;
   return (
@@ -82,7 +92,7 @@ export function surfaceShortcutActionForKey<
 }
 
 /** Keep launcher letters from stealing input from an editable surface. */
-export function surfaceShortcutTargetsTypingContext(
+function surfaceShortcutTargetsTypingContext(
   target: { closest(selectors: string): unknown } | null,
 ): boolean {
   return (
@@ -125,6 +135,15 @@ function SurfaceMenuItem(props: {
 /** Marcode's add-surface menu; upstream owns the tab shelf that mounts it. */
 export function MarcodeRightPanelAddMenu(props: {
   surfacesCount: number;
+  /** Controlled open state, so the rightPanel.new shortcut can open the menu. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  triggerHandle?: Ref<HTMLButtonElement>;
+  /** Absent where side chats are not offered. */
+  onAddSideChat?: (() => void) | undefined;
+  sideChatAvailable?: boolean;
+  /** Overrides the default reason while side chats are available but cannot start. */
+  sideChatDisabledReason?: string | null;
   onAddBrowser: () => void;
   onAddBrowserInProfile: (profileId: string) => void;
   browserProfiles: ReadonlyArray<{
@@ -136,17 +155,20 @@ export function MarcodeRightPanelAddMenu(props: {
   onAddDiff: () => void;
   onAddPullRequest: () => void;
   onAddPullRequests: () => void;
-  onAddAgents: () => void;
+  onAddAgents?: (() => void) | undefined;
   onAddDevice: () => void;
   browserAvailable: boolean;
   terminalAvailable: boolean;
   diffAvailable: boolean;
   pullRequestAvailable: boolean;
   pullRequestsAvailable: boolean;
-  agentsAvailable: boolean;
+  agentsAvailable?: boolean;
   deviceAvailable: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const { triggerHandle } = props;
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = props.open ?? uncontrolledOpen;
+  const setOpen = props.onOpenChange ?? setUncontrolledOpen;
   const actions = [
     {
       label: "Browser",
@@ -196,16 +218,33 @@ export function MarcodeRightPanelAddMenu(props: {
       disabledReason: SURFACE_DISABLED_REASONS.device,
       onClick: props.onAddDevice,
     },
-    {
-      label: "Agents",
-      icon: Bot,
-      shortcut: "A",
-      available: props.agentsAvailable,
-      disabledReason: SURFACE_DISABLED_REASONS.agents,
-      onClick: props.onAddAgents,
-    },
+    ...(props.onAddAgents
+      ? [
+          {
+            label: "Agents",
+            icon: Bot,
+            shortcut: "A",
+            available: props.agentsAvailable === true,
+            disabledReason: SURFACE_DISABLED_REASONS.agents,
+            onClick: props.onAddAgents,
+          },
+        ]
+      : []),
+    ...(props.onAddSideChat
+      ? [
+          {
+            label: "Side chat",
+            icon: MessagesSquare,
+            shortcut: "S",
+            available: props.sideChatAvailable === true && !props.sideChatDisabledReason,
+            disabledReason: props.sideChatDisabledReason ?? SURFACE_DISABLED_REASONS.sideChat,
+            onClick: props.onAddSideChat,
+          },
+        ]
+      : []),
   ] as const;
 
+  const { browserProfiles, onAddBrowserInProfile } = props;
   const handleKeyDownCapture = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     const action = surfaceShortcutActionForKey(actions, event.nativeEvent);
     if (!action) return;
@@ -219,6 +258,7 @@ export function MarcodeRightPanelAddMenu(props: {
   return (
     <Menu open={open} onOpenChange={setOpen}>
       <MenuTrigger
+        ref={triggerHandle}
         render={
           <Button
             aria-label="Add panel surface"
@@ -270,11 +310,8 @@ export function MarcodeRightPanelAddMenu(props: {
                   <MenuShortcut>{action.shortcut}</MenuShortcut>
                 </MenuSubTrigger>
                 <MenuSubPopup className="min-w-40 max-w-56">
-                  {props.browserProfiles.map((profile) => (
-                    <MenuItem
-                      key={profile.id}
-                      onClick={() => props.onAddBrowserInProfile(profile.id)}
-                    >
+                  {browserProfiles.map((profile) => (
+                    <MenuItem key={profile.id} onClick={() => onAddBrowserInProfile(profile.id)}>
                       <span className="min-w-0 truncate">{profile.name}</span>
                     </MenuItem>
                   ))}
@@ -398,7 +435,7 @@ export function MarcodeRightPanelEmptyState(props: {
     };
     window.addEventListener("keydown", handler, true);
     return () => window.removeEventListener("keydown", handler, true);
-  }, []);
+  }, [shortcutActionsRef]);
 
   const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -460,7 +497,7 @@ export function MarcodeRightPanelEmptyState(props: {
       aria-label="Open a panel"
       data-surface-launcher-keys={availableActions.map((action) => action.shortcut).join("")}
       className={cn(
-        "flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 pt-6 outline-none",
+        "scrollbar-gutter-both flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-6 pt-6 outline-none",
         "pb-[calc(var(--workspace-topbar-height)+--spacing(6))]",
       )}
     >

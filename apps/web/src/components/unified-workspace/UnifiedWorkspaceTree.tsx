@@ -452,6 +452,7 @@ export const UnifiedWorkspaceTree = forwardRef<
     pendingRevealNodeIdRef.current = null;
     element.scrollIntoView({ block: "nearest" });
     element.focus();
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies -- both are re-run triggers: the effect reads only refs, so it must re-fire when focus or rows change
   }, [focusedNodeId, flatRows]);
 
   useImperativeHandle(ref, () => ({ focusAndRevealNode }), [focusAndRevealNode]);
@@ -1072,7 +1073,7 @@ export const UnifiedWorkspaceTree = forwardRef<
             {renderVisibleRows(controller.roots)}
             {flatRows.length === 0 && (
               <p className="px-2 py-3 text-center text-[11px] text-muted-foreground/60">
-                Nothing here yet — use “New thread” to get started.
+                Nothing here yet. Use “New thread” to get started.
               </p>
             )}
           </div>
@@ -1085,6 +1086,7 @@ export const UnifiedWorkspaceTree = forwardRef<
         >
           {activeDraggedNode && OverlayIcon ? (
             <div className={UW_TREE_DRAG_OVERLAY_CLASS}>
+              {/* oxlint-disable-next-line react/static-components -- iconForOverlay returns a module-level icon component */}
               <OverlayIcon className="size-3.5 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1 truncate">{activeDraggedNode.label}</span>
             </div>
