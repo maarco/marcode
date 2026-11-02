@@ -23,6 +23,7 @@ import {
 } from "@t3tools/contracts";
 import * as Duration from "effect/Duration";
 import * as Clock from "effect/Clock";
+import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -2612,7 +2613,9 @@ describe("UsageService", () => {
       // Relative to now: this runs on the live clock and the service drops files past its retention.
       const nowMs = yield* Clock.currentTimeMillis;
       const day = (offsetDays: number) =>
-        UsageDay.make(new Date(nowMs + offsetDays * 86_400_000).toISOString().slice(0, 10));
+        UsageDay.make(
+          DateTime.formatIso(DateTime.makeUnsafe(nowMs + offsetDays * 86_400_000)).slice(0, 10),
+        );
       const reachedWindow: UsageSummaryInput = {
         timeZone: "UTC",
         sinceDay: day(-3),
@@ -2622,7 +2625,10 @@ describe("UsageService", () => {
         const lastWriteMs = nowMs - 2 * 86_400_000;
         await NodeFSP.writeFile(
           transcript,
-          claudeLine(1, 5).replace("2026-08-01T10:00:00Z", new Date(lastWriteMs).toISOString()),
+          claudeLine(1, 5).replace(
+            "2026-08-01T10:00:00Z",
+            DateTime.formatIso(DateTime.makeUnsafe(lastWriteMs)),
+          ),
         );
         const lastWrite = lastWriteMs / 1000;
         await NodeFSP.utimes(transcript, lastWrite, lastWrite);
