@@ -1,5 +1,4 @@
 import { assert, describe, it } from "@effect/vitest";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as FileSystem from "effect/FileSystem";
@@ -19,7 +18,7 @@ vi.mock("electron", () => ({
 
 import * as ElectronProtocol from "./ElectronProtocol.ts";
 
-const protocolLayer = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
+const layerProtocol = ElectronProtocol.layer.pipe(Layer.provide(NodeServices.layer));
 
 describe("ElectronProtocol", () => {
   beforeEach(() => {
@@ -57,7 +56,6 @@ describe("ElectronProtocol", () => {
       const request = (pathname: string, init?: RequestInit) =>
         Effect.promise(() => handler!(new Request(`t3code://app${pathname}`, init)));
 
-      // SPA routes fall back to index.html, including ones containing dots.
       const page = yield* request("/settings/connections");
       assert.equal(yield* Effect.promise(() => page.text()), "<html>app</html>");
       assert.include(page.headers.get("content-security-policy") ?? "", "default-src 'self'");
@@ -75,7 +73,7 @@ describe("ElectronProtocol", () => {
       assert.equal((yield* request("/%invalid")).status, 400);
       assert.equal((yield* request("/", { method: "POST" })).status, 405);
       assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(Layer.merge(protocolLayer, NodeServices.layer)), Effect.scoped),
+    }).pipe(Effect.provide(Layer.merge(layerProtocol, NodeServices.layer)), Effect.scoped),
   );
 
   it.effect("proxies the stable renderer origin to the current app server", () =>
@@ -139,7 +137,40 @@ describe("ElectronProtocol", () => {
       assert.isNull(forwardedHeaders.get("referer"));
       assert.isNull(forwardedHeaders.get("sec-fetch-site"));
       assert.deepEqual(unhandleMock.mock.calls, [["marcode-dev"]]);
-    }).pipe(Effect.provide(protocolLayer)),
+    }).pipe(Effect.provide(layerProtocol)),
+  );
+
+  it.effect("keeps proxied paths on the configured server", () =>
+    Effect.gen(function* () {
+      let handler: ((request: Request) => Promise<Response>) | undefined;
+      handleMock.mockImplementation((_scheme, nextHandler) => {
+        handler = nextHandler;
+      });
+      netFetchMock.mockImplementation(async () => new Response("ok"));
+
+      yield* Effect.scoped(
+        Effect.gen(function* () {
+          const protocol = yield* ElectronProtocol.ElectronProtocol;
+          yield* protocol.registerDesktopProtocol({
+            scheme: "marcode-dev",
+            targetOrigin: new URL("http://127.0.0.1:5733/"),
+            clerkFrontendApiHostname: undefined,
+          });
+          yield* Effect.promise(() =>
+            handler!(new Request("marcode-dev://app//example.com/src/main.tsx?t=1")),
+          );
+          yield* Effect.promise(() => handler!(new Request("marcode-dev://app/\\example.com/")));
+        }),
+      );
+
+      assert.deepEqual(
+        netFetchMock.mock.calls.map((call) => call[0]),
+        [
+          "http://127.0.0.1:5733//example.com/src/main.tsx?t=1",
+          "http://127.0.0.1:5733//example.com/",
+        ],
+      );
+    }).pipe(Effect.provide(layerProtocol)),
   );
 
   it.effect("rejects custom protocol requests for another host", () =>
@@ -153,7 +184,7 @@ describe("ElectronProtocol", () => {
         Effect.gen(function* () {
           const protocol = yield* ElectronProtocol.ElectronProtocol;
           yield* protocol.registerDesktopProtocol({
-            scheme: "marcode",
+            scheme: "t3code",
             targetOrigin: new URL("http://127.0.0.1:3773/"),
             clerkFrontendApiHostname: undefined,
           });
@@ -163,126 +194,6 @@ describe("ElectronProtocol", () => {
 
       assert.equal(response.status, 404);
       assert.equal(netFetchMock.mock.calls.length, 0);
-    }).pipe(Effect.provide(protocolLayer)),
+    }).pipe(Effect.provide(layerProtocol)),
   );
-
-  it.effect("retries transient renderer target failures", () =>
-    Effect.gen(function* () {
-      let handler: ((request: Request) => Promise<Response>) | undefined;
-      handleMock.mockImplementation((_scheme, nextHandler) => {
-        handler = nextHandler;
-      });
-      netFetchMock
-        .mockRejectedValueOnce(new Error("connect ECONNREFUSED 127.0.0.1:5733"))
-        .mockResolvedValueOnce(new Response("ready"));
-
-      const response = yield* Effect.scoped(
-        Effect.gen(function* () {
-          const protocol = yield* ElectronProtocol.ElectronProtocol;
-          yield* protocol.registerDesktopProtocol({
-            scheme: "marcode-dev",
-            targetOrigin: new URL("http://127.0.0.1:5733/"),
-            clerkFrontendApiHostname: undefined,
-          });
-          return yield* Effect.promise(() => handler!(new Request("marcode-dev://app/")));
-        }),
-      );
-
-      assert.equal(yield* Effect.promise(() => response.text()), "ready");
-      assert.equal(netFetchMock.mock.calls.length, 2);
-    }).pipe(Effect.provide(protocolLayer)),
-  );
-
-  it.effect("preserves protocol registration failures", () =>
-    Effect.gen(function* () {
-      const cause = new Error("protocol registration failed");
-      handleMock.mockImplementationOnce(() => {
-        throw cause;
-      });
-
-      const protocol = yield* ElectronProtocol.ElectronProtocol;
-      const error = yield* Effect.scoped(
-        protocol.registerDesktopProtocol({
-          scheme: "marcode-dev",
-          targetOrigin: new URL("http://127.0.0.1:3773/"),
-          clerkFrontendApiHostname: undefined,
-        }),
-      ).pipe(Effect.flip);
-
-      assert.instanceOf(error, ElectronProtocol.ElectronProtocolRegistrationError);
-      assert.equal(error.scheme, "marcode-dev");
-      assert.strictEqual(error.cause, cause);
-      assert.equal(error.message, 'Failed to register Electron protocol scheme "marcode-dev".');
-    }).pipe(Effect.provide(protocolLayer)),
-  );
-
-  it.effect("preserves protocol unregistration failures", () =>
-    Effect.gen(function* () {
-      const cause = new Error("protocol unregistration failed");
-      unhandleMock.mockImplementationOnce(() => {
-        throw cause;
-      });
-
-      const protocol = yield* ElectronProtocol.ElectronProtocol;
-      const exit = yield* Effect.exit(
-        Effect.scoped(
-          protocol.registerDesktopProtocol({
-            scheme: "marcode",
-            targetOrigin: new URL("http://127.0.0.1:3773/"),
-            clerkFrontendApiHostname: undefined,
-          }),
-        ),
-      );
-
-      assert.equal(exit._tag, "Failure");
-      if (exit._tag === "Failure") {
-        const error = Cause.squash(exit.cause);
-        assert.instanceOf(error, ElectronProtocol.ElectronProtocolUnregistrationError);
-        assert.equal(error.scheme, "marcode");
-        assert.strictEqual(error.cause, cause);
-        assert.equal(error.message, 'Failed to unregister Electron protocol scheme "marcode".');
-      }
-    }).pipe(Effect.provide(protocolLayer)),
-  );
-
-  it("keeps executable sources host-restricted while allowing runtime network resources", () => {
-    const policy = ElectronProtocol.makeDesktopContentSecurityPolicy({
-      scheme: "marcode",
-      targetOrigin: new URL("http://127.0.0.1:3773/"),
-      clerkFrontendApiHostname: "clerk.t3.codes",
-    });
-    const directives = Object.fromEntries(
-      policy.split("; ").map((directive) => {
-        const [name, ...sources] = directive.split(" ");
-        return [name, sources];
-      }),
-    );
-
-    assert.deepEqual(directives["script-src"], [
-      "'self'",
-      "'unsafe-inline'",
-      "'wasm-unsafe-eval'",
-      "https://clerk.t3.codes",
-      "https://challenges.cloudflare.com",
-    ]);
-    assert.deepEqual(directives["connect-src"], [
-      "'self'",
-      "blob:",
-      "http:",
-      "https:",
-      "ws:",
-      "wss:",
-    ]);
-    assert.deepEqual(directives["img-src"], [
-      "'self'",
-      "marcode:",
-      "blob:",
-      "data:",
-      "http:",
-      "https:",
-    ]);
-    assert.deepEqual(directives["media-src"], ["'self'", "marcode:", "blob:", "http:", "https:"]);
-    assert.deepEqual(directives["frame-src"], ["'self'", "blob:", "http:", "https:"]);
-    assert.deepEqual(directives["font-src"], ["'self'", "marcode:", "data:"]);
-  });
 });

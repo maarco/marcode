@@ -74,9 +74,6 @@ import {
   MenuSeparator,
   MenuShortcut,
   MenuTrigger,
-  MenuSub,
-  MenuSubTrigger,
-  MenuSubPopup,
 } from "./ui/menu";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Switch } from "./ui/switch";
@@ -123,6 +120,8 @@ export interface NewProjectScriptInput {
    * action keeps the asynchronous default.
    */
   waitForSetup: boolean;
+  /** Run when the thread settles (upstream); the editor keeps an edited script's value. */
+  runOnSettle: boolean;
   keybinding: string | null;
   /** Optional URL to open in the in-app preview when this script runs. */
   previewUrl: string | null;
@@ -198,10 +197,6 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
   ) {
     const addScriptFormId = React.useId();
     const [editingScriptId, setEditingScriptId] = useState<string | null>(null);
-    const [actionsMenuOpen, setActionsMenuOpen] = useState({
-      scripts: false,
-      imports: false,
-    });
     const [dialogOpen, setDialogOpen] = useState(false);
     const [name, setName] = useState("");
     const [command, setCommand] = useState("");
@@ -283,6 +278,8 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
           icon,
           runOnWorktreeCreate,
           waitForSetup: false,
+          runOnSettle:
+            scripts.find((script) => script.id === editingScriptId)?.runOnSettle ?? false,
           keybinding: keybindingRule?.key ?? null,
           previewUrl: trimmedPreviewUrl.length > 0 ? trimmedPreviewUrl : null,
           autoOpenPreview: trimmedPreviewUrl.length > 0 ? autoOpenPreview : false,
@@ -343,7 +340,6 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
 
     const openEditDialog = (script: ProjectScript) => {
       onRequestMenuClose?.();
-      setActionsMenuOpen({ scripts: false, imports: false });
       setEditingScriptId(script.id);
       setName(script.name);
       setCommand(script.command);
@@ -373,6 +369,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
         icon: fileScript.icon ?? "play",
         runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
         waitForSetup: fileScript.runOnWorktreeCreate === true && fileScript.async === false,
+        runOnSettle: fileScript.runOnSettle ?? false,
         keybinding: null,
         previewUrl: fileScript.previewUrl ?? null,
         autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,
@@ -523,7 +520,7 @@ const ProjectScriptsControl = forwardRef<ProjectScriptsControlHandle, ProjectScr
               return (
                 <PillTooltip
                   key={script.id}
-                  label={`Run ${script.name}${shortcutLabel ? ` (${shortcutLabel})` : ""} — right-click to edit`}
+                  label={`Run ${script.name}${shortcutLabel ? ` (${shortcutLabel})` : ""}, right-click to edit`}
                   render={
                     <button
                       type="button"

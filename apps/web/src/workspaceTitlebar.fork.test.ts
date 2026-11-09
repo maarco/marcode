@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import usageSource from "./components/usage/UsagePage.tsx?raw";
 import headerSource from "./components/WorkspacePageHeader.tsx?raw";
-import settingsSource from "./routes/settings.tsx?raw";
 import {
   COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
   SIDEBARLESS_TITLEBAR_INSET_CLASS,
@@ -28,26 +26,9 @@ describe("sidebarless titlebar inset", () => {
     expect(SIDEBARLESS_TITLEBAR_INSET_CLASS).toContain("--workspace-titlebar-content-left");
   });
 
-  for (const [name, source] of [
-    ["settings", settingsSource],
-    ["usage", usageSource],
-  ] as const) {
-    it(`insets the ${name} desktop titlebar past the native window controls`, () => {
-      // Upstream moved this geometry into the shared `WorkspacePageHeader`, which
-      // carries only the collapsed-sidebar inset. These routes mount no sidebar,
-      // so each call site has to pass the sidebarless class itself.
-      const header = source.indexOf("<WorkspacePageHeader");
-      expect(header).toBeGreaterThan(-1);
-
-      expect(source.slice(header, source.indexOf(">", header))).toContain(
-        "SIDEBARLESS_TITLEBAR_INSET_CLASS",
-      );
-    });
-  }
-
   it("does not get the sidebarless inset from the shared header itself", () => {
-    // If upstream ever adds it there, the call-site assertions above stop
-    // proving anything — this is what tells you the pin moved.
+    // Settings and usage are route modals now; a page that mounts the header
+    // without a sidebar must pass the sidebarless class itself.
     expect(headerSource).toContain("COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS");
     expect(headerSource).not.toContain("SIDEBARLESS_TITLEBAR_INSET_CLASS");
   });

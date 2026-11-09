@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import * as SqlClient from "effect/unstable/sql/SqlClient";
+import * as SqlClient from "effect/sql/SqlClient";
 
 // Marcode already owns migration 033; keep this upstream migration at the next free ID.
 export default Effect.gen(function* () {

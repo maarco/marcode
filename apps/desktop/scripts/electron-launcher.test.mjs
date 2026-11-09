@@ -1,6 +1,8 @@
 import * as NodeFS from "node:fs";
+import * as NodeEvents from "node:events";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeVM from "node:vm";
 
 import { assert, describe, it } from "vite-plus/test";
 
@@ -10,7 +12,6 @@ import {
   resolveElectronBinaryPath,
   resolveMacBundleInfoPlistStrings,
   resolveMacCodeSignArguments,
-  resolveMacLauncherIconPaths,
   resolveMacLauncherPaths,
   writeDevelopmentLauncherScript,
 } from "./electron-launcher.mjs";
@@ -152,15 +153,82 @@ describe("electron development launcher", () => {
       NodeFS.rmSync(directory, { recursive: true, force: true });
     }
   });
+});
 
-  it("derives launcher icons from canonical development and production assets", () => {
-    const development = resolveMacLauncherIconPaths("/runtime", true);
-    const production = resolveMacLauncherIconPaths("/runtime", false);
+// Runs the real dev-electron.mjs startup with inert imports and reports which pids it signalled.
+async function runDevCleanup({ desktopDir, recordedPid, psCommand }) {
+  const source = NodeFS.readFileSync(new URL("./dev-electron.mjs", import.meta.url), "utf8");
+  const signalled = [];
+  const pkillCalls = [];
+  await NodeVM.runInNewContext(
+    `(async () => { ${source.replace(/^import\s[\s\S]*?;\n/gm, "")} })()`,
+    {
+      NodeChildProcess: {
+        execFileSync: () => undefined,
+        spawnSync: (command, args) => {
+          if (command === "ps") {
+            return psCommand === null
+              ? { status: 1, stdout: "" }
+              : { status: 0, stdout: `${psCommand}\n` };
+          }
+          pkillCalls.push([command, ...args]);
+          return { status: 0, stdout: "" };
+        },
+        spawn: () => new NodeEvents.EventEmitter(),
+      },
+      NodeFS: {
+        readFileSync: () => `${recordedPid}\n`,
+        unlinkSync: () => undefined,
+        mkdirSync: () => undefined,
+        writeFileSync: () => undefined,
+        watch: () => ({ close: () => undefined }),
+      },
+      NodeOS: { platform: () => "linux" },
+      NodePath,
+      desktopDir,
+      resolveDevProtocolClient: () => null,
+      resolveElectronLaunchCommand: (args) => ({ electronPath: "electron", args }),
+      waitForResources: async () => undefined,
+      URL,
+      setTimeout,
+      process: {
+        pid: 1,
+        env: { VITE_DEV_SERVER_URL: "http://localhost:1234" },
+        execPath: "node",
+        once: () => undefined,
+        kill: (pid, signal) => signalled.push([pid, signal]),
+      },
+    },
+  );
+  return { signalled, pkillCalls };
+}
 
-    // The source icons are real repo paths, joined for the host.
-    assert.match(development.sourceIconPath, /assets[\\/]dev[\\/]blueprint-macos-1024\.png$/);
-    assert.equal(development.generatedIconPath, "/runtime/icon-dev.icns");
-    assert.match(production.sourceIconPath, /assets[\\/]prod[\\/]black-macos-1024\.png$/);
-    assert.equal(production.generatedIconPath, "/runtime/icon-prod.icns");
+describe("dev cleanup of a recorded Marcode dev app", () => {
+  const desktopDir = "/tmp/marcode-feature.one/apps/desktop";
+  const flag = `--t3code-dev-root=${desktopDir}`;
+
+  it.each([
+    ["the root flag", `/x/Electron ${flag} ${desktopDir}/dist-electron/main.cjs`],
+    ["the main entry", `/x/Electron ${desktopDir}/dist-electron/main.cjs`],
+  ])("signals the recorded pid when it runs this desktopDir via %s", async (_name, psCommand) => {
+    const { signalled } = await runDevCleanup({ desktopDir, recordedPid: 4242, psCommand });
+    assert.deepEqual(signalled, [[4242, "SIGTERM"]]);
+  });
+
+  it.each([
+    ["an unrelated process", "/usr/bin/python3 server.py"],
+    ["a gone process", null],
+    ["a root with a suffix", `/x/Electron ${flag}-two main.cjs`],
+    ["a root with a prefix", `/x/Electron prefix${flag}`],
+    ["a root under another directory", `/x/Electron --t3code-dev-root=/other${desktopDir}`],
+    ["another checkout's main entry", `/x/Electron /other${desktopDir}/dist-electron/main.cjs`],
+  ])("never signals the recorded pid for %s", async (_name, psCommand) => {
+    const { signalled, pkillCalls } = await runDevCleanup({
+      desktopDir,
+      recordedPid: 4242,
+      psCommand,
+    });
+    assert.deepEqual(signalled, []);
+    assert.deepEqual(pkillCalls, []);
   });
 });

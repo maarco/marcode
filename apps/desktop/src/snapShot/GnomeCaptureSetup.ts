@@ -7,7 +7,6 @@ import * as Schema from "effect/Schema";
 import type { DesktopCaptureExtensionState } from "@t3tools/contracts";
 
 import { GNOME_CAPTURE_FILES, GNOME_CAPTURE_UUID } from "./gnomeCaptureBundle.ts";
-export { isGnomeCaptureSession } from "./linuxCaptureSession.ts";
 
 const SHELL = "org.gnome.Shell";
 const SHELL_PATH = "/org/gnome/Shell";
@@ -35,7 +34,6 @@ const decodeMetadata = Schema.decodeUnknownSync(Schema.fromJsonString(Metadata))
 
 type SetupPaths = { readonly bundle: string; readonly dataHome: string };
 
-/** Copies only the shipped extension, offline. Replaced versions are kept for recovery. */
 export async function installGnomeCaptureBundle({ bundle, dataHome }: SetupPaths) {
   const metadata = decodeMetadata(
     await NodeFSP.readFile(NodePath.join(bundle, "metadata.json"), "utf8"),
@@ -86,7 +84,6 @@ export async function installGnomeCaptureBundle({ bundle, dataHome }: SetupPaths
   }
 }
 
-/** A short-lived, read-only probe unless the user explicitly invokes an action. */
 export class GnomeCaptureSetup {
   private readonly disconnected: Promise<never>;
   private readonly paths: SetupPaths;
@@ -201,7 +198,7 @@ export class GnomeCaptureSetup {
       if (info.state?.value === 1)
         return {
           status: "enabled",
-          message: "The T3 Code extension is running. Active-window snapshots are available.",
+          message: "The Marcode extension is running. Active-window snapshots are available.",
         };
       if (info.state?.value === 3 || info.state?.value === 4)
         return {
@@ -213,7 +210,7 @@ export class GnomeCaptureSetup {
       return {
         status: "disabled",
         message:
-          "Enable the T3 Code extension to allow active-window snapshots. You can disable it here at any time.",
+          "Enable the Marcode extension to allow active-window snapshots. You can disable it here at any time.",
       };
     } catch (error) {
       return {

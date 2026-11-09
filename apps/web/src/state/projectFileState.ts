@@ -2,8 +2,8 @@ import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId, ProjectReadFileResult } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
-import { AsyncResult } from "effect/unstable/reactivity";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AsyncResult } from "effect/reactivity";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
   cancelDeferredFileSaveCoordinatorDispose,
@@ -219,6 +219,16 @@ export function blockedWriteResult(
   return AsyncResult.failure(Cause.die(new Error(message)));
 }
 
+function createConfirmedBox() {
+  let value: ProjectReadFileResult | null = null;
+  return {
+    get: () => value,
+    set: (next: ProjectReadFileResult | null) => {
+      value = next;
+    },
+  };
+}
+
 /**
  * Edit handle for a project file. Pairs with {@link useProjectFile}.
  * `environmentId`/`cwd`/`relativePath` must all be non-null.
@@ -231,11 +241,16 @@ export function useProjectFileEditor(
 ): ProjectFileEditor {
   const writeFile = useAtomCommand(projectEnvironment.writeFile);
   const confirmedQuery = useAtomValue(getProjectFileQueryAtom(environmentId, cwd, relativePath));
-  const confirmedRef = useRef<ProjectReadFileResult | null>(null);
+  // A plain holder, not useRef: the coordinator reads it at write time, and the React
+  // Compiler rejects a ref-reading closure handed to a constructor during render.
+  const [confirmedBox] = useState(createConfirmedBox);
   // Subscribe to the raw query, not the optimistic merged view. Keeping the
   // latest confirmed value in a ref lets the stable coordinator re-check the
   // read at write time without falling back to a stale registry snapshot.
-  confirmedRef.current = Option.getOrNull(AsyncResult.value(confirmedQuery));
+  const confirmedValue = Option.getOrNull(AsyncResult.value(confirmedQuery));
+  useLayoutEffect(() => {
+    confirmedBox.set(confirmedValue);
+  });
   const onPendingChange = options?.onPendingChange;
   const [isSaving, setIsSaving] = useState(false);
   const deferredDisposeTimers = useRef<FileSaveCoordinatorDisposalTimers>(new Map());
@@ -245,15 +260,13 @@ export function useProjectFileEditor(
       new FileSaveCoordinator({
         debounceMs: FILE_AUTOSAVE_DEBOUNCE_MS,
         persist: async (contents) => {
-          const confirmed = confirmedRef.current;
+          const confirmed = confirmedBox.get();
           const blocked = blockedWriteResult(cwd, relativePath, confirmed);
           if (blocked) return blocked;
           setIsSaving(true);
-          try {
-            return await writeFile({ environmentId, input: { cwd, relativePath, contents } });
-          } finally {
-            setIsSaving(false);
-          }
+          return Promise.resolve(
+            writeFile({ environmentId, input: { cwd, relativePath, contents } }),
+          ).finally(() => setIsSaving(false));
         },
         onPendingChange: (pending) => onPendingChange?.(pending),
         onConfirmed: (confirmed) =>
@@ -265,7 +278,7 @@ export function useProjectFileEditor(
           console.error(`[autosave] failed to save ${cwd}/${relativePath}`, error);
         },
       }),
-    [cwd, environmentId, onPendingChange, relativePath, writeFile],
+    [confirmedBox, cwd, environmentId, onPendingChange, relativePath, writeFile],
   );
 
   useEffect(() => {
@@ -290,10 +303,10 @@ export function useProjectFileEditor(
 
   const update = useCallback(
     (contents: string) => {
-      const confirmed = confirmedRef.current;
+      const confirmed = confirmedBox.get();
       applyProjectFileEdit(environmentId, cwd, relativePath, contents, confirmed, coordinator);
     },
-    [coordinator, cwd, environmentId, relativePath],
+    [confirmedBox, coordinator, cwd, environmentId, relativePath],
   );
 
   const flush = useCallback(() => coordinator.flush(), [coordinator]);

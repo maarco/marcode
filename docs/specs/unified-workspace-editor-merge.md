@@ -103,7 +103,7 @@ the merged hunks: the branch adds the new file-mutation and VCS RPCs there.
 
 6. ~~Drive the workspace tree → floating editor path live~~ — done. Added the
    marcode repo as a project with `node apps/server/src/bin.ts project add <path>
---base-dir <dir>` (the application command; no projection seeding), then
+   --base-dir <dir>` (the application command; no projection seeding), then
    clicked file nodes in the unified workspace tree. Both `AGENTS.md` and
    `package.json` opened in the floating editor with content, the editor
    re-rooted to the project (`dev/marcode`), and **zero `/api/editor/*` requests**

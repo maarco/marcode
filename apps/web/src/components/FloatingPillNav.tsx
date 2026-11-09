@@ -52,6 +52,7 @@ import {
   FLOATING_PILL_NAV_TOP_INSET_VARIABLE,
   resolveFloatingPillNavTopInset,
 } from "../floatingShellLayout";
+import { observeResize } from "~/lib/observeResize";
 
 export const TOGGLE_COMMAND_PALETTE_EVENT = "marcode:toggle-command-palette";
 // workspace children dispatch these; ChatView (surfaces) and SidebarControl (sidebar) listen
@@ -635,13 +636,12 @@ function useRowOverflow(ref: React.RefObject<HTMLDivElement | null>) {
     };
     read();
     el.addEventListener("scroll", read, { passive: true });
-    const resize = new ResizeObserver(read);
-    resize.observe(el);
+    const stopObservingResize = observeResize(el, read);
     const mutate = new MutationObserver(read);
     mutate.observe(el, { childList: true, subtree: true });
     return () => {
       el.removeEventListener("scroll", read);
-      resize.disconnect();
+      stopObservingResize();
       mutate.disconnect();
     };
   }, [ref]);
@@ -705,13 +705,15 @@ export function FloatingPillNav() {
     isMobile: false,
     isDragging: false,
   });
-  geometryMeta.current = {
-    edge: isDragging ? edgeProximity.edge : position.edge,
-    offset: position.offset,
-    scale: pillScale,
-    isMobile,
-    isDragging,
-  };
+  useLayoutEffect(() => {
+    geometryMeta.current = {
+      edge: isDragging ? edgeProximity.edge : position.edge,
+      offset: position.offset,
+      scale: pillScale,
+      isMobile,
+      isDragging,
+    };
+  });
   const publishGeometry = useCallback(() => {
     const element = pillRef.current;
     if (!element) return;
@@ -785,14 +787,13 @@ export function FloatingPillNav() {
 
     const onResize = () => publishGeometry();
     const onTransitionEnd = () => publishGeometry();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(onResize);
-    observer?.observe(element);
+    const stopObservingResize = observeResize(element, onResize);
     window.addEventListener("resize", onResize);
     window.visualViewport?.addEventListener("resize", onResize);
     element.addEventListener("transitionend", onTransitionEnd);
 
     return () => {
-      observer?.disconnect();
+      stopObservingResize();
       window.removeEventListener("resize", onResize);
       window.visualViewport?.removeEventListener("resize", onResize);
       element.removeEventListener("transitionend", onTransitionEnd);
@@ -835,7 +836,7 @@ export function FloatingPillNav() {
   const summonIdleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const summonStartTime = useRef<number | null>(null);
   const summonRaf = useRef<number | null>(null);
-  const summonStartPos = useRef<{ x: number; y: number } | null>(null);
+  const [summonStart, setSummonStart] = useState<{ x: number; y: number } | null>(null);
 
   // hydration: load from localStorage after mount
   useEffect(() => {
@@ -901,7 +902,7 @@ export function FloatingPillNav() {
     }
     summonAnchor.current = null;
     summonStartTime.current = null;
-    summonStartPos.current = null;
+    setSummonStart(null);
     setSummonProgress(0);
     setSummonTarget(null);
   }, []);
@@ -941,7 +942,7 @@ export function FloatingPillNav() {
           startY = (position.offset / 100) * h;
           break;
       }
-      summonStartPos.current = { x: startX, y: startY };
+      setSummonStart({ x: startX, y: startY });
       summonStartTime.current = performance.now();
       setSummonTarget({ x: anchor.x, y: anchor.y, edge });
 
@@ -1022,7 +1023,7 @@ export function FloatingPillNav() {
       window.removeEventListener("mousemove", handleMouseMove);
       cancelSummon();
     };
-  }, [isDragging, isLocked, position.edge, position.offset, cancelSummon, startSummonAnimation]);
+  }, [isDragging, isLocked, position.edge, cancelSummon, startSummonAnimation]);
 
   const isVertical = position.edge === "left" || position.edge === "right";
   // hover cards / tooltips open away from the edge the pill is docked against,
@@ -1219,10 +1220,12 @@ export function FloatingPillNav() {
   const beginDragRef = useRef(beginDrag);
   const moveDragRef = useRef(moveDrag);
   const endDragRef = useRef(endDrag);
-  isLockedRef.current = isLocked;
-  beginDragRef.current = beginDrag;
-  moveDragRef.current = moveDrag;
-  endDragRef.current = endDrag;
+  useLayoutEffect(() => {
+    isLockedRef.current = isLocked;
+    beginDragRef.current = beginDrag;
+    moveDragRef.current = moveDrag;
+    endDragRef.current = endDrag;
+  });
 
   useEffect(() => {
     const grip = gripRef.current;
@@ -1319,7 +1322,6 @@ export function FloatingPillNav() {
   }
 
   // during summon: interpolate pill position from docked to cursor edge
-  const summonStart = summonStartPos.current;
   const isSummoning = summonTarget && summonProgress > 0 && summonStart;
   let summonStyle: React.CSSProperties | null = null;
   if (isSummoning) {
@@ -1482,6 +1484,7 @@ export function FloatingPillNav() {
         style={style}
         className={cn(
           "flex items-center gap-0.5 px-2 py-1.5",
+          "scrollbar-gutter-both",
           "bg-background/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl",
           // The nav overlaps the frameless window's titlebar drag region.
           // Make the entire bar an interactive Electron hit target; otherwise

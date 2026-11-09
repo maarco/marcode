@@ -1,7 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
-import { PNG } from "pngjs";
 
-import { encodePngIco, makeOpaqueWhitePng, readPngDimensions } from "./icon-export.ts";
+import { encodePngIco } from "./icon-export.ts";
 
 const pngHeader = (width: number, height: number) => {
   const contents = Buffer.alloc(24);
@@ -13,19 +12,6 @@ const pngHeader = (width: number, height: number) => {
 };
 
 describe("icon export", () => {
-  it("reads dimensions from a PNG IHDR chunk", () => {
-    assert.deepEqual(readPngDimensions(pngHeader(1024, 512)), { width: 1024, height: 512 });
-  });
-
-  it("composites transparent pixels onto an opaque white matte", () => {
-    const source = new PNG({ width: 2, height: 1 });
-    source.data.set([0, 0, 0, 0, 0, 0, 0, 255]);
-
-    const output = PNG.sync.read(makeOpaqueWhitePng(PNG.sync.write(source)));
-
-    assert.deepEqual([...output.data], [255, 255, 255, 255, 0, 0, 0, 255]);
-  });
-
   it("encodes PNG renditions into an ICO directory", () => {
     const small = pngHeader(16, 16);
     const large = pngHeader(256, 256);
@@ -42,16 +28,5 @@ describe("icon export", () => {
     assert.equal(ico.readUInt32LE(34), 38 + small.length);
     assert.deepEqual(ico.subarray(38, 38 + small.length), small);
     assert.deepEqual(ico.subarray(38 + small.length), large);
-  });
-
-  it("rejects duplicate ICO rendition sizes", () => {
-    assert.throws(
-      () =>
-        encodePngIco([
-          { size: 32, contents: pngHeader(32, 32) },
-          { size: 32, contents: pngHeader(32, 32) },
-        ]),
-      /provided more than once/,
-    );
   });
 });

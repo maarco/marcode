@@ -5,7 +5,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { ChildProcess, ChildProcessSpawner } from "effect/unstable/process";
+import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 import {
   evaluateCoupledChanges,
@@ -150,12 +150,6 @@ const collectStreamAsString = <E>(stream: Stream.Stream<Uint8Array, E>): Effect.
       (accumulator, chunk) => accumulator + chunk,
     ),
   );
-
-interface GitResult {
-  readonly stdout: string;
-  readonly stderr: string;
-  readonly exitCode: number;
-}
 
 interface GitOptions {
   readonly operation: string;

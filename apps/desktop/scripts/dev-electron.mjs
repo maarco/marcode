@@ -124,9 +124,21 @@ function isRecordedDevApp(pid) {
 
   const command = result.stdout.trim();
   return (
-    command.includes(`--t3code-dev-root=${desktopDir}`) ||
-    command.includes(NodePath.join(desktopDir, "dist-electron", "main.cjs"))
+    hasWholeArgument(command, `--t3code-dev-root=${desktopDir}`) ||
+    hasWholeArgument(command, NodePath.join(desktopDir, "dist-electron", "main.cjs"))
   );
+}
+
+// A look-alike root (`<dir>-two`, `prefix<flag>`, `/other<dir>`) must not count as this app.
+function hasWholeArgument(command, argument) {
+  for (let at = command.indexOf(argument); at !== -1; at = command.indexOf(argument, at + 1)) {
+    const before = command[at - 1];
+    const after = command[at + argument.length];
+    if ((before === undefined || /\s/.test(before)) && (after === undefined || /\s/.test(after))) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function cleanupRecordedDevApp() {
@@ -278,7 +290,6 @@ function killChildTree(signal) {
     return;
   }
 
-  // Kill direct children as a final fallback in case normal shutdown leaves stragglers.
   NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(process.pid)], {
     stdio: "ignore",
   });

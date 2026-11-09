@@ -94,7 +94,7 @@ export const PILL_NAV_META = {
   "/settings": {
     title: "Settings",
     description:
-      "Everything configurable in one place — appearance, agent providers, environments, source control, keybindings and diagnostics.",
+      "Everything configurable in one place, appearance, agent providers, environments, source control, keybindings and diagnostics.",
     icon: Setting2Filled,
     color: SETTINGS_COLOR,
   },
@@ -108,7 +108,7 @@ export const PILL_NAV_META = {
   "/settings/providers": {
     title: "Providers",
     description:
-      "The coding agents this app can run — Claude, Codex, Cursor, Grok, OpenCode. Add instances, pick models, and check versions.",
+      "The coding agents this app can run, Claude, Codex, Cursor, Grok, OpenCode. Add instances, pick models, and check versions.",
     icon: MessageCircleFilled,
     color: SETTINGS_COLOR,
   },
@@ -205,7 +205,7 @@ export const PILL_NAV_META = {
   search: {
     title: "Search",
     description:
-      "The command palette. Jump to a thread, project or setting, switch environment, or open a file — all from the keyboard.",
+      "The command palette. Jump to a thread, project or setting, switch environment, or open a file, all from the keyboard.",
     icon: Element3Filled,
     color: UTILITY_COLOR,
   },
@@ -223,7 +223,7 @@ export const PILL_NAV_META = {
   "thread:add-action": {
     title: "Add Action",
     description:
-      "Project scripts as one-click pills. Save a command you run often — build, test, lint — and it joins this row for every thread in the project.",
+      "Project scripts as one-click pills. Save a command you run often, build, test, lint, and it joins this row for every thread in the project.",
     icon: AddFilled,
     color: WORKSPACE_COLOR,
   },
@@ -257,7 +257,7 @@ export const PILL_NAV_META = {
   "pill:lock": {
     title: "Lock Position",
     description:
-      "The pill's handle. Drag it to move the pill, scroll it to resize, click to lock it in place — locked, it stays put and ignores dragging.",
+      "The pill's handle. Drag it to move the pill, scroll it to resize, click to lock it in place, locked, it stays put and ignores dragging.",
     icon: LockFilled,
     color: UTILITY_COLOR,
   },
