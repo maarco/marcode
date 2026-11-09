@@ -133,7 +133,8 @@ const hostShellWord = (platform: NodeJS.Platform, value: string) =>
 /** Script installs have no single launcher; desktop shims and standalone binaries do. */
 const resolveInstallLauncher = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;
-  const shim = (yield* HostProcess.Environment).T3CODE_CLI_PATH?.trim();
+  const hostEnv = yield* HostProcess.Environment;
+  const shim = (hostEnv.MARCODE_CLI_PATH ?? hostEnv.T3CODE_CLI_PATH)?.trim();
   if (shim && (yield* fs.exists(shim).pipe(Effect.orElseSucceed(() => false)))) {
     return Option.some(shim);
   }
@@ -157,7 +158,8 @@ export const resolveHostCliCommand = Effect.fn("invocation.resolveHostCliCommand
   if (command !== `t3 ${subcommand}`) return { command: withArgs(command), launcher: false };
   const onPath = yield* resolveCommandPath("t3");
   if (onPath !== null) {
-    const shim = (yield* HostProcess.Environment).T3CODE_CLI_PATH?.trim();
+    const hostEnv = yield* HostProcess.Environment;
+    const shim = (hostEnv.MARCODE_CLI_PATH ?? hostEnv.T3CODE_CLI_PATH)?.trim();
     const fs = yield* FileSystem.FileSystem;
     const real = (file: string) => fs.realPath(file).pipe(Effect.orElseSucceed(() => null));
     const shimReal = shim ? yield* real(shim) : null;

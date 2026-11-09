@@ -78,7 +78,7 @@ const RELEASE_ASSETS = {
 
 const VARIANT_CONFIG = {
   development: {
-    appName: "T3 Code Dev",
+    appName: "Marcode Dev",
     scheme: "marcode-dev",
     iosBundleIdentifier: "com.t3tools.marcode.dev",
     androidPackage: "com.t3tools.marcode.dev",
@@ -86,7 +86,7 @@ const VARIANT_CONFIG = {
     assets: DEVELOPMENT_ASSETS,
   },
   preview: {
-    appName: "T3 Code Preview",
+    appName: "Marcode Preview",
     scheme: "marcode-preview",
     iosBundleIdentifier: "com.t3tools.marcode.preview",
     androidPackage: "com.t3tools.marcode.preview",
@@ -94,7 +94,7 @@ const VARIANT_CONFIG = {
     assets: PREVIEW_ASSETS,
   },
   production: {
-    appName: "T3 Code",
+    appName: "Marcode",
     scheme: "marcode",
     iosBundleIdentifier: "com.t3tools.marcode",
     androidPackage: "com.t3tools.marcode",
@@ -367,7 +367,7 @@ const config: ExpoConfig = {
     [
       "expo-audio",
       {
-        microphonePermission: "Allow T3 Code to use your microphone for voice input.",
+        microphonePermission: "Allow Marcode to use your microphone for voice input.",
         recordAudioAndroid: false,
         enableBackgroundPlayback: false,
         enableBackgroundRecording: false,
@@ -376,7 +376,7 @@ const config: ExpoConfig = {
     [
       "expo-camera",
       {
-        cameraPermission: "Allow T3 Code to access your camera so you can scan pairing QR codes.",
+        cameraPermission: "Allow Marcode to access your camera so you can scan pairing QR codes.",
         microphonePermission: false,
         barcodeScannerEnabled: true,
         recordAudioAndroid: false,
